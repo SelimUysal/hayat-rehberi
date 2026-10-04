@@ -7,14 +7,25 @@
 import { Coordinates, TemkinSettings, AsrMethod, PrayerTimes, RawPrayerFloats, CalculatedDay } from '../types/prayer';
 import { getBayramInfoForDate } from './holyDays';
 
-export const DEFAULT_TEMKIN: TemkinSettings = {
-  fajr: 0,       // Diyanet 18° astronomik fecr (0 dk temkin - ezan ve sahur/imsak emniyeti)
+export const OSMANLI_FAZILET_TEMKIN: TemkinSettings = {
+  fajr: -17,     // Klasik Temkinli Usûl (Fazilet / Türkiye / Osmanlı): İmsak (-17 dk sahur emniyeti)
   sunrise: -7,   // Güneş ufuk kırılması ve üst kenar teğeti (-7 dk)
-  dhuhr: 5,      // Zeval sonrası gölgenin uzaması ve istiva ihtiyatı (+5 dk)
-  asr: 4,        // İkindi gölgesi ve temkin (+4 dk)
-  maghrib: 7,    // Güneş diskinin tam batışı ve ufuk kırılma emniyeti (+7 dk - Akşam / İftar emniyeti)
-  isha: 2        // Yatsı 17° ufuk ve şafak kayboluşu (+2 dk)
+  dhuhr: 12,     // Zeval sonrası gölgenin uzaması ve istiva temkini (+12 dk)
+  asr: 11,       // İkindi gölgesi ve temkin (+11 dk)
+  maghrib: 9,    // Güneş diskinin tam batışı ve ufuk kırılma emniyeti (+9 dk - Akşam / İftar emniyeti)
+  isha: 11       // Yatsı ufuk ve şafak kayboluşu (+11 dk)
 };
+
+export const DIYANET_TEMKIN: TemkinSettings = {
+  fajr: 0,       // Diyanet 18° astronomik fecr (0 dk temkin)
+  sunrise: -7,   // Güneş ufuk kırılması (-7 dk)
+  dhuhr: 5,      // Zeval sonrası (+5 dk)
+  asr: 4,        // İkindi gölgesi (+4 dk)
+  maghrib: 7,    // Güneş batışı (+7 dk)
+  isha: 2        // Yatsı (+2 dk)
+};
+
+export const DEFAULT_TEMKIN: TemkinSettings = OSMANLI_FAZILET_TEMKIN;
 
 // Kabe Koordinatları (Mekke)
 export const KAABA_COORDS = {
@@ -469,7 +480,7 @@ export function calculatePrayerTimesForDate(
   // Temkinli ve İhtiyatlı Güvenlik Paylı Zaman Değerleri
   // Diyanet İşleri Başkanlığı takvimleriyle 100% eşitlenmiş; oruç, iftar ve namaz sıhhati için emniyetli hesaplama
   const imsakVal = fajrRaw + (temkin.fajr / 60.0);
-  const sabahVal = imsakVal + (20.0 / 60.0); // İmsak + 20 Dakika (Sabah namazı tavsiye edilen başlama / isfar)
+  const sabahVal = imsakVal + (23.0 / 60.0); // İmsak + 23 Dakika (Sabah namazı tavsiye edilen başlama / isfar)
   const gunesVal = sunriseRaw + (temkin.sunrise / 60.0);
   const camiSabahVal = gunesVal - (30.0 / 60.0); // Türkiye Camilerinde Cemaatle Sabah Namazı Kılınış Vakti (Güneşe 30 dk kala / İsfar Sünneti)
   const israkVal = gunesVal + (45.0 / 60.0); // Güneş doğuşundan ~45 dk sonra (Kerahat çıkışı)

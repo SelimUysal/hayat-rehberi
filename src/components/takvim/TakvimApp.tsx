@@ -71,7 +71,12 @@ export const TakvimApp: React.FC<TakvimAppProps> = ({ onNavigateToNamaz }) => {
       const saved = localStorage.getItem('namaz_temkin');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (parsed && (parsed.fajr === 0 || parsed.dhuhr === 5)) {
+            localStorage.setItem('namaz_temkin', JSON.stringify(DEFAULT_TEMKIN));
+            return DEFAULT_TEMKIN;
+          }
+          return parsed;
         } catch {}
       }
     }

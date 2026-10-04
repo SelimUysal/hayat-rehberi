@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sliders, Volume2, VolumeX, Upload, RotateCcw, Check, Play, Square, Music } from 'lucide-react';
 import { TemkinSettings, AsrMethod } from '../types/prayer';
-import { DEFAULT_TEMKIN } from '../utils/astronomy';
+import { DEFAULT_TEMKIN, OSMANLI_FAZILET_TEMKIN, DIYANET_TEMKIN } from '../utils/astronomy';
 import { soundManager, SoundMode } from '../utils/soundManager';
 
 interface SettingsModalProps {
@@ -272,6 +272,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Varsayılana Sıfırla</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setLocalTemkin(OSMANLI_FAZILET_TEMKIN)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  localTemkin.fajr === OSMANLI_FAZILET_TEMKIN.fajr && localTemkin.dhuhr === OSMANLI_FAZILET_TEMKIN.dhuhr
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+                }`}
+              >
+                ★ Temkinli Klasik Usûl (Fazilet / Osmanlı - Önerilen)
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocalTemkin(DIYANET_TEMKIN)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  localTemkin.fajr === DIYANET_TEMKIN.fajr && localTemkin.dhuhr === DIYANET_TEMKIN.dhuhr
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Diyanet Usulü
               </button>
             </div>
 

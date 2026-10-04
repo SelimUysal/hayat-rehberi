@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TemkinSettings, AsrMethod, CalculatedDay } from '../types/prayer';
-import { DEFAULT_TEMKIN, floatToTime } from '../utils/astronomy';
+import { DEFAULT_TEMKIN, OSMANLI_FAZILET_TEMKIN, DIYANET_TEMKIN, floatToTime } from '../utils/astronomy';
 import { X, Sliders, RotateCcw, Copy, Check, Info, ShieldAlert } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -108,7 +108,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center gap-1 text-[11px] text-emerald-700 font-semibold hover:underline cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Standart Temkin Değerlerine Sıfırla</span>
+                                <span>Önerilen Temkine Sıfırla</span>
+              </button>
+            </div>
+
+            {/* Hızlı Şablon Butonları */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onChangeTemkin(OSMANLI_FAZILET_TEMKIN)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  temkin.fajr === OSMANLI_FAZILET_TEMKIN.fajr && temkin.dhuhr === OSMANLI_FAZILET_TEMKIN.dhuhr
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                ★ Temkinli Klasik Usûl (Fazilet / Osmanlı - Önerilen)
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeTemkin(DIYANET_TEMKIN)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                  temkin.fajr === DIYANET_TEMKIN.fajr && temkin.dhuhr === DIYANET_TEMKIN.dhuhr
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                }`}
+              >
+                Diyanet Usulü
               </button>
             </div>
 
@@ -121,7 +147,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => onChangeTemkin({ ...temkin, fajr: parseInt(e.target.value) || 0 })}
                   className="w-full p-2 text-xs font-mono rounded-lg border border-slate-200 bg-white"
                 />
-                <span className="text-[10px] text-slate-400 block mt-1">Standart: 0 dk (Diyanet 18°)</span>
+                <span className="text-[10px] text-slate-400 block mt-1">Önerilen: -17 dk</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -132,7 +158,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => onChangeTemkin({ ...temkin, sunrise: parseInt(e.target.value) || 0 })}
                   className="w-full p-2 text-xs font-mono rounded-lg border border-slate-200 bg-white"
                 />
-                <span className="text-[10px] text-slate-400 block mt-1">Standart: -7 dk</span>
+                <span className="text-[10px] text-slate-400 block mt-1">Önerilen: -7 dk</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -154,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => onChangeTemkin({ ...temkin, asr: parseInt(e.target.value) || 0 })}
                   className="w-full p-2 text-xs font-mono rounded-lg border border-slate-200 bg-white"
                 />
-                <span className="text-[10px] text-slate-400 block mt-1">Standart: +4 dk</span>
+                <span className="text-[10px] text-slate-400 block mt-1">Önerilen: +11 dk</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -165,7 +191,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => onChangeTemkin({ ...temkin, maghrib: parseInt(e.target.value) || 0 })}
                   className="w-full p-2 text-xs font-mono rounded-lg border border-slate-200 bg-white"
                 />
-                <span className="text-[10px] text-slate-400 block mt-1">Standart: +7 dk</span>
+                <span className="text-[10px] text-slate-400 block mt-1">Önerilen: +9 dk</span>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -176,7 +202,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => onChangeTemkin({ ...temkin, isha: parseInt(e.target.value) || 0 })}
                   className="w-full p-2 text-xs font-mono rounded-lg border border-slate-200 bg-white"
                 />
-                <span className="text-[10px] text-slate-400 block mt-1">Standart: +2 dk</span>
+                <span className="text-[10px] text-slate-400 block mt-1">Önerilen: +11 dk</span>
               </div>
             </div>
           </div>
