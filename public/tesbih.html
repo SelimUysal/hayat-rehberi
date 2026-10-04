@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İsim Takip ve Taşıma Ekranı</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f7f6;
+            color: #333;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        /* Akıllı Arama Kutusu Stilleri */
+        .search-container {
+            max-width: 1200px;
+            margin: 0 auto 20px auto;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            color: #94a3b8;
+            font-size: 1.1rem;
+            pointer-events: none;
+        }
+
+        .search-container input {
+            width: 100%;
+            padding: 14px 45px 14px 42px;
+            font-size: 1rem;
+            border: 2px solid #cbd5e1;
+            border-radius: 10px;
+            outline: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+            transition: all 0.25s ease;
+            background-color: #ffffff;
+        }
+
+        .search-container input:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.18);
+        }
+
+        .clear-search-btn {
+            position: absolute;
+            right: 14px;
+            background: #e2e8f0;
+            border: none;
+            color: #64748b;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: bold;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .clear-search-btn:hover {
+            background: #cbd5e1;
+            color: #1e293b;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto 30px auto;
+        }
+
+        .column {
+            flex: 1;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .column.left {
+            border-top: 5px solid #e74c3c;
+        }
+
+        .column.right {
+            border-top: 5px solid #2ecc71;
+        }
+
+        .column h2 {
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            color: #34495e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge {
+            background: #ecf0f1;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+
+        .item-list {
+            list-style: none;
+            overflow-y: auto;
+            max-height: 450px;
+            flex-grow: 1;
+        }
+
+        .item-card {
+            background: #fdfdfd;
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .item-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        .item-name {
+            font-size: 0.95rem;
+            word-break: break-word;
+            padding-right: 10px;
+            line-height: 1.4;
+        }
+
+        /* Arama Vurgu Rengi */
+        mark.highlight {
+            background-color: #fef08a;
+            color: #854d0e;
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #94a3b8;
+            padding: 30px 10px;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+
+        button.move-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            transition: background 0.2s, transform 0.1s;
+            font-weight: 500;
+        }
+
+        button.move-btn:hover {
+            background-color: #2980b9;
+        }
+
+        button.move-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* Bilgi / Geçmiş Ekranı */
+        .history-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            border-top: 5px solid #34495e;
+        }
+
+        .history-container h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-list {
+            list-style: none;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #edf2f7;
+            border-radius: 4px;
+            padding: 10px;
+            background: #fafbfc;
+        }
+
+        .history-list li {
+            font-size: 0.85rem;
+            padding: 6px 8px;
+            border-bottom: 1px solid #edf2f7;
+            color: #555;
+        }
+
+        .history-list li:last-child {
+            border-bottom: none;
+        }
+
+        .clear-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+
+        .clear-btn:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+
+    <div style="max-width: 1200px; margin: 0 auto 15px auto; padding: 0 5px;">
+        <button onclick="goBackToApp()" style="background-color: #065f46; color: white; border: none; padding: 9px 16px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.08); transition: background 0.2s, transform 0.1s;" onmouseover="this.style.backgroundColor='#047857'" onmouseout="this.style.backgroundColor='#065f46'">
+            ⬅️ Hayat Rehberi
+        </button>
+    </div>
+    <script>
+        function goBackToApp() {
+            if (window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({ type: 'CLOSE_TESBIH_MODAL' }, '*');
+                } catch (e) {}
+            }
+            window.location.href = './index.html';
+        }
+    </script>
+
+    <h1>İsim Takip ve Durum Yönetim Paneli</h1>
+
+    <!-- AKILLI ARAMA KUTUSU -->
+    <div class="search-container">
+        <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="İsimlerde akıllı arama yapın (ör: 'muinuddin', 'serahsi', 'hz omer')..." oninput="onSearchInput()">
+            <button id="clearSearchBtn" class="clear-search-btn" onclick="clearSearch()" title="Aramayı Temizle">✕</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- SOL TARAF: KILINMAYANLAR -->
+        <div class="column left">
+            <h2>
+                Kılınmayanlar 
+                <span class="badge" id="left-count">0</span>
+            </h2>
+            <ul id="left-list" class="item-list"></ul>
+        </div>
+
+        <!-- SAĞ TARAF: KILINANLAR -->
+        <div class="column right">
+            <h2>
+                Kılınanlar 
+                <span class="badge" id="right-count">0</span>
+            </h2>
+            <ul id="right-list" class="item-list"></ul>
+        </div>
+    </div>
+
+    <!-- BİLGİ VE GEÇMİŞ EKRANI -->
+    <div class="history-container">
+        <h3>
+            İşlem Geçmişi ve Bilgi Ekranı
+            <button class="clear-btn" onclick="clearHistory()">Geçmişi Temizle</button>
+        </h3>
+        <ul id="history-list" class="history-list">
+            <li style="color: #999; text-align: center;">Henüz bir işlem yapılmadı.</li>
+        </ul>
+    </div>
+
+    <script>
+        // Varsayılan Veriler
+        const defaultData = {
+            left: [
+        "Muînüddîn-i Çeştî'di, Muînüddîn Hasen b. Seyyid Gıyâsiddîn es-Siczî el-Çiştî , çişti",
+        "İmâm-ı Serahsî Zindandan Çıkan Nur Mebsût",
+        "İmâm Tâvûs Hazretleri",
+        "Salih Merî",
+        "Feriddün Genci Şeker Hz",
+        "Ebu Leys Semergandi Hz",
+        "Ebu Fakih",
+        "Malik İbni Dinar",
+        "İmam Serahsi (Şemsüleimme Ebû Bekir Muhammed b. Ebî Sahl es-Serahsî)",
+        "Rachel Corrie",
+        "Tom Hurndall",
+        "Ayşenur Ezgi Eygi",
+        "Şeyh Muhammed Bedreddin el-Hasen",
+        "Bişr-i Hafi Hazretleri",
+        "Ahmed-i Bedevi Hazretleri",
+        "Mehmet Emin Tokadi Hazretleri",
+        "Ebu-l Vefa Hazretleri",
+        "Terzi Baba Hazretleri",
+        "Ebu Turab-ı Nahşebi Hazretleri",
+        "Erzurumlu İbrahim Hakkı Hazretleri",
+        "Veysel Karani Hazretleri",
+        "Davud-i Tai Hazretleri",
+        "Beşiktaşlı Yahya Efendi Hazretleri",
+        "Rabia-i Adviyye Hazretleri",
+        "İsmail Fakirullah Hazretleri",
+        "Osman Bedreddin Hazretleri",
+        "İbrahim-i Havvas Hazretleri",
+        "Hasan Sezai Hazretleri",
+        "Abdülfettah-ı Akri Hazretleri",
+        "İbrahim Gülşeni Hazretleri",
+        "Kaab Bin Züheyr Hazretleri",
+        "Abdullah-ı Tercüman Hazretleri",
+        "Habbabe Hatun Hazretleri",
+        "Aslan Baba Hz",
+        "Murad-ı Münzavi Hazretleri",
+        "Eshab-ı Kehf",
+        "Mecdüddin İsa Hazretleri",
+        "Fethullah Verkanisi Hazretleri",
+        "İmam-ı Birgivi Hazretleri",
+        "Hüsameddin Çelebi Hazretleri",
+        "Hayreddin Tokadi Hazretleri",
+        "Hızır Dede Hazretleri",
+        "İbn-i Melek Hazretleri",
+        "Hüseyin Hilmi Işık Hazretleri",
+        "İbrahim Tennuri Hazretleri",
+        "İdris-i Bitlisi Hazretleri",
+        "Hızır Çelebi Hazretleri",
+        "Hasan Hüsameddin Uşaki Hazretleri",
+        "İmam-ı Buhari Hazretleri",
+        "İmam-ı Evzai Hazretleri",
+        "İbni Abidin Hazretleri",
+        "Hasan bin Sabit Hazretleri (Şair-i Resulullah)",
+        "İmam-ı Muhammed Bakır Hazretleri",
+        "Hacı Bektaş-i Veli Hazretleri",
+        "Halid bin Velid Hazretleri (Seyfullah)",
+        "Hacı Tevfik Rıfkı Hazretleri",
+        "Hakim-i Tirmizi Hazretleri",
+        "Hacı Abdullah Efendi Hazretleri",
+        "Fahreddin-i Acemi Hazretleri",
+        "Eskici Mehmed Dede Hazretleri",
+        "Abdülehad Hazretleri",
+        "Abdülkadir-i Cezayiri Hazretleri",
+        "Alaeddin-i Ali Semerkandi Hazretleri",
+        "Alaeddin-i Sabir Hazretleri",
+        "Emir Hüsrev Dehlevi Hazretleri",
+        "Bilal-i Habeşi Hazretleri",
+        "Ahmed Yesevi Hazretleri",
+        "Yakup Halife Hazretleri",
+        "Hacı Abdullah Halife Hazretleri",
+        "Şeyh Kerameddin Hazretleri",
+        "Seyyid Vakkas Hazretleri",
+        "Pir İlyas Hazretleri",
+        "İsmail Siraceddin Şirvani Hazretleri",
+        "Ali Hafız Hazretleri",
+        "Şemseddin Ahmed Sivasi Hazretleri",
+        "Abdurrahim Arvasi Hazretleri",
+        "Behrullah Efendi Hazretleri",
+        "Ahmed-i Hani Hazretleri",
+        "Şeyh Hacı Ahmed Yozgadi Hazretleri",
+        "Şeyh Şakir Efendi Hazretleri",
+        "Ali Osman Efendi Hazretleri",
+        "Abdülmecid Şirvani Hazretleri",
+        "Ahmed Siyahi Hazretleri",
+        "Cahidi Ahmed Efendi Hazretleri",
+        "Muhammed Kumul Hazretleri",
+        "Emir Şaban Hazretleri",
+        "Ahmed Cüzeyri Hazretleri",
+        "Ahmed Kuddusi Hazretleri",
+        "Abdurrahman Arvasi Hazretleri",
+        "Ahmed Şemseddin Marmaravi Hazretleri",
+        "Hasan Dede Hazretleri",
+        "Zeynelabidin Kayserani Hazretleri",
+        "Muhammed Kudsi Bozkiri Hazretleri",
+        "Abdülfettah Bağdadi El Akri Hazretleri",
+        "Molla Osman Efendi Hazretleri",
+        "Ahi Evran Hazretleri",
+        "Abdullah Şemdini Hazretleri",
+        "Alaeddin Ali Esved Karahisari Hazretleri",
+        "Şah Veliyyullah-ı Dehlevi Hazretleri",
+        "Muhyiddin-i Arabi Hazretleri",
+        "Muhammed El Hazin Hazretleri",
+        "Seyyid Harun Veli Hazretleri",
+        "Mazhar-ı Can-ı Canan Hazretleri",
+        "Muhammed Sadık Hazretleri",
+        "Mir Muhammed Numan Hazretleri",
+        "Ebü'l Hayr Faruki Hazretleri",
+        "Kutbüddin-i Bahtiyar Kaki Hazretleri",
+        "Ömer bin Abdülaziz Hazretleri",
+        "Muhammed Küfrevi Hazretleri",
+        "İmam Rabbani Hazretleri",
+        "Muhammed Baki Billah Hazretleri",
+        "Mevlana Halid-i Bağdadi Hazretleri",
+        "Sultan Divani Hazretleri",
+        "Seyfeddin-i Faruki Hazretleri",
+        "Abdullah-ı Dehlevi Hazretleri",
+        "Seyyid Ahmed el-Beruki Hazretleri",
+        "Seyyid Muhammed Hafid Arvasi Hazretleri",
+        "Muhammed Said Faruki Hazretleri",
+        "Abapuş-i Veli Hazretleri",
+        "Muhammed Sıddık Hazretleri",
+        "Abdulaziz Dehlevi Hazretleri",
+        "Nizameddin Evliya Hazretleri",
+        "Şeyh Şaban-ı Veli Hazretleri",
+        "Muhammed Sıbgatullah Faruki Hazretleri",
+        "Ubeydullah Serhendi Hazretleri",
+        "Abdulhak-ı Dehlevi Hazretleri",
+        "Ebu Said Faruki Hazretleri",
+        "Nur Muhammed Bedayuni Hazretleri",
+        "Muhterem Kemâl Kacar Bey Abimiz",
+        "Hasan el-Benna",
+        "Ahmet Arif Denizolgun",
+        "Recep Tayyip Erdoğan"
+    ],
+   right: [
+    
+    ],
+history: []
+        };
+
+        // LocalStorage Yönetimi
+        let appData = JSON.parse(localStorage.getItem('appData')) || defaultData;
+
+        function saveData() {
+            localStorage.setItem('appData', JSON.stringify(appData));
+        }
+
+        /* 
+           ==================================================
+           GELİŞMİŞ AKILLI ARAMA VE NORMALİZASYON MOTORU
+           ==================================================
+        */
+
+        // Türkçe, Arapça, Osmanlıca transkripsiyon ve şapkalı harf temizleme
+        function deepNormalize(text) {
+            if (!text) return "";
+            let str = text.toString();
+
+            // Türkçe küçük harfe çevirme
+            str = str.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase();
+
+            // Unicode harf aksanlarını ayırma (NFD)
+            str = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+            // Osmanlıca / Arapça / Transkripsiyon harf haritası
+            const charMap = {
+                'â': 'a', 'ā': 'a', 'ä': 'a',
+                'î': 'i', 'ī': 'i', 'ı': 'i', 'i': 'i',
+                'û': 'u', 'ū': 'u', 'ü': 'u',
+                'ô': 'o', 'ō': 'o', 'ö': 'o',
+                'ê': 'e', 'ē': 'e',
+                'ç': 'c', 'ğ': 'g', 'ş': 's',
+                'ḥ': 'h', 'ṣ': 's', 'ḍ': 'd', 'ṭ': 't', 'ẓ': 'z',
+                'ʿ': '', '’': '', "'": '', '`': ''
+            };
+
+            str = str.replace(/[âāäîīıûūüôōöêēçğşḥṣḍṭẓʿ’'`]/g, char => charMap[char] || char);
+
+            // Özel karakterleri boşluğa dönüştür
+            str = str.replace(/[^a-z0-9\s]/g, ' ');
+
+            // Fazla boşlukları teke indir
+            return str.replace(/\s+/g, ' ').trim();
+        }
+
+        // Esnek Alt Sıra Harf Yakalama (Subsequence Matching)
+        function fuzzyTokenMatch(pattern, target) {
+            if (target.includes(pattern)) return true;
+            let pIdx = 0;
+            for (let i = 0; i < target.length; i++) {
+                if (target[i] === pattern[pIdx]) {
+                    pIdx++;
+                }
+                if (pIdx === pattern.length) return true;
+            }
+            return false;
+        }
+
+        // Akıllı Alaka Puanlama (Relevance Scoring Engine)
+        function calculateRelevanceScore(itemText, searchQuery) {
+            if (!searchQuery || !searchQuery.trim()) {
+                return { isMatch: true, score: 0 };
+            }
+
+            const normItem = deepNormalize(itemText);
+            const normQuery = deepNormalize(searchQuery);
+
+            if (!normQuery) return { isMatch: true, score: 0 };
+
+            const itemNoSpace = normItem.replace(/\s+/g, '');
+            const queryNoSpace = normQuery.replace(/\s+/g, '');
+
+            // 1. Birebir Tam Eşleşme
+            if (normItem === normQuery || itemNoSpace === queryNoSpace) {
+                return { isMatch: true, score: 2000 };
+            }
+
+            // 2. Başlangıç Eşleşmesi (Prefix Match)
+            if (normItem.startsWith(normQuery) || itemNoSpace.startsWith(queryNoSpace)) {
+                return { isMatch: true, score: 1500 };
+            }
+
+            // 3. Kesintisiz Alt Metin Eşleşmesi
+            if (normItem.includes(normQuery) || itemNoSpace.includes(queryNoSpace)) {
+                return { isMatch: true, score: 1000 };
+            }
+
+            // 4. Kelime Bazlı (Tokenized Multi-word) Akıllı Analiz
+            const queryTokens = normQuery.split(' ').filter(Boolean);
+            const itemWords = normItem.split(' ').filter(Boolean);
+
+            let matchedTokensCount = 0;
+            let score = 0;
+
+            for (const token of queryTokens) {
+                let tokenFound = false;
+
+                if (itemWords.includes(token)) {
+                    score += 300; // Tam kelime
+                    tokenFound = true;
+                } else if (itemWords.some(w => w.startsWith(token))) {
+                    score += 200; // Kelime başlangıcı
+                    tokenFound = true;
+                } else if (itemWords.some(w => w.includes(token))) {
+                    score += 100; // Kelime içi
+                    tokenFound = true;
+                } else if (itemNoSpace.includes(token)) {
+                    score += 80;
+                    tokenFound = true;
+                } else if (fuzzyTokenMatch(token, itemNoSpace)) {
+                    score += 40; // Esnek harf dizilimi
+                    tokenFound = true;
+                }
+
+                if (tokenFound) {
+                    matchedTokensCount++;
+                }
+            }
+
+            // Eğer aranan tüm kelimeler isim içerisinde bir şekilde geçiyorsa kabul et
+            if (matchedTokensCount === queryTokens.length) {
+                return { isMatch: true, score: score };
+            }
+
+            // Son çare: Bütünsel esnek harf takibi
+            if (fuzzyTokenMatch(queryNoSpace, itemNoSpace)) {
+                return { isMatch: true, score: 20 };
+            }
+
+            return { isMatch: false, score: 0 };
+        }
+
+        // HTML Güvenli Karakter Dönüştürücü
+        function escapeHTML(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function escapeRegExp(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // Arama Terimini Metin İçinde Sarı İle Vurgulama
+        function highlightMatches(text, searchQuery) {
+            const escaped = escapeHTML(text);
+            if (!searchQuery || !searchQuery.trim()) return escaped;
+
+            const tokens = deepNormalize(searchQuery).split(' ').filter(t => t.length > 0);
+            if (tokens.length === 0) return escaped;
+
+            const patterns = tokens.map(token => {
+                let p = '';
+                for (let char of token) {
+                    if (['a'].includes(char)) p += '[aâāÂĀ]';
+                    else if (['i'].includes(char)) p += '[iîīıİI]';
+                    else if (['u'].includes(char)) p += '[uûūüÜ]';
+                    else if (['o'].includes(char)) p += '[oôōöÖ]';
+                    else if (['c'].includes(char)) p += '[cçÇ]';
+                    else if (['g'].includes(char)) p += '[gğĞ]';
+                    else if (['s'].includes(char)) p += '[sşŞṣṢ]';
+                    else if (['h'].includes(char)) p += '[hḥḤ]';
+                    else if (['d'].includes(char)) p += '[dḍḌ]';
+                    else if (['t'].includes(char)) p += '[tṭṬ]';
+                    else if (['z'].includes(char)) p += '[zẓẒ]';
+                    else p += escapeRegExp(char);
+                }
+                return p;
+            }).filter(p => p.length > 0);
+
+            if (patterns.length === 0) return escaped;
+
+            try {
+                const regex = new RegExp(`(${patterns.join('|')})`, 'gi');
+                return escaped.replace(regex, '<mark class="highlight">$1</mark>');
+            } catch (e) {
+                return escaped;
+            }
+        }
+
+        /* 
+           ==================================================
+           EKRAN RENDER VE TAŞIMA FONKSİYONLARI
+           ==================================================
+        */
+
+        function render() {
+            const leftListEl = document.getElementById('left-list');
+            const rightListEl = document.getElementById('right-list');
+            const historyListEl = document.getElementById('history-list');
+            const searchInput = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('clearSearchBtn');
+            const query = searchInput.value;
+
+            // Temizleme butonunun görünürlüğü
+            clearBtn.style.display = query.trim().length > 0 ? 'flex' : 'none';
+
+            leftListEl.innerHTML = '';
+            rightListEl.innerHTML = '';
+
+            // Sol Tarafı Hazırla, Filtrele ve Alakaya Göre Sırala
+            const leftResults = [];
+            appData.left.forEach((item, originalIndex) => {
+                const result = calculateRelevanceScore(item, query);
+                if (result.isMatch) {
+                    leftResults.push({ item, originalIndex, score: result.score });
+                }
+            });
+
+            if (query.trim()) {
+                leftResults.sort((a, b) => b.score - a.score);
+            }
+
+            // Sol Liste Render
+            if (leftResults.length === 0) {
+                leftListEl.innerHTML = `<li class="empty-message">${query ? 'Aramayla eşleşen isim bulunamadı.' : 'Liste boş.'}</li>`;
+            } else {
+                leftResults.forEach(res => {
+                    const li = document.createElement('li');
+                    li.className = 'item-card';
+                    li.innerHTML = `
+                        <span class="item-name">${highlightMatches(res.item, query)}</span>
+                        <button class="move-btn" onclick="moveItem('left', 'right', ${res.originalIndex})">Sağa Taşı &rarr;</button>
+                    `;
+                    leftListEl.appendChild(li);
+                });
+            }
+
+            // Sağ Tarafı Hazırla, Filtrele ve Alakaya Göre Sırala
+            const rightResults = [];
+            appData.right.forEach((item, originalIndex) => {
+                const result = calculateRelevanceScore(item, query);
+                if (result.isMatch) {
+                    rightResults.push({ item, originalIndex, score: result.score });
+                }
+            });
+
+            if (query.trim()) {
+                rightResults.sort((a, b) => b.score - a.score);
+            }
+
+            // Sağ Liste Render
+            if (rightResults.length === 0) {
+                rightListEl.innerHTML = `<li class="empty-message">${query ? 'Aramayla eşleşen isim bulunamadı.' : 'Liste boş.'}</li>`;
+            } else {
+                rightResults.forEach(res => {
+                    const li = document.createElement('li');
+                    li.className = 'item-card';
+                    li.innerHTML = `
+                        <button class="move-btn" onclick="moveItem('right', 'left', ${res.originalIndex})">&larr; Sola Taşı</button>
+                        <span class="item-name" style="text-align: right; padding-left: 10px;">${highlightMatches(res.item, query)}</span>
+                    `;
+                    rightListEl.appendChild(li);
+                });
+            }
+
+            // Sayaçları Güncelle (Arama varsa eşleşen / toplam şeklinde gösterir)
+            if (query.trim()) {
+                document.getElementById('left-count').innerText = `${leftResults.length} / ${appData.left.length}`;
+                document.getElementById('right-count').innerText = `${rightResults.length} / ${appData.right.length}`;
+            } else {
+                document.getElementById('left-count').innerText = appData.left.length;
+                document.getElementById('right-count').innerText = appData.right.length;
+            }
+
+            // Geçmiş Listesini Güncelle
+            historyListEl.innerHTML = '';
+            if (appData.history.length === 0) {
+                historyListEl.innerHTML = '<li style="color: #999; text-align: center;">Henüz bir işlem yapılmadı.</li>';
+            } else {
+                appData.history.forEach(hist => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>[${hist.time}]</strong> - "${escapeHTML(hist.name)}" adlı öğe <em>${hist.from}</em> taraftan <em>${hist.to}</em> tarafa geçirildi.`;
+                    historyListEl.appendChild(li);
+                });
+            }
+        }
+
+        // Arama Girdisi Tetikleyicisi
+        function onSearchInput() {
+            render();
+        }
+
+        // Aramayı Sırfırlama
+        function clearSearch() {
+            const input = document.getElementById('searchInput');
+            input.value = '';
+            input.focus();
+            render();
+        }
+
+        // Öğe Taşıma Mantığı
+        function moveItem(fromSide, toSide, index) {
+            const itemName = appData[fromSide].splice(index, 1)[0];
+            appData[toSide].push(itemName);
+
+            const now = new Date();
+            const timeString = now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR');
+
+            const fromText = fromSide === 'left' ? 'Kılınmayanlar' : 'Kılınanlar';
+            const toText = toSide === 'left' ? 'Kılınmayanlar' : 'Kılınanlar';
+
+            appData.history.unshift({
+                time: timeString,
+                name: itemName,
+                from: fromText,
+                to: toText
+            });
+
+            saveData();
+            render();
+        }
+
+        // Geçmişi Temizleme
+        function clearHistory() {
+            if (confirm("Geçmiş bilgilerini silmek istediğinize emin misiniz?")) {
+                appData.history = [];
+                saveData();
+                render();
+            }
+        }
+
+        // İlk Yükleme
+        render();
+    </script>
+</body>
+</html>

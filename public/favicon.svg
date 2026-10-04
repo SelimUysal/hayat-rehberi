@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#022c22" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="40%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#34d399" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#047857" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bgGrad)" stroke="#10b981" stroke-width="2.5" />
+  
+  <!-- Inner Glow Ring -->
+  <rect x="9" y="9" width="110" height="110" rx="23" fill="none" stroke="url(#goldGrad)" stroke-width="1.2" opacity="0.65" stroke-dasharray="6 3" />
+  <circle cx="64" cy="64" r="46" fill="url(#glowGrad)" />
+
+  <!-- 8-Pointed Star (Seljuk Star / Nur) at the top -->
+  <g transform="translate(64, 30) scale(0.95)">
+    <polygon points="0,-13 4,-4 13,0 4,4 0,13 -4,4 -13,0 -4,-4" fill="url(#goldGrad)" />
+    <polygon points="-9,-9 0,-6 9,-9 6,0 9,9 0,6 -9,9 -6,0" fill="url(#goldGrad)" opacity="0.85" />
+    <circle cx="0" cy="0" r="3.5" fill="#fef08a" />
+  </g>
+
+  <!-- Crescent Moon (Hilal) framing the star -->
+  <path d="M 52,24 A 14,14 0 0,0 76,24 A 12,12 0 0,1 55,27 A 12,12 0 0,1 52,24 Z" fill="#fef08a" opacity="0.75" />
+
+  <!-- Open Quran (Mushafe Şerif / Rahle) -->
+  <g transform="translate(64, 76)">
+    <!-- Book Stand (Rahle Base) -->
+    <path d="M -22,24 L 0,8 L 22,24 M -16,24 L 0,13 L 16,24" stroke="url(#goldGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    <circle cx="0" cy="9" r="2" fill="#fef08a" />
+
+    <!-- Open Book Pages (Left & Right) -->
+    <!-- Left Page -->
+    <path d="M -3,-2 C -14,-10 -28,-6 -36,-1 C -35,11 -22,9 -3,17 Z" fill="#ecfdf5" stroke="url(#goldGrad)" stroke-width="1.5" />
+    <!-- Right Page -->
+    <path d="M 3,-2 C 14,-10 28,-6 36,-1 C 35,11 22,9 3,17 Z" fill="#ecfdf5" stroke="url(#goldGrad)" stroke-width="1.5" />
+    
+    <!-- Spine center -->
+    <path d="M 0,-4 L 0,18" stroke="url(#goldGrad)" stroke-width="2" stroke-linecap="round" />
+
+    <!-- Quran text lines (symbolic golden calligraphy lines) -->
+    <line x1="-30" y1="2" x2="-8" y2="-3" stroke="#059669" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="-31" y1="7" x2="-8" y2="2" stroke="#059669" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="-28" y1="12" x2="-8" y2="7" stroke="#059669" stroke-width="1.5" stroke-linecap="round" />
+
+    <line x1="8" y1="-3" x2="30" y2="2" stroke="#059669" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="8" y1="2" x2="31" y2="7" stroke="#059669" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="8" y1="7" x2="28" y2="12" stroke="#059669" stroke-width="1.5" stroke-linecap="round" />
+
+    <!-- Central bookmark ribbon -->
+    <path d="M 0,12 L 0,26 L -3,23 L -6,26 L -6,14" fill="url(#goldGrad)" />
+  </g>
+</svg>

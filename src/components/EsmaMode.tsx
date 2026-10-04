@@ -1,0 +1,874 @@
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
+import {
+  ESMA_NAMES,
+  DEFAULT_ESMA_AUDIO_PATH,
+  EsmaItem
+} from '../data/esmaData';
+import {
+  Play,
+  Pause,
+  Square,
+  Volume2,
+  VolumeX,
+  Gauge,
+  Monitor,
+  Smartphone,
+  Moon,
+  Sun,
+  Search,
+  CheckCircle,
+  RotateCcw,
+  Sparkles,
+  Info,
+  Sliders,
+  ExternalLink,
+  BookOpen
+} from 'lucide-react';
+import { HayatRehberiLogo } from './HayatRehberiLogo';
+
+export type EsmaTheme = 'dark' | 'emerald';
+export type EsmaViewMode = 'desktop' | 'mobile';
+
+function normalizeEsmaSearch(str?: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .replace(/[âáàäãā]/g, 'a')
+    .replace(/[îíìïī]/g, 'i')
+    .replace(/[ıİ]/g, 'i')
+    .replace(/[ûúùüū]/g, 'u')
+    .replace(/[ôóòöō]/g, 'o')
+    .replace(/[êéèëē]/g, 'e')
+    .replace(/[şŞ]/g, 's')
+    .replace(/[çÇ]/g, 'c')
+    .replace(/[ğĞ]/g, 'g')
+    .replace(/[''’`\-_\.\,\:\;\(\)\/]/g, ' ')
+    .replace(/\b(ya|el|er|es|ed|et|en|ez)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+interface EsmaModeProps {
+  targetEsmaNumber?: number;
+  targetCategory?: 'all' | 'rahmet' | 'kudret' | 'ilim' | 'adalet' | 'learned';
+  targetAutoPlay?: boolean;
+  targetTimestamp?: number;
+}
+
+export const EsmaMode: React.FC<EsmaModeProps> = ({
+  targetEsmaNumber,
+  targetCategory,
+  targetAutoPlay,
+  targetTimestamp
+}) => {
+  // =========================================================================
+  // 1. TEMA VE GÖRÜNÜM MODU DURUMU (Koyu Mod vs Yeşil Uİ, Masaüstü vs Mobil)
+  // =========================================================================
+  const [theme, setTheme] = useState<EsmaTheme>(() => {
+    try {
+      return (localStorage.getItem('esma_theme') as EsmaTheme) || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useThemeSync(theme === 'dark', (newIsDark) => {
+    setTheme(newIsDark ? 'dark' : 'emerald');
+  });
+
+  const toggleTheme = (newTheme: EsmaTheme) => {
+    setTheme(newTheme);
+    broadcastThemeChange(newTheme === 'dark');
+  };
+
+  const [viewMode, setViewMode] = useState<EsmaViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('esma_view_mode') as EsmaViewMode;
+      if (saved) return saved;
+      return window.innerWidth < 768 ? 'mobile' : 'desktop';
+    } catch {
+      return 'desktop';
+    }
+  });
+
+  // Arama filtresi
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    if (targetEsmaNumber) {
+      const found = ESMA_NAMES.find(e => e.n === targetEsmaNumber);
+      return found ? found.l : '';
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    if (targetEsmaNumber) {
+      const found = ESMA_NAMES.find(e => e.n === targetEsmaNumber);
+      if (found) {
+        setSearchQuery(found.l);
+        setSelectedCategory('all');
+      }
+    } else if (targetCategory) {
+      setSelectedCategory(targetCategory);
+      setSearchQuery('');
+    }
+    if (targetAutoPlay) {
+      setTimeout(() => {
+        handlePlay();
+      }, 150);
+    }
+  }, [targetEsmaNumber, targetCategory, targetAutoPlay, targetTimestamp]);
+
+  const toggleViewMode = (newMode: EsmaViewMode) => {
+    setViewMode(newMode);
+    try {
+      localStorage.setItem('esma_view_mode', newMode);
+    } catch {
+      // ignore
+    }
+  };
+
+  const isDark = theme === 'dark';
+
+  // =========================================================================
+  // 2. SES (AUDIO) OYNATICI VE KONTROLLERİ
+  // =========================================================================
+  /*
+   * ╔════════════════════════════════════════════════════════════════════════════╗
+   * ║                   SES DOSYASI GELECEK YER                                  ║
+   * ║ Kendi 'audio.mp3' ses dosyanızı public klasörüne yerleştirebilir veya      ║
+   * ║ buradaki 'audioSource' değişkenine dosya yolunu / bağlantısını girebilirsiniz.║
+   * ╚════════════════════════════════════════════════════════════════════════════╝
+   */
+  const [audioSource, setAudioSource] = useState<string>(DEFAULT_ESMA_AUDIO_PATH);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [statusText, setStatusText] = useState<string>('Hazır · 99 isim');
+  const [hasAudioError, setHasAudioError] = useState<boolean>(false);
+
+  // Ses Seviyesi & Hız
+  const [volume, setVolume] = useState<number>(0.85);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+
+  // Ses nesnesi ayarlarını senkronize et
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [volume, isMuted, playbackSpeed]);
+
+  const handlePlay = () => {
+    setHasAudioError(false);
+    if (!audioRef.current) return;
+
+    setStatusText('Yükleniyor…');
+    audioRef.current
+      .play()
+      .then(() => {
+        setIsPlaying(true);
+        setStatusText('Oynatılıyor…');
+      })
+      .catch((err) => {
+        setIsPlaying(false);
+        setHasAudioError(true);
+        setStatusText('Ses dosyası okunamadı (audio.mp3 bekleniyor)');
+        console.warn('Ses dosyası henüz bulunamadı veya yüklenemedi:', err);
+      });
+  };
+
+  const handleStop = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      setCurrentTime(0);
+      if (isPlaying) {
+        audioRef.current.play().catch(() => {});
+        setStatusText('Başa alındı · Oynatılıyor…');
+      } else {
+        setStatusText('Başa alındı · Hazır');
+      }
+    } else {
+      setCurrentTime(0);
+      setStatusText('Başa alındı · Hazır');
+    }
+  };
+
+  const handlePause = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlaying(false);
+    setStatusText('Duraklatıldı');
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+  };
+
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    if (isMuted && newVol > 0) setIsMuted(false);
+    if (audioRef.current) {
+      audioRef.current.volume = newVol;
+    }
+  };
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (audioRef.current) {
+      audioRef.current.volume = nextMuted ? 0 : volume;
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      if (audioRef.current.duration) {
+        setDuration(audioRef.current.duration);
+      }
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const targetTime = parseFloat(e.target.value);
+    setCurrentTime(targetTime);
+    if (audioRef.current) {
+      audioRef.current.currentTime = targetTime;
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // =========================================================================
+  // 3. ARAMA, FİLTRE VE ÖĞRENİLENLER (EZBERLEME & ZİKİR)
+  // =========================================================================
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [learnedNames, setLearnedNames] = useState<Record<number, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('esma_learned_names') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleLearned = (num: number) => {
+    const updated = { ...learnedNames, [num]: !learnedNames[num] };
+    setLearnedNames(updated);
+    try {
+      localStorage.setItem('esma_learned_names', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
+  const learnedCount = useMemo(() => {
+    return Object.values(learnedNames).filter(Boolean).length;
+  }, [learnedNames]);
+
+  const filteredNames = useMemo(() => {
+    return ESMA_NAMES.filter((item) => {
+      // Kategori kontrolü
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'learned') {
+          if (!learnedNames[item.n]) return false;
+        } else if (item.category !== selectedCategory) {
+          return false;
+        }
+      }
+
+      // Arama kontrolü (şapkalı/Türkçe harf ve "Ya / el-" öneki duyarsız)
+      if (!searchQuery.trim()) return true;
+      const qRaw = searchQuery.toLowerCase().trim();
+      const qNorm = normalizeEsmaSearch(searchQuery);
+      const lNorm = normalizeEsmaSearch(item.l);
+      const mNorm = normalizeEsmaSearch(item.m);
+      return (
+        item.l.toLowerCase().includes(qRaw) ||
+        item.m.toLowerCase().includes(qRaw) ||
+        (qNorm.length > 0 && (lNorm.includes(qNorm) || mNorm.includes(qNorm))) ||
+        item.a.includes(qRaw) ||
+        String(item.n) === qRaw ||
+        `#${item.n}` === qRaw
+      );
+    });
+  }, [searchQuery, selectedCategory, learnedNames]);
+
+  // Renk tanımları: Dark mod vs Yeşil Uİ (diğer sayfalarla tam uyumlu)
+  const bgMain = isDark ? 'bg-[#101214] text-[#f4f5f6]' : 'bg-[#FBF9F5] text-slate-800';
+  const cardBg = isDark ? 'bg-[#181b1f] border-[#30363d]' : 'bg-white border-slate-200 shadow-xs';
+  const cardHeaderBg = isDark ? 'bg-[#20242a] text-[#8be7be]' : 'bg-emerald-50 text-emerald-950 font-bold';
+  const borderCol = isDark ? 'border-[#30363d]' : 'border-slate-200';
+  const textMuted = isDark ? 'text-[#aeb5bd]' : 'text-slate-500';
+  const accentText = isDark ? 'text-[#55c99a]' : 'text-emerald-700';
+  const arabicTextCol = isDark ? 'text-[#55c99a]' : 'text-emerald-700';
+
+  return (
+    <div className={`min-h-screen ${bgMain} font-sans transition-colors duration-200 pb-16`}>
+      
+      {/* GİZLİ SES OYNATICI NESNESİ */}
+      <audio
+        ref={audioRef}
+        src={audioSource}
+        preload="auto"
+        onLoadedMetadata={() => {
+          if (audioRef.current) {
+            setDuration(audioRef.current.duration);
+            setHasAudioError(false);
+            setStatusText('Hazır · 99 isim');
+          }
+        }}
+        onCanPlay={() => {
+          setHasAudioError(false);
+        }}
+        onPlay={() => {
+          setIsPlaying(true);
+          setStatusText('Oynatılıyor…');
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          setStatusText('Duraklatıldı');
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+          setStatusText('Tamamlandı · 99 isim');
+        }}
+        onTimeUpdate={handleTimeUpdate}
+        onError={() => {
+          setIsPlaying(false);
+          setHasAudioError(true);
+          setStatusText('Ses dosyası okunamadı (audio.mp3 bekleniyor)');
+        }}
+      />
+
+      {/* =========================================================================
+          1. KENDİ BAŞINA HEADER (ESMAÜ'L-HÜSNÂ ÜST BAŞLIK BARI)
+         ========================================================================= */}
+      <header
+        className={`sticky top-[61px] z-30 border-b backdrop-blur-md transition-colors ${
+          isDark
+            ? 'bg-[#101214]/95 border-[#30363d]'
+            : 'bg-white/95 border-slate-200 shadow-xs'
+        }`}
+      >
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3.5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            
+            {/* Başlık ve İlerleme */}
+            <div>
+              <h1 className={`text-lg sm:text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-black'} whitespace-nowrap`}>
+                Esmaü'l-Hüsnâ
+              </h1>
+            </div>
+
+            {/* Kontrol Butonları: Görünüm (Masaüstü/Mobil) & Tema (Koyu/Yeşil Uİ) */}
+            <div className="flex items-center flex-wrap gap-2 sm:gap-3">
+              
+              {/* Ezberlenen Sayaç */}
+              <div
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
+                  isDark ? 'bg-[#181b1f] border-[#30363d] text-[#8be7be]' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}
+                title="Öğrendiğiniz isimler"
+              >
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Ezberlenen: {learnedCount} / 99</span>
+              </div>
+
+              {/* Görünüm Modu: Masaüstü vs Mobil */}
+              <div className={`inline-flex p-1 rounded-xl border ${isDark ? 'bg-[#181b1f] border-[#30363d]' : 'bg-slate-100 border-slate-200'}`}>
+                <button
+                  id="btn-esma-view-desktop"
+                  onClick={() => toggleViewMode('desktop')}
+                  className={`flex items-center px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    viewMode === 'desktop'
+                      ? isDark
+                        ? 'bg-[#20242a] text-[#55c99a] border border-[#55c99a]/40 shadow-xs'
+                        : 'bg-white text-emerald-800 shadow-xs border border-emerald-300'
+                      : isDark
+                      ? 'text-[#aeb5bd] hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Geniş Tablo Görünümü"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  id="btn-esma-view-mobile"
+                  onClick={() => toggleViewMode('mobile')}
+                  className={`flex items-center px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    viewMode === 'mobile'
+                      ? isDark
+                        ? 'bg-[#20242a] text-[#55c99a] border border-[#55c99a]/40 shadow-xs'
+                        : 'bg-white text-emerald-800 shadow-xs border border-emerald-300'
+                      : isDark
+                      ? 'text-[#aeb5bd] hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Kompakt Kart Görünümü"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Tema Seçici: Koyu Mod vs Yeşil Uİ */}
+              <div className={`inline-flex p-1 rounded-xl border ${isDark ? 'bg-[#181b1f] border-[#30363d]' : 'bg-slate-100 border-slate-200'}`}>
+                <button
+                  id="btn-esma-theme-dark"
+                  onClick={() => toggleTheme('dark')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    isDark
+                      ? 'bg-[#20242a] text-[#55c99a] border border-[#55c99a]/40 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Orijinal Siyah / Koyu Tasarım"
+                >
+                  <Moon className="w-3.5 h-3.5 text-[#55c99a]" />
+                </button>
+
+                <button
+                  id="btn-esma-theme-emerald"
+                  onClick={() => toggleTheme('emerald')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    !isDark
+                      ? 'bg-white text-emerald-800 shadow-xs border border-emerald-300'
+                      : 'text-[#aeb5bd] hover:text-white'
+                  }`}
+                  title="Açık Yeşil Uİ Modu"
+                >
+                  <Sun className="w-3.5 h-3.5 text-emerald-600" />
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* =========================================================================
+          2. SES KONTROL PANELİ & HIZ/SES AYARLARI
+         ========================================================================= */}
+      <section className="max-w-[1340px] mx-auto px-4 sm:px-6 pt-5">
+        <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${cardBg}`}>
+          
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            
+            {/* Oynat / Durdur / Duraklat Butonları */}
+            <div className="flex items-center flex-wrap gap-2.5">
+              {!isPlaying ? (
+                <button
+                  id="btn-esma-start"
+                  onClick={handlePlay}
+                  className="px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md bg-[#55c99a] text-[#07130e] hover:bg-[#48b488] active:scale-95"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Başlat</span>
+                </button>
+              ) : (
+                <button
+                  id="btn-esma-pause"
+                  onClick={handlePause}
+                  className="px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-md bg-red-500 text-slate-950 hover:bg-red-600 active:scale-95"
+                >
+                  <Pause className="w-4 h-4" />
+                  <span>Duraklat</span>
+                </button>
+              )}
+
+              <button
+                id="btn-esma-stop"
+                onClick={handleStop}
+                title="Kaydı en başa sar (0:00)"
+                className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer border active:scale-95 ${
+                  isDark
+                    ? 'bg-[#20242a] text-slate-200 border-[#30363d] hover:border-[#55c99a]'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                }`}
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${accentText}`} />
+                <span>Başa Al</span>
+              </button>
+
+              {/* Durum Metni */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+                  }`}
+                />
+                <span id="esma-status" className={textMuted}>
+                  {statusText}
+                </span>
+              </div>
+            </div>
+
+            {/* Sağ Taraf: Hız & Ses Seviyesi Kontrolleri */}
+            <div className="flex items-center flex-wrap gap-4 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-700/20">
+              
+              {/* Oynatma Hızı İmleci (Range Slider) */}
+              <div className="flex items-center gap-2">
+                <Gauge className={`w-3.5 h-3.5 ${accentText}`} />
+                <span className={`text-xs font-bold ${textMuted}`}>Hız:</span>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.5"
+                  step="0.1"
+                  value={playbackSpeed}
+                  onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                  className="w-20 sm:w-28 h-1.5 rounded-lg appearance-none cursor-pointer accent-[#55c99a]"
+                  title={`Hız: ${playbackSpeed.toFixed(1)}x`}
+                />
+                <span className={`text-xs font-mono font-bold ${isDark ? 'text-[#8be7be]' : 'text-emerald-700'} w-10 text-right`}>
+                  {playbackSpeed.toFixed(1)}x
+                </span>
+              </div>
+
+              {/* Ses Seviyesi Slider & Mute */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleMute}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isDark ? 'hover:bg-[#20242a] text-slate-300' : 'hover:bg-slate-100 text-slate-700'
+                  }`}
+                  title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 text-rose-400" />
+                  ) : (
+                    <Volume2 className={`w-4 h-4 ${accentText}`} />
+                  )}
+                </button>
+
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                  className="w-20 sm:w-24 h-1.5 rounded-lg appearance-none cursor-pointer accent-[#55c99a]"
+                  title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
+                />
+                <span className={`text-[11px] font-mono ${textMuted} w-8`}>
+                  %{Math.round((isMuted ? 0 : volume) * 100)}
+                </span>
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* İlerleme Zaman Çubuğu (Varsa) */}
+          {duration > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-700/20 flex items-center gap-3 text-xs">
+              <span className={`font-mono text-[11px] ${textMuted}`}>{formatTime(currentTime)}</span>
+              <input
+                type="range"
+                min="0"
+                max={duration || 100}
+                value={currentTime}
+                onChange={handleSeek}
+                className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer accent-[#55c99a]"
+              />
+              <span className={`font-mono text-[11px] ${textMuted}`}>{formatTime(duration)}</span>
+            </div>
+          )}
+
+          {/* SES DOSYASI BİLGİLENDİRME KUTUSU (Kullanıcı için kılavuz) */}
+          {hasAudioError && (
+            <div className={`mt-3 p-3 rounded-xl text-xs flex items-start gap-2.5 border ${
+              isDark ? 'bg-amber-950/30 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'
+            }`}>
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>Ses Dosyası Henüz Yüklenmedi:</strong> Oynatıcı <code>audio.mp3</code> dosyasını aradı.
+                Ses dosyanızı projenin ana/public dizinine <code>audio.mp3</code> adıyla yerleştirdiğinizde otomatik olarak buradan çalacaktır.
+              </div>
+            </div>
+          )}
+
+        </div>
+      </section>
+
+      {/* =========================================================================
+          3. ARAMA VE KATEGORİ FİLTRELEME BARI
+         ========================================================================= */}
+      <section className="max-w-[1340px] mx-auto px-4 sm:px-6 pt-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          
+          {/* Arama Kutusu */}
+          <div className="relative flex-1 max-w-md">
+            <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`} />
+            <input
+              type="text"
+              placeholder="İsim, Arapça veya anlamda ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs sm:text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#55c99a] ${
+                isDark
+                  ? 'bg-[#181b1f] border-[#30363d] text-slate-100 placeholder-slate-500'
+                  : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 shadow-xs'
+              }`}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-200"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Hızlı Filtre Sekmeleri */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            {searchQuery.trim() && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('all');
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border bg-amber-500 text-slate-950 border-amber-400 shadow-xs hover:bg-amber-400"
+              >
+                Tüm 99 İsmi Göster ✕
+              </button>
+            )}
+            {[
+              { id: 'all', label: 'Tümü (99)' },
+              { id: 'rahmet', label: 'Rahmet' },
+              { id: 'kudret', label: 'Kudret' },
+              { id: 'ilim', label: 'İlim' },
+              { id: 'adalet', label: 'Adalet' },
+              { id: 'learned', label: `Ezberlenen (${learnedCount})` }
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setSelectedCategory(cat.id);
+                  if (cat.id !== 'all' && searchQuery) {
+                    setSearchQuery('');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
+                  selectedCategory === cat.id
+                    ? isDark
+                      ? 'bg-[#55c99a] text-[#07130e] border-[#55c99a] shadow-xs'
+                      : 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                    : isDark
+                    ? 'bg-[#181b1f] text-[#aeb5bd] border-[#30363d] hover:text-white'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
+      {/* =========================================================================
+          4. İÇERİK BÖLÜMÜ: MASAÜSTÜ TABLOSU VEYA MOBİL KART DÜZENİ
+         ========================================================================= */}
+      <main className="max-w-[1340px] mx-auto px-4 sm:px-6 pt-4">
+        
+        {/* MASAÜSTÜ TABLO GÖRÜNÜMÜ */}
+        {viewMode === 'desktop' ? (
+          <div className={`overflow-x-auto rounded-2xl border transition-all ${cardBg}`}>
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className={cardHeaderBg}>
+                  <th className={`py-3.5 px-4 text-xs font-bold uppercase tracking-wider w-[8%] border-b ${borderCol}`}>
+                    No
+                  </th>
+                  <th className={`py-3.5 px-6 text-xs font-bold uppercase tracking-wider w-[24%] border-b ${borderCol} text-right dir-rtl`}>
+                    Arapça
+                  </th>
+                  <th className={`py-3.5 px-5 text-xs font-bold uppercase tracking-wider w-[22%] border-b ${borderCol}`}>
+                    Türkçesi
+                  </th>
+                  <th className={`py-3.5 px-5 text-xs font-bold uppercase tracking-wider w-[40%] border-b ${borderCol}`}>
+                    Anlamı
+                  </th>
+                  <th className={`py-3.5 px-3 text-xs font-bold uppercase tracking-wider w-[6%] border-b ${borderCol} text-center`}>
+                    Ezber
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${isDark ? 'divide-[#30363d]' : 'divide-slate-100'}`}>
+                {filteredNames.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-sm opacity-60">
+                      Aramanızla eşleşen isim bulunamadı.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredNames.map((item) => {
+                    const isDone = !!learnedNames[item.n];
+                    return (
+                      <tr
+                        key={item.n}
+                        className={`transition-colors group ${
+                          isDone
+                            ? isDark
+                              ? 'bg-emerald-950/20 hover:bg-emerald-950/30'
+                              : 'bg-emerald-50/40 hover:bg-emerald-50/70'
+                            : isDark
+                            ? 'hover:bg-[#55c99a]/5'
+                            : 'hover:bg-emerald-50/30'
+                        }`}
+                      >
+                        {/* No */}
+                        <td className="py-3 px-4 text-xs font-bold text-slate-400 font-mono">
+                          {String(item.n).padStart(2, '0')}
+                        </td>
+
+                        {/* Arapça (Tamamen Yeşil & font-amiri) */}
+                        <td className={`py-3 px-6 font-amiri text-3xl font-bold text-right dir-rtl ${arabicTextCol} tracking-wide`}>
+                          {item.a}
+                        </td>
+
+                        {/* Türkçe İsim */}
+                        <td className="py-3 px-5 text-base font-extrabold tracking-tight">
+                          <span className={isDark ? 'text-[#f4f5f6]' : 'text-slate-900'}>
+                            {item.l}
+                          </span>
+                        </td>
+
+                        {/* Anlamı */}
+                        <td className={`py-3 px-5 text-xs sm:text-sm leading-relaxed ${textMuted}`}>
+                          {item.m}
+                        </td>
+
+                        {/* Ezberledim Onayı */}
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => toggleLearned(item.n)}
+                            title={isDone ? 'Ezberlendi' : 'Ezberledim olarak işaretle'}
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                              isDone
+                                ? 'text-emerald-500 hover:text-emerald-400'
+                                : 'text-slate-400 hover:text-emerald-500 opacity-40 hover:opacity-100'
+                            }`}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* MOBİL KART GÖRÜNÜMÜ */
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {filteredNames.length === 0 ? (
+              <div className={`col-span-full p-8 text-center rounded-2xl border ${cardBg}`}>
+                <p className="text-sm opacity-60">Aramanızla eşleşen isim bulunamadı.</p>
+              </div>
+            ) : (
+              filteredNames.map((item) => {
+                const isDone = !!learnedNames[item.n];
+                return (
+                  <div
+                    key={item.n}
+                    className={`p-4 rounded-2xl border transition-all ${cardBg} ${
+                      isDone
+                        ? isDark
+                          ? 'border-emerald-500/40 bg-emerald-950/15'
+                          : 'border-emerald-300 bg-emerald-50/40'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between border-b pb-2 mb-2.5 border-slate-700/20">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-emerald-500/10 text-[#55c99a] text-xs font-mono font-bold flex items-center justify-center">
+                          {String(item.n).padStart(2, '0')}
+                        </span>
+                        <h3 className="font-extrabold text-base tracking-tight">
+                          {item.l}
+                        </h3>
+                      </div>
+
+                      <button
+                        onClick={() => toggleLearned(item.n)}
+                        className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg transition-all cursor-pointer border ${
+                          isDone
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : isDark
+                            ? 'bg-[#20242a] text-[#aeb5bd] border-[#30363d]'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{isDone ? 'Ezberlendi' : 'Ezberle'}</span>
+                      </button>
+                    </div>
+
+                    {/* Arapça Büyük İbare */}
+                    <div
+                      className={`text-center py-2 font-amiri text-4xl font-bold tracking-wide ${arabicTextCol}`}
+                      dir="rtl"
+                    >
+                      {item.a}
+                    </div>
+
+                    {/* Anlamı */}
+                    <p className={`text-xs leading-relaxed pt-2 mt-1 border-t border-slate-700/20 ${textMuted}`}>
+                      {item.m}
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* =========================================================================
+            5. ALT LİSANS VE BİLGİ ALANI (Orijinal HTML'den gelen telif ve kaynak)
+           ========================================================================= */}
+        <div className={`mt-8 pt-5 pb-6 border-t ${borderCol} text-xs leading-relaxed ${textMuted}`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <p className="mb-1">
+                <strong>Ses Kaynağı:</strong> "Asmaul Husna The Beautiful Names Of Allah SWT (God) Podcast Edition" by Jannah Firdaus Mediapro is licensed under{' '}
+                <a
+                  href="https://creativecommons.org/licenses/by-nc-nd/4.0/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-0.5 underline ${accentText}`}
+                >
+                  CC BY-NC-ND 4.0 <ExternalLink className="w-3 h-3" />
+                </a>.
+              </p>
+              <p>
+                <strong>Eser Sahibi:</strong> Jannah Firdaus Mediapro
+              </p>
+            </div>
+            
+            <div className="flex items-center justify-end gap-1.5 opacity-80">
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+    </div>
+  );
+};

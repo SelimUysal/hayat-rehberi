@@ -1,0 +1,11 @@
+{
+  "name": "Remix Hayat Rehberi",
+  "description": "Hayat Rehberi - Kur'an-ı Kerim ezber, sıfırdan Elif-Bâ öğrenme rehberi, Esmaü'l-Hüsnâ, kaza namazı takipçisi, namaz sureleri ve kesintisiz dinleme asistanı",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

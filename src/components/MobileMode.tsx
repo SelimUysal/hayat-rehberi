@@ -1,0 +1,903 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Play, 
+  Square, 
+  Settings2, 
+  ChevronLeft, 
+  ChevronRight, 
+  BookOpen, 
+  Repeat, 
+  Sparkles, 
+  Sliders, 
+  Volume2, 
+  X,
+  Check,
+  Gauge,
+  Layers
+} from 'lucide-react';
+import { Ayah, VerseWbw, WordData } from '../types';
+import { SURAHS, RECITERS } from '../data/surahs';
+import { fetchSurahData, fetchWbwData } from '../services/quranApi';
+import { AnalysisModal } from './AnalysisModal';
+import { SurahSearchSelect } from './SurahSearchSelect';
+import { QuickSurahBookmarks } from './QuickSurahBookmarks';
+import { EzberVoiceRecorder } from './EzberVoiceRecorder';
+
+interface MobileModeProps {
+  targetSurahId?: number | null;
+  themeMode?: 'dark' | 'emerald';
+}
+
+export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode = 'dark' }) => {
+  const isDark = themeMode === 'dark';
+  // Durumlar
+  const [currentSurah, setCurrentSurah] = useState<number>(() => {
+    return (targetSurahId && targetSurahId >= 1 && targetSurahId <= 114) ? targetSurahId : 67;
+  });
+
+  useEffect(() => {
+    if (targetSurahId && targetSurahId >= 1 && targetSurahId <= 114) {
+      setCurrentSurah(targetSurahId);
+    }
+  }, [targetSurahId]);
+  const [selectedReciter, setSelectedReciter] = useState<string>('ar.mahermuaiqly');
+  const [selectedFont, setSelectedFont] = useState<string>('font-amiri');
+  const [fontSize, setFontSize] = useState<number>(1.85);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [targetLoopCount, setTargetLoopCount] = useState<number | 'infinite'>(3);
+  const [currentLoop, setCurrentLoop] = useState<number>(0);
+
+  // Veriler
+  const [ayahs, setAyahs] = useState<Ayah[]>([]);
+  const [translations, setTranslations] = useState<Ayah[]>([]);
+  const [wbwList, setWbwList] = useState<VerseWbw[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Seçili Ayet
+  const [selectedVerseNum, setSelectedVerseNum] = useState<number>(1);
+  const [showMeal, setShowMeal] = useState<boolean>(false); // Varsayılan gizli
+
+  // Çalma Durumu
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentlyPlayingVerseNum, setCurrentlyPlayingVerseNum] = useState<number | null>(null);
+  const [playMode, setPlayMode] = useState<'verse' | 'full'>('verse');
+  const [activeWordIdx, setActiveWordIdx] = useState<number | null>(null);
+
+  // Mobil Çekmece (Bottom Sheet) Durumu
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [showSpeedPopover, setShowSpeedPopover] = useState<boolean>(false);
+
+  // Analiz Modalı
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [isBlindRecording, setIsBlindRecording] = useState<boolean>(false);
+
+  // Audio Referansları
+  const audioRef = useRef<HTMLAudioElement>(new Audio());
+  const tickIntervalRef = useRef<any>(null);
+  const loopTimeoutRef = useRef<any>(null);
+  const currentLoopRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
+  const currentlyPlayingVerseNumRef = useRef<number | null>(null);
+  const playModeRef = useRef<'verse' | 'full'>('verse');
+  const playbackSpeedRef = useRef<number>(playbackSpeed);
+  playbackSpeedRef.current = playbackSpeed;
+
+  // Sure Verisini Yükle
+  useEffect(() => {
+    let isCancelled = false;
+    async function load() {
+      setLoading(true);
+      stopAudio();
+      try {
+        const [surahRes, wbwRes] = await Promise.all([
+          fetchSurahData(currentSurah, selectedReciter),
+          fetchWbwData(currentSurah)
+        ]);
+        if (!isCancelled) {
+          setAyahs(surahRes.ayahs);
+          setTranslations(surahRes.translations);
+          setWbwList(wbwRes);
+          setSelectedVerseNum(1);
+        }
+      } catch (err) {
+        console.error('Mobil veri hatası:', err);
+      } finally {
+        if (!isCancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentSurah, selectedReciter]);
+
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+    if (audioRef.current) {
+      audioRef.current.defaultPlaybackRate = playbackSpeed;
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, []);
+
+  // Besmele Temizleme (Fatiha hariç, Fatiha'da 1. ayet Besmele'dir)
+  const cleanVerseText = (text: string, verseNum: number): string => {
+    if (currentSurah !== 1 && verseNum === 1) {
+      return text.replace(/^بِسْمِ\s+ٱ?للَّهِ\s+ٱ?لرَّحْمَٰنِ\s+ٱ?لرَّحِيمِ\s*/, '').trim();
+    }
+    return text;
+  };
+
+  const getWordsOfVerse = (ayah: Ayah): string[] => {
+    const cleaned = cleanVerseText(ayah.text, ayah.numberInSurah);
+    return cleaned.split(' ').filter(Boolean);
+  };
+
+  const stopAudio = () => {
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
+    }
+    clearInterval(tickIntervalRef.current);
+    if (audioRef.current) {
+      audioRef.current.onplay = null;
+      audioRef.current.onloadedmetadata = null;
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    setCurrentlyPlayingVerseNum(null);
+    currentlyPlayingVerseNumRef.current = null;
+    setActiveWordIdx(null);
+    setCurrentLoop(0);
+    currentLoopRef.current = 0;
+  };
+
+  // Ayeti Çal ve Döngüye Al (Senkronizasyon garantili, karışma engelli)
+  const playVerse = (verseNum: number, mode: 'verse' | 'full' = 'verse') => {
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
+    }
+    clearInterval(tickIntervalRef.current);
+
+    const ayah = ayahs.find((a) => a.numberInSurah === verseNum);
+    if (!ayah || !ayah.audio) {
+      stopAudio();
+      return;
+    }
+
+    const words = getWordsOfVerse(ayah);
+    const player = audioRef.current;
+    const targetSpeed = playbackSpeedRef.current;
+
+    // Önceki ses dinleyicilerini temizle ve durdur
+    player.onplay = null;
+    player.onloadedmetadata = null;
+    player.onerror = null;
+    player.pause();
+
+    setPlayMode(mode);
+    playModeRef.current = mode;
+    setSelectedVerseNum(verseNum);
+    setCurrentlyPlayingVerseNum(verseNum);
+    currentlyPlayingVerseNumRef.current = verseNum;
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    setActiveWordIdx(null);
+
+    player.defaultPlaybackRate = targetSpeed;
+    player.src = ayah.audio;
+    player.playbackRate = targetSpeed;
+
+    player.onplay = () => {
+      player.playbackRate = playbackSpeedRef.current;
+    };
+
+    player.onerror = (e) => {
+      console.warn('Mobil ses yüklenemedi:', e);
+      stopAudio();
+    };
+
+    player.onloadedmetadata = () => {
+      if (currentlyPlayingVerseNumRef.current !== verseNum) return;
+
+      player.defaultPlaybackRate = playbackSpeedRef.current;
+      player.playbackRate = playbackSpeedRef.current;
+      player.play().then(() => {
+        player.playbackRate = playbackSpeedRef.current;
+      }).catch((err) => console.warn('Mobil ses engellendi:', err));
+
+      clearInterval(tickIntervalRef.current);
+      tickIntervalRef.current = setInterval(() => {
+        if (currentlyPlayingVerseNumRef.current !== verseNum) {
+          clearInterval(tickIntervalRef.current);
+          return;
+        }
+
+        if (player.playbackRate !== playbackSpeedRef.current) {
+          player.playbackRate = playbackSpeedRef.current;
+        }
+
+        const cur = player.currentTime;
+        const dur = player.duration || 1;
+        const ratio = Math.max(0, Math.min(1, cur / dur));
+        const idx = Math.min(words.length - 1, Math.floor(ratio * words.length));
+        setActiveWordIdx(idx);
+
+        if (player.ended) {
+          clearInterval(tickIntervalRef.current);
+          setActiveWordIdx(null);
+
+          if (playModeRef.current === 'full') {
+            if (verseNum < ayahs.length) {
+              const nextNum = verseNum + 1;
+              const el = document.getElementById(`mobile-verse-${nextNum}`);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              loopTimeoutRef.current = setTimeout(() => {
+                playVerse(nextNum, 'full');
+              }, 180);
+            } else {
+              stopAudio();
+            }
+          } else {
+            currentLoopRef.current += 1;
+            setCurrentLoop(currentLoopRef.current);
+
+            if (targetLoopCount === 'infinite' || currentLoopRef.current <= targetLoopCount) {
+              loopTimeoutRef.current = setTimeout(() => {
+                playVerse(verseNum, 'verse');
+              }, 180);
+            } else {
+              stopAudio();
+            }
+          }
+        }
+      }, 35);
+    };
+
+    player.onerror = () => {
+      stopAudio();
+    };
+  };
+
+  const startPlayback = (vNum = selectedVerseNum) => {
+    stopAudio();
+    currentLoopRef.current = 1;
+    setCurrentLoop(1);
+    setIsPlaying(true);
+    playVerse(vNum, 'verse');
+
+    const el = document.getElementById(`mobile-verse-${vNum}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const startFullSurahPlayback = () => {
+    stopAudio();
+    currentLoopRef.current = 1;
+    setCurrentLoop(1);
+    setIsPlaying(true);
+    playVerse(1, 'full');
+
+    const el = document.getElementById(`mobile-verse-1`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  // Önceki / Sonraki Ayet
+  const goToPreviousVerse = () => {
+    if (selectedVerseNum > 1) {
+      const nextNum = selectedVerseNum - 1;
+      setSelectedVerseNum(nextNum);
+      if (isPlaying) {
+        playVerse(nextNum, playModeRef.current);
+      }
+      const el = document.getElementById(`mobile-verse-${nextNum}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const goToNextVerse = () => {
+    if (selectedVerseNum < ayahs.length) {
+      const nextNum = selectedVerseNum + 1;
+      setSelectedVerseNum(nextNum);
+      if (isPlaying) {
+        playVerse(nextNum, playModeRef.current);
+      }
+      const el = document.getElementById(`mobile-verse-${nextNum}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  // Modal İçin Veriler
+  const getModalWordData = (): WordData[] => {
+    const verseObj = wbwList.find((item) => item.verse_number === selectedVerseNum);
+    if (!verseObj || !verseObj.words) return [];
+    return verseObj.words.filter((w) => w.char_type_name !== 'end');
+  };
+
+  const currentSurahMeta = SURAHS.find((s) => s.id === currentSurah);
+  const selectedAyahObj = ayahs.find((a) => a.numberInSurah === selectedVerseNum);
+  const selectedTranslationText = translations.find((t) => t.numberInSurah === selectedVerseNum)?.text || '';
+
+  return (
+    <div className={`max-w-3xl mx-auto w-full px-3 py-4 pb-36 font-sans ${isDark ? 'text-[#f1ecdd]' : 'text-slate-800'}`}>
+      
+      {/* Mobil Üst Başlık & Sure Seçimi */}
+      <div className={`rounded-2xl p-3 sm:p-4 shadow-sm border mb-4 sticky top-16 z-30 transition-colors ${
+        isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200'
+      }`}>
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex-1">
+            <span className={`text-[10px] font-bold uppercase tracking-wider block mb-1 ${
+              isDark ? 'text-[#3fb996]' : 'text-emerald-800'
+            }`}>
+              📱 Mobil Odaklı Okuma Modu
+            </span>
+            <SurahSearchSelect
+              selectedSurahId={currentSurah}
+              onSelectSurah={(id) => {
+                stopAudio();
+                setCurrentSurah(id);
+                setSelectedVerseNum(1);
+              }}
+              buttonLabelPrefix="Sure:"
+              className="w-full"
+              theme={isDark ? 'dark' : 'light'}
+            />
+            <QuickSurahBookmarks
+              currentSurahId={currentSurah}
+              onSelectSurah={(id) => {
+                stopAudio();
+                setCurrentSurah(id);
+                setSelectedVerseNum(1);
+              }}
+              theme={isDark ? 'dark' : 'light'}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* Meal Aç/Kapa Butonu */}
+            <button
+              onClick={() => setShowMeal(!showMeal)}
+              className={`px-2.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                showMeal 
+                  ? isDark
+                    ? 'bg-[#2a241b] text-amber-200 border-amber-700/50'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                  : isDark
+                  ? 'bg-[#181510] text-[#b9b09a] border-[#3a3226] hover:bg-[#2a241b]'
+                  : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}
+              title="Mealleri Göster/Gizle"
+            >
+              {showMeal ? 'Meali Gizle' : 'Meal'}
+            </button>
+
+            {/* Ayarlar Çekmecesini Aç Butonu */}
+            <button
+              id="btn-open-mobile-drawer"
+              onClick={() => setIsDrawerOpen(true)}
+              className={`p-2.5 rounded-xl border transition-colors cursor-pointer ${
+                isDark
+                  ? 'bg-[#181510] hover:bg-[#2a241b] text-[#f1ecdd] border-[#3a3226]'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+              }`}
+              title="Döngü ve Ses Ayarları"
+            >
+              <Settings2 className={`w-5 h-5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-700'}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobil Ses Kayıt ve Son 5 Kaydı Dinleme Çubuğu */}
+        <div className="mt-3 pt-2.5 border-t border-inherit">
+          <EzberVoiceRecorder
+            surahId={currentSurah}
+            surahName={currentSurahMeta?.name || `Sure ${currentSurah}`}
+            selectedVerseInfo={`${selectedVerseNum}. Ayet`}
+            theme={isDark ? 'dark' : 'light'}
+            onStopExternalAudio={stopAudio}
+            onRecordingStateChange={(rec, blind) => setIsBlindRecording(rec && blind)}
+          />
+        </div>
+      </div>
+
+      {/* Yükleniyor */}
+      {loading && (
+        <div className="py-20 flex flex-col items-center justify-center space-y-3">
+          <div className={`w-9 h-9 border-4 ${isDark ? 'border-[#3fb996]' : 'border-emerald-600'} border-t-transparent rounded-full animate-spin`}></div>
+          <p className={`text-sm font-medium ${isDark ? 'text-[#b9b09a]' : 'text-slate-500'}`}>Ayetler yükleniyor...</p>
+        </div>
+      )}
+
+      {/* Besmele */}
+      {!loading && (
+        <div className={`text-center py-3.5 mb-4 rounded-2xl border ${
+          isDark
+            ? 'bg-[#1c3630]/40 border-[#3fb996]/20'
+            : 'bg-emerald-50/60 border-emerald-100'
+        }`}>
+          <p className={`text-2xl font-arabic ${selectedFont} ${isDark ? 'text-[#3fb996]' : 'text-emerald-800'}`}>
+            بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ
+          </p>
+        </div>
+      )}
+
+      {/* Ayet Kartları Listesi */}
+      {!loading && (
+        <div className="space-y-4">
+          {ayahs.map((ayah) => {
+            const vNum = ayah.numberInSurah;
+            const words = getWordsOfVerse(ayah);
+            const isSelected = selectedVerseNum === vNum;
+            const isPlayingThisVerse = isPlaying && currentlyPlayingVerseNum === vNum;
+
+            return (
+              <div
+                key={vNum}
+                id={`mobile-verse-${vNum}`}
+                onClick={() => {
+                  setSelectedVerseNum(vNum);
+                  if (isPlaying && currentlyPlayingVerseNum !== vNum) {
+                    stopAudio();
+                  }
+                }}
+                className={`rounded-2xl p-4 md:p-5 transition-all cursor-pointer border ${
+                  isSelected
+                    ? isDark
+                      ? 'bg-[#211d16] border-[#3fb996] shadow-md ring-2 ring-[#3fb996]/30'
+                      : 'bg-white border-emerald-500 shadow-md ring-2 ring-emerald-400/30'
+                    : isDark
+                    ? 'bg-[#1a1712] border-[#3a3226] hover:border-[#4d4233]'
+                    : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                {/* Ayet Üst Barı */}
+                <div className={`flex items-center justify-between mb-3 pb-2 border-b ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                        isSelected
+                          ? isDark
+                            ? 'bg-[#3fb996] text-[#181510] shadow-xs'
+                            : 'bg-emerald-600 text-white shadow-xs'
+                          : isDark
+                          ? 'bg-[#181510] text-[#b9b09a] border border-[#3a3226]'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {vNum}
+                    </span>
+                    <span className={`text-xs font-semibold ${isDark ? 'text-[#b9b09a]' : 'text-slate-500'}`}>
+                      {vNum}. Ayet
+                    </span>
+                  </div>
+
+                  {/* Hızlı Aksiyon Butonları */}
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        setSelectedVerseNum(vNum);
+                        setModalOpen(true);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 cursor-pointer ${
+                        isDark
+                          ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996]/40 hover:bg-[#23453d]'
+                          : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                      }`}
+                    >
+                      <Sparkles className={`w-3 h-3 ${isDark ? 'text-[#3fb996]' : 'text-teal-600'}`} />
+                      <span>Tahlil</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (isPlaying && currentlyPlayingVerseNum === vNum) {
+                          stopAudio();
+                        } else {
+                          startPlayback(vNum);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                        isPlayingThisVerse
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}
+                    >
+                      {isPlayingThisVerse ? (
+                        <>
+                          <Square className="w-3 h-3 fill-current" />
+                          <span>Durdur</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 fill-current" />
+                          <span>Ezberle</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Arapça Metin */}
+                <p 
+                  className={`leading-[2.4] text-right dir-rtl select-none transition-all duration-300 ${selectedFont} ${isDark ? 'text-[#f1ecdd]' : 'text-slate-900'} ${isBlindRecording ? 'blur-md hover:blur-xs' : ''}`}
+                  style={{ fontSize: `${fontSize}rem` }}
+                >
+                  {words.map((word, wIdx) => {
+                    const isWordActive = isPlayingThisVerse && activeWordIdx === wIdx;
+                    return (
+                      <span
+                        key={wIdx}
+                        className={`word-span ${isWordActive ? 'active-word' : ''}`}
+                      >
+                        {word}
+                      </span>
+                    );
+                  })}
+                </p>
+
+                {/* Türkçe Meali */}
+                {showMeal && (
+                  <div className={`mt-3 pt-2.5 border-t text-xs md:text-sm dir-ltr text-left leading-relaxed ${
+                    isDark ? 'border-[#3a3226] text-[#b9b09a]' : 'border-slate-100 text-slate-600'
+                  }`}>
+                    <span className={`font-semibold mr-1 ${isDark ? 'text-[#3fb996]' : 'text-emerald-800'}`}>{vNum}. </span>
+                    {translations.find((t) => t.numberInSurah === vNum)?.text || ''}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* SABİT ALT KONTROL ÇUBUĞU (Sticky Floating Bottom Dock) */}
+      <div className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t shadow-2xl p-3 sm:px-6 transition-colors ${
+        isDark ? 'bg-[#211d16]/95 border-[#3a3226] text-[#f1ecdd]' : 'bg-white/95 border-slate-200 text-slate-800'
+      }`}>
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
+          
+          {/* Sol: Ayet Navigasyon & Bilgi */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={goToPreviousVerse}
+              disabled={selectedVerseNum <= 1}
+              className={`w-10 h-10 rounded-xl disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer ${
+                isDark ? 'bg-[#181510] hover:bg-[#2a241b] text-[#f1ecdd]' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+              title="Önceki Ayet"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={goToNextVerse}
+              disabled={selectedVerseNum >= ayahs.length}
+              className={`w-10 h-10 rounded-xl disabled:opacity-30 flex items-center justify-center transition-colors cursor-pointer ${
+                isDark ? 'bg-[#181510] hover:bg-[#2a241b] text-[#f1ecdd]' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+              title="Sonraki Ayet"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            <div className="hidden sm:block ml-1">
+              <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-[#3fb996]' : 'text-emerald-900'}`}>
+                {selectedVerseNum}. Ayet
+              </span>
+              <span className={`text-[10px] block ${isDark ? 'text-[#8c826e]' : 'text-slate-500'}`}>
+                Döngü: {currentLoop} / {targetLoopCount === 'infinite' ? '∞' : targetLoopCount}
+              </span>
+            </div>
+          </div>
+
+          {/* Orta: Ana Oynat / Durdur Butonları */}
+          <div className="flex-1 max-w-[290px] flex items-center justify-center">
+            {isPlaying ? (
+              <button
+                onClick={stopAudio}
+                className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Square className="w-4 h-4 fill-current" />
+                <span>Durdur ({currentlyPlayingVerseNum ? `${currentlyPlayingVerseNum}. Ayet` : 'Oynatılıyor'})</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 w-full">
+                <button
+                  onClick={() => startPlayback(selectedVerseNum)}
+                  className="flex-1 py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+                  title={`${selectedVerseNum}. Ayeti Döngüyle Çal`}
+                >
+                  <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                  <span>{selectedVerseNum}. Ayeti Çal</span>
+                </button>
+                <button
+                  onClick={startFullSurahPlayback}
+                  className={`flex-1 py-2.5 px-2 font-bold text-xs rounded-xl border shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                    isDark
+                      ? 'bg-[#1c3630] hover:bg-[#23453d] text-[#3fb996] border-[#3fb996]/40'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}
+                  title="Tüm Sureyi Baştan Sona Oku"
+                >
+                  <Layers className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-[#3fb996]' : 'text-emerald-700'}`} />
+                  <span>Tüm Sureyi Oku</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Sağ: İmleçli Hız Slider & Çekmece */}
+          <div className="flex items-center gap-1.5 relative">
+            {/* Hız Slider Popover Kartı */}
+            {showSpeedPopover && (
+              <div className={`absolute right-0 bottom-full mb-3 w-64 p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                isDark ? 'bg-[#211d16] border-[#3a3226] text-[#f1ecdd]' : 'bg-white border-slate-200 text-slate-800'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`flex items-center gap-1.5 text-xs font-bold ${isDark ? 'text-[#f1ecdd]' : 'text-slate-700'}`}>
+                    <Gauge className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
+                    <span>Okuma Hızı</span>
+                  </div>
+                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                    isDark ? 'bg-[#1c3630] text-[#3fb996]' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {playbackSpeed.toFixed(2)}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="3.0"
+                  step="0.1"
+                  value={playbackSpeed}
+                  onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+                  className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${
+                    isDark ? 'bg-[#2a241b]' : 'bg-slate-200'
+                  }`}
+                />
+                <div className="grid grid-cols-4 gap-1 mt-2.5">
+                  {[0.75, 1.0, 1.5, 2.0].map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => setPlaybackSpeed(spd)}
+                      className={`py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                        Math.abs(playbackSpeed - spd) < 0.05
+                          ? isDark
+                            ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996]'
+                            : 'bg-emerald-600 text-white border-emerald-600'
+                          : isDark
+                          ? 'bg-[#181510] text-[#b9b09a] border-[#3a3226] hover:bg-[#2a241b]'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {spd.toFixed(2)}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowSpeedPopover(!showSpeedPopover)}
+              className={`px-2.5 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                showSpeedPopover
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : isDark
+                  ? 'bg-[#1c3630] hover:bg-[#23453d] text-[#3fb996] border-[#3fb996]/40'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+              }`}
+              title="İmleçli Hız Ayarını Aç"
+            >
+              <Gauge className="w-3.5 h-3.5 shrink-0" />
+              <span>{playbackSpeed.toFixed(1)}x</span>
+            </button>
+
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm cursor-pointer ${
+                isDark ? 'bg-[#1c3630] hover:bg-[#23453d] text-white border border-[#3fb996]/40' : 'bg-slate-800 hover:bg-slate-900 text-white'
+              }`}
+              title="Döngü ve Ayarlar"
+            >
+              <Repeat className={`w-4 h-4 ${isDark ? 'text-[#3fb996]' : 'text-emerald-300'}`} />
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {/* MOBİL AYARLAR ÇEKMECESİ (Bottom Drawer / Sheet) */}
+      {isDrawerOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-end justify-center"
+          onClick={() => setIsDrawerOpen(false)}
+        >
+          <div 
+            className={`rounded-t-3xl w-full max-w-lg p-5 pb-8 space-y-5 shadow-2xl border-t animate-in slide-in-from-bottom duration-200 max-h-[85vh] overflow-y-auto ${
+              isDark ? 'bg-[#211d16] border-[#3a3226] text-[#f1ecdd]' : 'bg-white border-slate-200 text-slate-800'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Çekmece Başlığı */}
+            <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-2">
+                <Sliders className={`w-5 h-5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
+                <h3 className={`font-bold text-base ${isDark ? 'text-[#f1ecdd]' : 'text-slate-800'}`}>
+                  Mobil Döngü ve Ses Ayarları
+                </h3>
+              </div>
+              <button 
+                onClick={() => setIsDrawerOpen(false)}
+                className={`p-1.5 rounded-full cursor-pointer ${isDark ? 'hover:bg-[#181510] text-[#8c826e]' : 'hover:bg-slate-100 text-slate-400'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Döngü Sayısı */}
+            <div>
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-[#b9b09a]' : 'text-slate-700'}`}>
+                Tekrar (Döngü) Sayısı:
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[1, 3, 5, 10, 'infinite'].map((val) => {
+                  const isCur = targetLoopCount === val;
+                  return (
+                    <button
+                      key={String(val)}
+                      onClick={() => setTargetLoopCount(val as any)}
+                      className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                        isCur
+                          ? isDark
+                            ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996] shadow-sm'
+                            : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : isDark
+                          ? 'bg-[#181510] text-[#b9b09a] border-[#3a3226] hover:bg-[#2a241b]'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {val === 'infinite' ? 'Sonsuz' : `${val}x`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hafız Seçimi */}
+            <div>
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#b9b09a]' : 'text-slate-700'}`}>
+                Hafız (Seslendirmen):
+              </label>
+              <select
+                value={selectedReciter}
+                onChange={(e) => setSelectedReciter(e.target.value)}
+                className={`w-full border rounded-xl p-2.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
+                  isDark ? 'bg-[#181510] border-[#3a3226] text-[#f1ecdd]' : 'bg-slate-50 border-slate-300 text-slate-800'
+                }`}
+              >
+                {RECITERS.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Ayet Yazı Boyutu */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#b9b09a]' : 'text-slate-700'}`}>
+                  Ayet Yazı Boyutu:
+                </span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isDark ? 'bg-[#1c3630] text-[#3fb996]' : 'text-emerald-800 bg-emerald-100'}`}>
+                  {fontSize.toFixed(2)}rem
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1.2"
+                max="3.5"
+                step="0.05"
+                value={fontSize}
+                onChange={(e) => setFontSize(parseFloat(e.target.value))}
+                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${isDark ? 'bg-[#2a241b]' : 'bg-slate-200'}`}
+              />
+            </div>
+
+            {/* Okuma Hızı Slider */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#b9b09a]' : 'text-slate-700'}`}>
+                  Okuma Hızı:
+                </span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isDark ? 'bg-[#1c3630] text-[#3fb996]' : 'text-emerald-800 bg-emerald-100'}`}>
+                  {playbackSpeed.toFixed(2)}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="3.0"
+                step="0.1"
+                value={playbackSpeed}
+                onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${isDark ? 'bg-[#2a241b]' : 'bg-slate-200'}`}
+              />
+              <div className="grid grid-cols-4 gap-1 mt-2.5">
+                {[0.75, 1.0, 1.5, 2.0].map((spd) => (
+                  <button
+                    key={spd}
+                    type="button"
+                    onClick={() => setPlaybackSpeed(spd)}
+                    className={`py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                      Math.abs(playbackSpeed - spd) < 0.05
+                        ? isDark
+                          ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996]'
+                          : 'bg-emerald-600 text-white border-emerald-600'
+                        : isDark
+                        ? 'bg-[#181510] text-[#b9b09a] border-[#3a3226] hover:bg-[#2a241b]'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {spd.toFixed(2)}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Hat Seçimi */}
+            <div>
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-[#b9b09a]' : 'text-slate-700'}`}>
+                Kur'an Yazı Hattı:
+              </label>
+              <select
+                value={selectedFont}
+                onChange={(e) => setSelectedFont(e.target.value)}
+                className={`w-full border rounded-xl p-2.5 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none ${
+                  isDark ? 'bg-[#181510] border-[#3a3226] text-[#f1ecdd]' : 'bg-slate-50 border-slate-300 text-slate-800'
+                }`}
+              >
+                <option value="font-amiri">Amiri (Klasik Medine Hattı)</option>
+                <option value="font-scheherazade">Scheherazade (Zarif Hat)</option>
+                <option value="font-lateef">Lateef (Mushaf Hattı)</option>
+              </select>
+            </div>
+
+            {/* Kapat ve Kaydet Butonu */}
+            <button
+              onClick={() => setIsDrawerOpen(false)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              <span>Ayarları Uygula</span>
+            </button>
+
+          </div>
+        </div>
+      )}
+
+      {/* Yapay Zekâ Analiz Modalı */}
+      <AnalysisModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        selectedWords={getModalWordData()}
+        selectedText={selectedAyahObj ? cleanVerseText(selectedAyahObj.text, selectedVerseNum) : ''}
+        verseNumber={selectedVerseNum}
+        verseTranslation={selectedTranslationText}
+        surahName={currentSurahMeta?.name || ''}
+      />
+
+    </div>
+  );
+};

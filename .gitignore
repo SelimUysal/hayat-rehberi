@@ -1,0 +1,28 @@
+# Bağımlılıklar ve Derleme Çıktıları
+node_modules/
+build/
+dist/
+coverage/
+server.js
+
+# Ortam Değişkenleri ve Gizli Anahtarlar (Asla GitHub'a Yüklenmez)
+.env
+.env.*
+!.env.example
+
+# Kullanıcı Geri Bildirimleri ve Sunucu İçi Özel Kayıtlar
+/data/
+/data/*.json
+!src/data/
+!src/data/**
+!src/components/takvim/data/
+!src/components/takvim/data/**
+!src/components/QuranMatrixLab/data/
+!src/components/QuranMatrixLab/data/**
+
+# İşletim Sistemi ve Geçici Test Dosyaları
+.DS_Store
+*.log
+*.bin
+temp_*
+test_*

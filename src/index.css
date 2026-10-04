@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+@layer utilities {
+  .font-quran {
+    font-family: 'Amiri Quran', serif;
+  }
+  .font-amiri {
+    font-family: 'Amiri', serif;
+  }
+  .font-scheherazade {
+    font-family: 'Scheherazade New', serif;
+  }
+  .font-lateef {
+    font-family: 'Lateef', cursive;
+  }
+  .dir-rtl {
+    direction: rtl;
+  }
+  .dir-ltr {
+    direction: ltr;
+  }
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+:root {
+  --arabic-word-size: 1.85rem;
+}
+
+.word-span {
+  display: inline-block;
+  padding: 2px 4px;
+  margin: 1px 2px;
+  border-radius: 6px;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  user-select: none;
+}
+
+.word-span:hover {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+.word-selected {
+  background-color: #a7f3d0 !important;
+  color: #064e3b !important;
+  border-radius: 6px;
+}
+
+.dark .word-selected,
+[data-theme="dark"] .word-selected {
+  background-color: #065f46 !important;
+  color: #a7f3d0 !important;
+  border-radius: 6px;
+}
+
+.active-word {
+  background-color: #fde047 !important;
+  color: #713f12 !important;
+  box-shadow: 0 0 8px rgba(234, 179, 8, 0.5);
+  transform: scale(1.04);
+}
+
+.dark .active-word,
+[data-theme="dark"] .active-word {
+  background-color: #ca8a04 !important;
+  color: #fef08a !important;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+  transform: scale(1.04);
+}
+
+.active-verse-box {
+  border-color: #10b981 !important;
+  box-shadow: 0 4px 14px -2px rgba(16, 185, 129, 0.2);
+  background-color: #f0fdf4 !important;
+}
+
+.dark .active-verse-box,
+[data-theme="dark"] .active-verse-box {
+  border-color: #3fb996 !important;
+  box-shadow: 0 4px 14px -2px rgba(63, 185, 150, 0.25);
+  background-color: #1a2f29 !important;
+}
+
+/* Özel kaydırma çubuğu */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+.font-arabic {
+  font-family: 'Amiri', serif;
+}
+.font-quran {
+  font-family: 'Amiri Quran', 'Amiri', serif;
+}
+.matrix-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.matrix-scroll::-webkit-scrollbar-track {
+  background: #f5f5f4;
+  border-radius: 4px;
+}
+.matrix-scroll::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 4px;
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="tr" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hayat Rehberi</title>
+    <meta name="description" content="Hayat Rehberi - Kur'an-ı Kerim ezber, sıfırdan Elif-Bâ öğrenme rehberi, Esmaü'l-Hüsnâ, kaza namazı takipçisi, namaz sureleri ve kesintisiz dinleme asistanı" />
+    <meta property="og:title" content="Hayat Rehberi" />
+    <meta property="og:description" content="Hayat Rehberi - Kur'an-ı Kerim ezber, sıfırdan Elif-Bâ öğrenme rehberi, Esmaü'l-Hüsnâ, kaza namazı takipçisi, namaz sureleri ve kesintisiz dinleme asistanı" />
+    <meta name="theme-color" content="#064e3b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Hayat Rehberi" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="alternate icon" type="image/png" href="./favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <meta property="og:image" content="./icon-512.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="./icon-512.png" />
+    <script>
+      // AI Studio iframe proxy ortamında zararsız Vite WebSocket HMR uyarılarını yakala ve engelle
+      window.addEventListener('unhandledrejection', function(event) {
+        var reasonStr = String(event?.reason?.message || event?.reason || '');
+        if (reasonStr.includes('WebSocket') || reasonStr.includes('ws') || reasonStr.includes('closed without opened')) {
+          event.preventDefault();
+        }
+      });
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Amiri+Quran&family=Lateef:wght@400;700&family=Scheherazade+New:wght@400;700&family=Poppins:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#FBF9F5] text-slate-800 antialiased font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

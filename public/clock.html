@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<title>Dinamik Analog Saat</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* =========================
+   TEMEL
+========================= */
+
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+html,
+body {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    overscroll-behavior: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+body {
+    min-height: 100vh;
+    min-height: 100dvh;
+
+    overflow: hidden !important;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--bg);
+    color: var(--main);
+
+    transition:
+        background 0.4s ease,
+        color 0.4s ease;
+
+    touch-action: none;
+    cursor: default;
+}
+
+body:not(.controls-visible) {
+    cursor: none !important;
+}
+
+
+/* =========================
+   KOYU TEMA
+========================= */
+
+:root {
+    --bg:
+        radial-gradient(
+            circle at center,
+            #1e293b,
+            #0f172a 55%,
+            #020617
+        );
+
+    --clock:
+        radial-gradient(
+            circle at 35% 30%,
+            #1e293b,
+            #0f172a
+        );
+
+    --border: #475569;
+    --border-dark: #334155;
+
+    --main: #f8fafc;
+    --sub: #94a3b8;
+
+    --marks: #64748b;
+    --numbers: #e2e8f0;
+
+    --hour: #f8fafc;
+    --minute: #cbd5e1;
+    --second: #ef4444;
+
+    --pin-inner: #ffffff;
+
+    --shadow: rgba(0, 0, 0, 0.6);
+}
+
+
+/* =========================
+   AÇIK TEMA
+   07:29 - 20:59
+========================= */
+
+body.light-mode {
+    --bg:
+        radial-gradient(
+            circle at center,
+            #f8fafc,
+            #e2e8f0 55%,
+            #cbd5e1
+        );
+
+    --clock:
+        radial-gradient(
+            circle at 35% 30%,
+            #ffffff,
+            #f1f5f9
+        );
+
+    --border: #cbd5e1;
+    --border-dark: #94a3b8;
+
+    --main: #0f172a;
+    --sub: #64748b;
+
+    --marks: #94a3b8;
+    --numbers: #1e293b;
+
+    --hour: #0f172a;
+    --minute: #334155;
+    --second: #dc2626;
+
+    --pin-inner: #ffffff;
+
+    --shadow: rgba(100, 116, 139, 0.35);
+}
+
+
+/* =========================
+   ZİFİRİ KARANLIK (OLED) TEMA
+   Gece Göz Koruma & Saf Siyah
+========================= */
+
+body.oled-mode {
+    background: #000000 !important;
+    color: #ffb000;
+
+    --bg: #000000;
+    --clock: #000000;
+
+    --border: #5b1208;
+    --border-dark: #2a0a03;
+
+    --main: #ffb000;
+    --sub: #d37300;
+
+    --marks: #8b2b1a;
+    --numbers: #ffb000;
+
+    --hour: #ffb000;
+    --minute: #e65100;
+    --second: #c62828;
+
+    --pin-inner: #ffb000;
+
+    --shadow: rgba(0, 0, 0, 1);
+}
+
+
+/* =========================
+   ANA ALAN
+========================= */
+
+.app {
+    position: relative;
+
+    width: 100%;
+    height: 100%;
+    min-height: 100dvh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+/* =========================
+   SAAT
+========================= */
+
+.clock-wrapper {
+    position: relative;
+
+    width: min(70vmin, 600px);
+    height: min(70vmin, 600px);
+
+    min-width: 260px;
+    min-height: 260px;
+}
+
+.clock-body {
+    width: 100%;
+    height: 100%;
+
+    padding: 2.5%;
+
+    border-radius: 50%;
+
+    background: var(--clock);
+
+    border:
+        clamp(5px, 0.8vmin, 8px)
+        solid
+        var(--border);
+
+    box-shadow:
+        0 0 0 2px var(--border-dark),
+        0 0 0 10px var(--border-dark),
+        0 25px 50px -12px var(--shadow);
+
+    transition:
+        background 0.4s ease,
+        border-color 0.4s ease;
+
+    cursor: pointer;
+}
+
+canvas {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+
+    border-radius: 50%;
+}
+
+
+/* =========================
+   KONTROL BUTONLARI
+========================= */
+
+.controls {
+    position: absolute;
+
+    top: 1rem;
+    right: 1rem;
+
+    z-index: 10;
+
+    display: flex;
+    gap: 0.65rem;
+
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    transform: translateY(-8px);
+
+    transition:
+        opacity 0.4s ease,
+        transform 0.4s ease,
+        visibility 0.4s ease;
+}
+
+.nav-back-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 1rem;
+    z-index: 25;
+    min-width: 180px;
+    min-height: 70px;
+}
+
+.nav-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px;
+    color: #ffffff;
+    text-decoration: none;
+    font: 600 0.82rem Inter, sans-serif;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-6px);
+    transition:
+        opacity 0.4s ease,
+        transform 0.4s ease,
+        visibility 0.4s ease,
+        background 0.2s ease;
+}
+
+.nav-back-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.03);
+}
+
+.light-mode .nav-back-btn {
+    background: rgba(255, 255, 255, 0.75);
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.15);
+}
+
+.oled-mode .nav-back-btn {
+    background: #140502;
+    color: #ffb000;
+    border-color: #5b1208;
+}
+
+.oled-mode .nav-back-btn:hover {
+    background: #280b04;
+    color: #ffd54f;
+}
+
+/* Etkileşim olduğunda veya kontroller görünür durumdayken tüm butonlar aktifleşir */
+.nav-back-zone:hover .nav-back-btn,
+.nav-back-btn.is-active,
+body.controls-visible .nav-back-btn,
+body.controls-visible .controls {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+
+.btn-icon {
+    width: 44px;
+    height: 44px;
+
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(15, 23, 42, 0.38);
+
+    color: var(--main);
+
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    cursor: pointer;
+
+    font:
+        700
+        0.9rem
+        Inter,
+        sans-serif;
+
+    transition:
+        transform 0.15s ease,
+        background 0.15s ease;
+}
+
+.btn-icon:hover {
+    transform: scale(1.07);
+
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.btn-icon:active {
+    transform: scale(0.95);
+}
+
+
+/* Açık temadaki butonlar */
+
+.light-mode .btn-icon {
+    background: rgba(255, 255, 255, 0.45);
+
+    border-color:
+        rgba(15, 23, 42, 0.12);
+}
+
+.light-mode .btn-icon:hover {
+    background: rgba(255, 255, 255, 0.75);
+}
+
+.oled-mode .btn-icon {
+    background: #140502;
+    color: #ffb000;
+    border-color: #5b1208;
+}
+
+.oled-mode .btn-icon:hover {
+    background: #280b04;
+    color: #ffd54f;
+}
+
+
+/* =========================
+   DİJİTAL SAAT
+========================= */
+
+.digital-panel {
+    position: absolute;
+
+    top:
+        calc(
+            50%
+            +
+            min(35vmin, 300px)
+            +
+            1.5rem
+        );
+
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    text-align: center;
+
+    white-space: nowrap;
+
+    transition:
+        opacity 0.35s ease,
+        transform 0.35s ease,
+        visibility 0.35s ease;
+}
+
+.digital-panel.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, 12px);
+}
+
+.time-digital {
+    font:
+        700
+        clamp(1.2rem, 3.5vmin, 2.2rem)
+        Inter,
+        sans-serif;
+
+    letter-spacing: 0.05em;
+
+    font-variant-numeric: tabular-nums;
+}
+
+.date-digital {
+    margin-top: 0.2rem;
+
+    color: var(--sub);
+
+    font:
+        500
+        clamp(0.75rem, 2vmin, 1.1rem)
+        Inter,
+        sans-serif;
+
+    text-transform: capitalize;
+}
+
+
+/* =========================
+   MOBİL
+========================= */
+
+@media (max-width: 767px) {
+
+    .clock-wrapper {
+        width:
+            min(
+                88vw,
+                88vh,
+                88dvw,
+                88dvh
+            );
+
+        height:
+            min(
+                88vw,
+                88vh,
+                88dvw,
+                88dvh
+            );
+
+        min-width: 0;
+        min-height: 0;
+    }
+
+    .clock-body {
+        border-width:
+            clamp(
+                4px,
+                1.5vw,
+                8px
+            );
+
+        box-shadow:
+            0 0 0 1px var(--border-dark),
+            0 0 0 6px var(--border-dark),
+            0 12px 28px -10px var(--shadow);
+    }
+
+    .controls {
+        top:
+            max(
+                10px,
+                env(safe-area-inset-top)
+            );
+
+        right:
+            max(
+                10px,
+                env(safe-area-inset-right)
+            );
+    }
+
+    .btn-icon {
+        width: 42px;
+        height: 42px;
+    }
+
+    /*
+       Telefonda dijital saat konumu
+    */
+
+    .digital-panel {
+        top: calc(50% + min(44vw, 44vh) + 0.8rem);
+    }
+}
+
+
+/* Çok küçük ekranlar */
+
+@media (max-width: 360px) {
+
+    .controls {
+        gap: 0.4rem;
+    }
+
+    .btn-icon {
+        width: 38px;
+        height: 38px;
+    }
+}
+</style>
+</head>
+
+
+<body>
+
+<div class="app">
+
+    <!-- Sol Üst: Gizli Hayat Rehberi Butonu (Fareyle üstüne gelindiğinde 2 sn görünür) -->
+    <div class="nav-back-zone" id="navBackZone">
+        <a 
+            href="/" 
+            id="navBackBtn"
+            class="nav-back-btn" 
+            onclick="if(window.parent && window.parent !== window){ window.parent.postMessage('close-modal', '*'); return false; }"
+        >
+            ← Hayat Rehberi
+        </a>
+    </div>
+
+    <!-- =========================
+         SAAT
+    ========================== -->
+
+    <div class="clock-wrapper">
+
+        <div
+            class="clock-body"
+            id="clockBody"
+        >
+            <canvas
+                id="clockCanvas"
+                aria-label="Analog saat"
+            ></canvas>
+        </div>
+
+
+        <!-- =========================
+             KONTROL BUTONLARI
+        ========================== -->
+
+        <div
+            class="controls"
+            id="controls"
+        >
+
+            <!-- Rakam değiştir -->
+
+            <button
+                id="numeralToggleBtn"
+                class="btn-icon"
+                title="Rakam stilini değiştir"
+                aria-label="Rakam stilini değiştir"
+            >
+                <span id="numeralIcon">١٢</span>
+            </button>
+
+<!-- Tema: AUTO / AÇIK / KOYU -->
+<button
+    id="themeToggleBtn"
+    class="btn-icon"
+    title="Tema: Otomatik"
+    aria-label="Tema modunu değiştir"
+>
+    <span id="themeIcon">A</span>
+</button>
+            <!-- Saniye modu -->
+
+            <button
+                id="smoothToggleBtn"
+                class="btn-icon"
+                title="Saniye modunu değiştir"
+                aria-label="Saniye modunu değiştir"
+            >
+
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <circle
+                        cx="12"
+                        cy="12"
+                        r="9"
+                    ></circle>
+
+                    <path
+                        d="M12 7v5l3 2"
+                    ></path>
+                </svg>
+
+            </button>
+
+            <!-- Dijital Saat / Tarih Göster-Gizle -->
+
+            <button
+                id="digitalToggleBtn"
+                class="btn-icon"
+                title="Dijital saat ve tarihi göster / gizle"
+                aria-label="Dijital saat ve tarihi göster veya gizle"
+            >
+                <span id="digitalIcon" style="font-size: 0.72rem; font-weight: 800; letter-spacing: -0.5px;">12:00</span>
+            </button>
+
+            <!-- Yeni Sekmede Aç -->
+
+            <a
+                href="./clock.html"
+                target="_blank"
+                rel="noreferrer"
+                class="btn-icon"
+                title="Yeni Sekmede Aç"
+                aria-label="Yeni Sekmede Aç"
+                style="text-decoration: none;"
+            >
+                <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================
+         DİJİTAL SAAT
+    ========================== -->
+
+    <div class="digital-panel">
+
+        <div
+            id="digitalTime"
+            class="time-digital"
+        >
+            00:00:00
+        </div>
+
+        <div
+            id="digitalDate"
+            class="date-digital"
+        >
+            Yükleniyor...
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+'use strict';
+
+
+/* =========================================================
+   DOM
+========================================================= */
+
+const canvas =
+    document.getElementById('clockCanvas');
+
+const ctx =
+    canvas.getContext(
+        '2d',
+        { alpha: true }
+    );
+
+const clockBody =
+    document.getElementById('clockBody');
+
+const controls =
+    document.getElementById('controls');
+
+const digitalTime =
+    document.getElementById('digitalTime');
+
+const digitalDate =
+    document.getElementById('digitalDate');
+
+const numeralToggleBtn =
+    document.getElementById('numeralToggleBtn');
+
+const smoothToggleBtn =
+    document.getElementById('smoothToggleBtn');
+
+const numeralIcon =
+    document.getElementById('numeralIcon');
+
+const themeIcon =
+    document.getElementById('themeIcon');
+
+const navBackZone =
+    document.getElementById('navBackZone');
+
+const navBackBtn =
+    document.getElementById('navBackBtn');
+
+let navBackTimer = null;
+
+function showNavBackButton(durationMs = 2000) {
+    if (!navBackBtn) return;
+    navBackBtn.classList.add('is-active');
+    clearTimeout(navBackTimer);
+    navBackTimer = setTimeout(() => {
+        navBackBtn.classList.remove('is-active');
+    }, durationMs);
+}
+
+if (navBackZone) {
+    navBackZone.addEventListener('mouseenter', () => showNavBackButton(2000));
+    navBackZone.addEventListener('mousemove', () => showNavBackButton(2000));
+    navBackZone.addEventListener('mouseleave', () => showNavBackButton(2000));
+    navBackZone.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        showNavBackButton(2000);
+    });
+}
+
+/* =========================================================
+   DURUM
+========================================================= */
+
+let isSmoothSec = true;
+
+let useOttomanNumerals = false;
+
+let controlsTimer = null;
+
+let themeMode = 'auto';
+
+/* =========================================================
+   RAKAMLAR
+========================================================= */
+
+const ottomanNumerals = [
+    '١',
+    '٢',
+    '٣',
+    '٤',
+    '٥',
+    '٦',
+    '٧',
+    '٨',
+    '٩',
+    '١٠',
+    '١١',
+    '١٢'
+];
+
+const standardNumerals = [
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '10',
+    '11',
+    '12'
+];
+
+/* =========================================================
+   TEMA MODU
+========================================================= */
+
+function updateThemeButton() {
+
+    if (themeMode === 'auto') {
+
+        themeIcon.textContent = 'A';
+
+        themeToggleBtn.title =
+            'Tema: Otomatik';
+
+        themeToggleBtn.setAttribute(
+            'aria-label',
+            'Tema: Otomatik'
+        );
+
+        return;
+    }
+
+
+    if (themeMode === 'light') {
+
+        themeIcon.textContent = '☀';
+
+        themeToggleBtn.title =
+            'Tema: Açık';
+
+        themeToggleBtn.setAttribute(
+            'aria-label',
+            'Tema: Açık'
+        );
+
+        return;
+    }
+
+
+    if (themeMode === 'dark') {
+
+        themeIcon.textContent = '☾';
+
+        themeToggleBtn.title =
+            'Tema: Koyu';
+
+        themeToggleBtn.setAttribute(
+            'aria-label',
+            'Tema: Koyu'
+        );
+
+        return;
+    }
+
+
+    /*
+       oled
+    */
+
+    themeIcon.textContent = '🌑';
+
+    themeToggleBtn.title =
+        'Tema: Zifiri Karanlık (OLED Göz Koruma)';
+
+    themeToggleBtn.setAttribute(
+        'aria-label',
+        'Tema: Zifiri Karanlık (OLED Göz Koruma)'
+    );
+}
+
+
+themeToggleBtn.addEventListener(
+    'click',
+    () => {
+
+        /*
+            AUTO
+              ↓
+            AÇIK
+              ↓
+            KOYU
+              ↓
+            ZİFİRİ KARANLIK (OLED)
+              ↓
+            AUTO
+        */
+
+        if (themeMode === 'auto') {
+
+            themeMode = 'light';
+
+        } else if (themeMode === 'light') {
+
+            themeMode = 'dark';
+
+        } else if (themeMode === 'dark') {
+
+            themeMode = 'oled';
+
+        } else {
+
+            themeMode = 'auto';
+        }
+
+
+        updateThemeButton();
+
+        /*
+           Butona basıldığı anda temayı
+           hemen uygula.
+        */
+
+        updateTheme(
+            new Date()
+        );
+    }
+);
+/* =========================================================
+   CANVAS BOYUTU
+========================================================= */
+
+function resizeCanvas() {
+
+    const rect =
+        canvas.getBoundingClientRect();
+
+    const dpr =
+        Math.max(
+            1,
+            window.devicePixelRatio || 1
+        );
+
+    canvas.width =
+        Math.round(
+            rect.width * dpr
+        );
+
+    canvas.height =
+        Math.round(
+            rect.height * dpr
+        );
+
+
+    /*
+       ÖNEMLİ:
+
+       ctx.scale() yerine setTransform()
+       kullanıyoruz.
+
+       Böylece ekran her resize olduğunda
+       ölçek tekrar tekrar çarpılmaz.
+    */
+
+    ctx.setTransform(
+        dpr,
+        0,
+        0,
+        dpr,
+        0,
+        0
+    );
+}
+
+
+/* =========================================================
+   OTOMATİK GÜNDÜZ / GECE TEMASI
+========================================================= */
+
+function updateTheme(date) {
+
+    /*
+        Zifiri Karanlık (OLED) Tema
+    */
+
+    if (themeMode === 'oled') {
+
+        document.body.classList.remove('light-mode');
+        document.body.classList.add('oled-mode');
+
+        return;
+    }
+
+
+    document.body.classList.remove('oled-mode');
+
+
+    /*
+        Manuel açık tema
+    */
+
+    if (themeMode === 'light') {
+
+        document.body.classList.add('light-mode');
+
+        return;
+    }
+
+
+    /*
+        Manuel koyu tema
+    */
+
+    if (themeMode === 'dark') {
+
+        document.body.classList.remove('light-mode');
+
+        return;
+    }
+
+
+    /*
+        AUTO MODU
+
+        07:29 - 20:59
+        = Açık
+
+        21:00 - 07:28
+        = Koyu
+    */
+
+    const minutesOfDay =
+        date.getHours() * 60 +
+        date.getMinutes();
+
+
+    const isDay =
+        minutesOfDay >= (7 * 60 + 29) &&
+        minutesOfDay <= (20 * 60 + 59);
+
+
+    document.body.classList.toggle(
+        'light-mode',
+        isDay
+    );
+}
+
+/* =========================================================
+   OTOMATİK TAM EKRAN / DİKKAT DAĞITMAYAN GİZLENME (IMMERSIVE IDLE)
+   5 saniye boyunca işlem yapılmadığında arayüz sakinleşir.
+========================================================= */
+
+const IDLE_TIMEOUT_MS = 5000;
+let idleTimer = null;
+
+function handleUserActivity() {
+    document.body.classList.add('controls-visible');
+    if (navBackBtn) {
+        navBackBtn.classList.add('is-active');
+    }
+
+    if (idleTimer) {
+        clearTimeout(idleTimer);
+    }
+
+    idleTimer = setTimeout(() => {
+        document.body.classList.remove('controls-visible');
+        if (navBackBtn) {
+            navBackBtn.classList.remove('is-active');
+        }
+    }, IDLE_TIMEOUT_MS);
+}
+
+function showControls() {
+    handleUserActivity();
+}
+
+function hideControls() {
+    if (idleTimer) clearTimeout(idleTimer);
+    document.body.classList.remove('controls-visible');
+    if (navBackBtn) navBackBtn.classList.remove('is-active');
+}
+
+// Tüm etkileşim olaylarını dinle (fare hareketi, tıklama, dokunma, tuşlar, kaydırma)
+['mousemove', 'pointerdown', 'touchstart', 'touchmove', 'keydown', 'scroll'].forEach((evt) => {
+    window.addEventListener(evt, handleUserActivity, { passive: true });
+});
+
+// Sayfa ilk yüklendiğinde de 5 saniye gösterip sakin moda geç
+handleUserActivity();
+
+
+/* =========================================================
+   RAKAM MODU
+========================================================= */
+
+numeralToggleBtn.addEventListener(
+    'click',
+    () => {
+
+        useOttomanNumerals =
+            !useOttomanNumerals;
+
+
+        numeralIcon.textContent =
+            useOttomanNumerals
+                ? '12'
+                : '١٢';
+
+    }
+);
+
+
+/* =========================================================
+   SANİYE MODU
+========================================================= */
+
+smoothToggleBtn.addEventListener(
+    'click',
+    () => {
+
+        isSmoothSec =
+            !isSmoothSec;
+
+
+        smoothToggleBtn.style.opacity =
+            isSmoothSec
+                ? '1'
+                : '0.5';
+
+    }
+);
+
+
+/* =========================================================
+   DİJİTAL SAAT & TARİH GÖSTER - GİZLE
+========================================================= */
+
+const digitalToggleBtn = document.getElementById('digitalToggleBtn');
+const digitalPanel = document.querySelector('.digital-panel');
+let isDigitalVisible = true;
+
+if (digitalToggleBtn && digitalPanel) {
+    digitalToggleBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        isDigitalVisible = !isDigitalVisible;
+
+        if (isDigitalVisible) {
+            digitalPanel.classList.remove('is-hidden');
+            digitalToggleBtn.style.opacity = '1';
+            digitalToggleBtn.title = 'Dijital Saat & Tarih: Açık';
+        } else {
+            digitalPanel.classList.add('is-hidden');
+            digitalToggleBtn.style.opacity = '0.4';
+            digitalToggleBtn.title = 'Dijital Saat & Tarih: Kapalı';
+        }
+    });
+}
+
+
+/* =========================================================
+   İBRE ÇİZME
+========================================================= */
+
+function drawHand(
+    cx,
+    cy,
+    angle,
+    length,
+    width,
+    color,
+    secondHand = false
+) {
+
+    ctx.save();
+
+
+    ctx.translate(
+        cx,
+        cy
+    );
+
+
+    ctx.rotate(
+        angle
+    );
+
+
+    ctx.beginPath();
+
+    ctx.lineWidth =
+        width;
+
+    ctx.lineCap =
+        'round';
+
+    ctx.strokeStyle =
+        color;
+
+
+    const tail =
+        secondHand
+            ? length * 0.22
+            : length * 0.10;
+
+
+    ctx.moveTo(
+        0,
+        tail
+    );
+
+    ctx.lineTo(
+        0,
+        -length
+    );
+
+
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+
+/* =========================================================
+   SAAT ÇİZ
+========================================================= */
+
+function drawClock() {
+
+    const width =
+        canvas.clientWidth;
+
+    const height =
+        canvas.clientHeight;
+
+
+    if (
+        !width ||
+        !height
+    ) {
+        return;
+    }
+
+
+    const radius =
+        Math.min(
+            width,
+            height
+        ) / 2;
+
+    const cx =
+        width / 2;
+
+    const cy =
+        height / 2;
+
+
+    /*
+       Güncel zamanı al.
+    */
+
+    const now =
+        new Date();
+
+
+    /*
+       Tema değişimini
+       çizimden ÖNCE yapıyoruz.
+    */
+
+    updateTheme(now);
+
+
+    /*
+       Güncel CSS renklerini al.
+    */
+
+    const style =
+        getComputedStyle(
+            document.body
+        );
+
+
+    const marks =
+        style
+            .getPropertyValue(
+                '--marks'
+            )
+            .trim();
+
+    const numbers =
+        style
+            .getPropertyValue(
+                '--numbers'
+            )
+            .trim();
+
+    const hourColor =
+        style
+            .getPropertyValue(
+                '--hour'
+            )
+            .trim();
+
+    const minuteColor =
+        style
+            .getPropertyValue(
+                '--minute'
+            )
+            .trim();
+
+    const secondColor =
+        style
+            .getPropertyValue(
+                '--second'
+            )
+            .trim();
+
+    const pinInnerColor =
+        style
+            .getPropertyValue(
+                '--pin-inner'
+            )
+            .trim() || '#ffffff';
+
+
+    /*
+       Canvas temizle.
+    */
+
+    ctx.clearRect(
+        0,
+        0,
+        width,
+        height
+    );
+
+
+    /* =====================================================
+       KADRAN ÇİZGİLERİ
+    ===================================================== */
+
+    for (
+        let i = 0;
+        i < 60;
+        i++
+    ) {
+
+        const angle =
+            i * Math.PI / 30;
+
+        const isHour =
+            i % 5 === 0;
+
+
+        const outer =
+            radius * 0.90;
+
+        const length =
+            isHour
+                ? radius * 0.10
+                : radius * 0.04;
+
+        const inner =
+            outer - length;
+
+
+        ctx.beginPath();
+
+
+        ctx.moveTo(
+            cx +
+                Math.sin(angle) *
+                inner,
+
+            cy -
+                Math.cos(angle) *
+                inner
+        );
+
+
+        ctx.lineTo(
+            cx +
+                Math.sin(angle) *
+                outer,
+
+            cy -
+                Math.cos(angle) *
+                outer
+        );
+
+
+        ctx.strokeStyle =
+            isHour
+                ? numbers
+                : marks;
+
+
+        ctx.lineWidth =
+            isHour
+                ? radius * 0.022
+                : radius * 0.009;
+
+
+        ctx.lineCap =
+            'round';
+
+
+        ctx.stroke();
+    }
+
+
+    /* =====================================================
+       RAKAMLAR
+    ===================================================== */
+
+    const fontFamily =
+        useOttomanNumerals
+            ? "'Amiri', serif"
+            : "'Inter', sans-serif";
+
+
+    const fontSize =
+        useOttomanNumerals
+            ? radius * 0.15
+            : radius * 0.13;
+
+
+    ctx.font =
+        `700 ${fontSize}px ${fontFamily}`;
+
+    ctx.fillStyle =
+        numbers;
+
+    ctx.textAlign =
+        'center';
+
+    ctx.textBaseline =
+        'middle';
+
+
+    const activeNumerals =
+        useOttomanNumerals
+            ? ottomanNumerals
+            : standardNumerals;
+
+
+    for (
+        let number = 1;
+        number <= 12;
+        number++
+    ) {
+
+        const angle =
+            number * Math.PI / 6;
+
+
+        const numberRadius =
+            radius * 0.68;
+
+
+        const x =
+            cx +
+            Math.sin(angle) *
+            numberRadius;
+
+
+        const y =
+            cy -
+            Math.cos(angle) *
+            numberRadius;
+
+
+        ctx.fillText(
+            activeNumerals[
+                number - 1
+            ],
+            x,
+            y
+        );
+    }
+
+
+    /* =====================================================
+       ZAMAN
+    ===================================================== */
+
+    const hours =
+        now.getHours();
+
+    const minutes =
+        now.getMinutes();
+
+    const seconds =
+        now.getSeconds();
+
+    const milliseconds =
+        now.getMilliseconds();
+
+
+    /*
+       Akıcı saniye veya tik-tak.
+    */
+
+    const exactSeconds =
+        isSmoothSec
+            ? seconds +
+              milliseconds / 1000
+            : seconds;
+
+
+    const exactMinutes =
+        minutes +
+        exactSeconds / 60;
+
+
+    const exactHours =
+        (hours % 12) +
+        exactMinutes / 60;
+
+
+    /* =====================================================
+       AÇILAR
+    ===================================================== */
+
+    const hourAngle =
+        exactHours *
+        Math.PI / 6;
+
+    const minuteAngle =
+        exactMinutes *
+        Math.PI / 30;
+
+    const secondAngle =
+        exactSeconds *
+        Math.PI / 30;
+
+
+    /* =====================================================
+       İBRE GÖLGESİ
+    ===================================================== */
+
+    ctx.save();
+
+    ctx.shadowColor =
+        'rgba(0,0,0,.30)';
+
+    ctx.shadowBlur =
+        radius * 0.02;
+
+    ctx.shadowOffsetX =
+        radius * 0.01;
+
+    ctx.shadowOffsetY =
+        radius * 0.01;
+
+
+    /* Saat */
+
+    drawHand(
+        cx,
+        cy,
+        hourAngle,
+        radius * 0.45,
+        radius * 0.04,
+        hourColor
+    );
+
+
+    /* Dakika */
+
+    drawHand(
+        cx,
+        cy,
+        minuteAngle,
+        radius * 0.68,
+        radius * 0.026,
+        minuteColor
+    );
+
+
+    /* Saniye */
+
+    drawHand(
+        cx,
+        cy,
+        secondAngle,
+        radius * 0.78,
+        radius * 0.01,
+        secondColor,
+        true
+    );
+
+
+    ctx.restore();
+
+
+    /* =====================================================
+       MERKEZ GÖBEĞİ
+    ===================================================== */
+
+    ctx.beginPath();
+
+    ctx.arc(
+        cx,
+        cy,
+        radius * 0.038,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fillStyle =
+        secondColor;
+
+    ctx.fill();
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+        cx,
+        cy,
+        radius * 0.015,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fillStyle =
+        pinInnerColor;
+
+    ctx.fill();
+
+
+    /* =====================================================
+       DİJİTAL SAAT
+    ===================================================== */
+
+    updateDigitalDisplay(
+        now,
+        hours,
+        minutes,
+        seconds
+    );
+}
+
+
+/* =========================================================
+   DİJİTAL SAAT / TARİH
+========================================================= */
+
+function updateDigitalDisplay(
+    date,
+    hours,
+    minutes,
+    seconds
+) {
+
+    const pad =
+        number =>
+            String(number)
+                .padStart(2, '0');
+
+
+    digitalTime.textContent =
+        `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+
+
+    digitalDate.textContent =
+        date.toLocaleDateString(
+            'tr-TR',
+            {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }
+        );
+}
+
+
+/* =========================================================
+   ANİMASYON
+========================================================= */
+
+function animate() {
+
+    drawClock();
+
+    requestAnimationFrame(
+        animate
+    );
+}
+
+
+/* =========================================================
+   EKRAN BOYUTU DEĞİŞİNCE
+========================================================= */
+
+window.addEventListener(
+    'resize',
+    resizeCanvas,
+    {
+        passive: true
+    }
+);
+
+
+/* =========================================================
+   MOBİL TARAYICI VIEWPORT
+========================================================= */
+
+if (window.visualViewport) {
+
+    window.visualViewport.addEventListener(
+        'resize',
+        resizeCanvas,
+        {
+            passive: true
+        }
+    );
+}
+
+
+/* =========================================================
+   TELEFON YÖN DEĞİŞİMİ
+========================================================= */
+
+window.addEventListener(
+    'orientationchange',
+    () => {
+
+        setTimeout(
+            resizeCanvas,
+            100
+        );
+
+    },
+    {
+        passive: true
+    }
+);
+
+
+/* =========================================================
+   EKRANI AÇIK TUTMA (WAKE LOCK - EKRAN KAPANMASINI ENGELLEME)
+========================================================= */
+
+let wakeLock = null;
+
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+        }
+    } catch (err) {
+        // Tarayıcı izinleri veya arka plan kısıtlamaları
+    }
+}
+
+// Sekmeye tekrar dönüldüğünde ekran kilidini yenile
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        requestWakeLock();
+    }
+});
+
+// İlk kullanıcı dokunmasında / tıklamasında da tetikle (tarayıcı güvenlik politikaları için)
+window.addEventListener('pointerdown', requestWakeLock, { passive: true });
+
+
+/* =========================================================
+   BAŞLAT
+========================================================= */
+
+window.addEventListener(
+    'load',
+    () => {
+
+        resizeCanvas();
+
+        animate();
+
+        requestWakeLock();
+
+    }
+);
+</script>
+
+</body>
+</html>

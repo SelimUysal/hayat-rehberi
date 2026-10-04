@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dinamik Namaz Vakti Hesaplama Formülü</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: #0f172a;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .back-btn:hover {
+            background: #1e293b;
+        }
+
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-top: 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin-top: 0;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .temkin-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        button.calc-btn {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        button.calc-btn:hover { background-color: #1d4ed8; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th { background-color: #f1f5f9; color: var(--primary); }
+
+        .badge {
+            background-color: #dbeafe;
+            color: #1e40af;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-top: 10px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-bar">
+        <a href="/" class="back-btn" onclick="if(window.parent && window.parent !== window){ window.parent.postMessage('close-modal', '*'); return false; }">
+            ← Hayat Rehberi'ne Dön
+        </a>
+        <span style="font-size: 0.8rem; color: #64748b; font-weight: 500;">Geliştirici Özel Aracı</span>
+    </div>
+
+    <h1>Dinamik Namaz Vakti Matematiksel Formülü</h1>
+
+    <div class="grid">
+        <!-- GİRDİ PANELİ -->
+        <div class="card">
+            <h2>1. Konum ve Tarih (Her Yer ve Zaman İçin)</h2>
+            <div class="form-group">
+                <label>Enlem (Latitude):</label>
+                <input type="number" id="lat" step="any" value="41.0082">
+            </div>
+            <div class="form-group">
+                <label>Boylam (Longitude):</label>
+                <input type="number" id="lng" step="any" value="28.9784">
+            </div>
+            <div class="form-group">
+                <label>Saat Dilimi (UTC Offset):</label>
+                <input type="number" id="timezone" value="3">
+            </div>
+            <div class="form-group">
+                <label>Tarih Seçin (Test İçin Değiştirebilirsiniz):</label>
+                <input type="date" id="date" value="2026-09-21">
+            </div>
+
+            <h2>2. İkindi Hesaplama Esası</h2>
+            <div class="form-group">
+                <label>İkindi Gölge Katsayısı:</label>
+                <select id="asrMethod">
+                    <option value="1" selected>Asr-ı Evvel / Takvim Standardı (1 Kat Gölge - 16:34)</option>
+                    <option value="2">Asr-ı Sani / İmam-ı Azam Özel (2 Kat Gölge - 17:26)</option>
+                </select>
+            </div>
+
+            <h2>3. Temkin Vakitleri (Dakika)</h2>
+            <div class="temkin-grid">
+                <div class="form-group"><label>İmsak:</label><input type="number" id="tFajr" value="-16"></div>
+                <div class="form-group"><label>Güneş:</label><input type="number" id="tSunrise" value="-8"></div>
+                <div class="form-group"><label>Öğle:</label><input type="number" id="tDhuhr" value="10"></div>
+                <div class="form-group"><label>İkindi:</label><input type="number" id="tAsr" value="10"></div>
+                <div class="form-group"><label>Akşam:</label><input type="number" id="tMaghrib" value="8"></div>
+                <div class="form-group"><label>Yatsı:</label><input type="number" id="tIsha" value="9"></div>
+            </div>
+
+            <button class="calc-btn" onclick="calculatePrayerTimes()">Formülü Çalıştır</button>
+        </div>
+
+        <!-- SONUÇ PANELİ -->
+        <div class="card">
+            <h2>Hesaplanan Vakitler</h2>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Vakit</th>
+                        <th>Ham Astronomik</th>
+                        <th>Temkinli Sonuç</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="3" style="text-align:center;">Hesapla butonuna basın...</td></tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top:20px;">
+                <strong>Test Çıktısı (Bana Göndereceğiniz Metin):</strong>
+                <textarea id="feedbackText" readonly></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const rad = (deg) => deg * Math.PI / 180.0;
+    const deg = (rad) => rad * 180.0 / Math.PI;
+
+    function fixAngle(angle) {
+        angle = angle - 360.0 * Math.floor(angle / 360.0);
+        return angle < 0 ? angle + 360.0 : angle;
+    }
+
+    // Jülyen Günü Hesaplama Formülü
+    function julianDate(year, month, day) {
+        if (month <= 2) { year -= 1; month += 12; }
+        const A = Math.floor(year / 100);
+        const B = 2 - A + Math.floor(A / 4);
+        return Math.floor(365.25 * (year + 4716)) + Math.floor(30.6001 * (month + 1)) + day + B - 1524.5;
+    }
+
+    // Güneş Pozisyonu (Deklinasyon ve Zaman Denklemi)
+    function sunPosition(jd) {
+        const D = jd - 2451545.0;
+        const g = fixAngle(357.529 + 0.98560028 * D);
+        const q = fixAngle(280.459 + 0.98564736 * D);
+        const L = fixAngle(q + 1.915 * Math.sin(rad(g)) + 0.020 * Math.sin(rad(2 * g)));
+        const e = 23.439 - 0.00000036 * D;
+
+        let RA = deg(Math.atan2(Math.cos(rad(e)) * Math.sin(rad(L)), Math.cos(rad(L)))) / 15.0;
+        if (RA < 0) RA += 24;
+        let EqT = q / 15.0 - RA;
+        if (EqT > 12) EqT -= 24;
+        if (EqT < -12) EqT += 24;
+
+        const Decl = deg(Math.asin(Math.sin(rad(e)) * Math.sin(rad(L))));
+        return { declination: Decl, equationOfTime: EqT };
+    }
+
+    // Küresel Trigonometri ile Saat Açısı Hesabı
+    function computeHourAngle(angle, lat, decl) {
+        const cosH = (Math.sin(rad(angle)) - Math.sin(rad(lat)) * Math.sin(rad(decl))) / 
+                     (Math.cos(rad(lat)) * Math.cos(rad(decl)));
+        if (cosH > 1 || cosH < -1) return null;
+        return deg(Math.acos(cosH)) / 15.0;
+    }
+
+    function floatToTime(timeFloat) {
+        if (isNaN(timeFloat) || timeFloat === null) return "--:--";
+        const totalMinutes = Math.round(timeFloat * 60);
+        const hours = Math.floor(totalMinutes / 60) % 24;
+        const minutes = totalMinutes % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+
+    function calculatePrayerTimes() {
+        const lat = parseFloat(document.getElementById('lat').value);
+        const lng = parseFloat(document.getElementById('lng').value);
+        const timezone = parseFloat(document.getElementById('timezone').value);
+        
+        const dateInput = document.getElementById('date').value;
+        const dateVal = new Date(dateInput);
+
+        const asrFactor = parseInt(document.getElementById('asrMethod').value); // 1: Evvel (16:34), 2: Sani (17:26)
+
+        const temkin = {
+            fajr: parseInt(document.getElementById('tFajr').value),
+            sunrise: parseInt(document.getElementById('tSunrise').value),
+            dhuhr: parseInt(document.getElementById('tDhuhr').value),
+            asr: parseInt(document.getElementById('tAsr').value),
+            maghrib: parseInt(document.getElementById('tMaghrib').value),
+            isha: parseInt(document.getElementById('tIsha').value)
+        };
+
+        const jd = julianDate(dateVal.getFullYear(), dateVal.getMonth() + 1, dateVal.getDate());
+        const sun = sunPosition(jd);
+
+        // 1. Öğle (Solar Noon)
+        const dhuhrRaw = 12 + timezone - (lng / 15.0) - sun.equationOfTime;
+
+        // 2. Güneş Doğuş & Batış (-0.833 derece kırılma açısı)
+        const H_sun = computeHourAngle(-0.833, lat, sun.declination);
+        const sunriseRaw = dhuhrRaw - H_sun;
+        const maghribRaw = dhuhrRaw + H_sun;
+
+        // 3. İmsak (18 derece) & Yatsı (17 derece)
+        const H_fajr = computeHourAngle(-18.0, lat, sun.declination);
+        const H_isha = computeHourAngle(-17.0, lat, sun.declination);
+        const fajrRaw = dhuhrRaw - H_fajr;
+        const ishaRaw = dhuhrRaw + H_isha;
+
+        // 4. İkindi Vakti Hesabı (Seçilen Gölge Katsayısına Göre Dinamik)
+        const phi_d = Math.abs(lat - sun.declination);
+        const altAsr = deg(Math.atan(1.0 / (asrFactor + Math.tan(rad(phi_d)))));
+        const H_asr = computeHourAngle(altAsr, lat, sun.declination);
+        const asrRaw = dhuhrRaw + H_asr;
+
+        // Temkinli Zaman Değerleri
+        const imsakVal = fajrRaw + (temkin.fajr / 60.0);
+        const sabahVal = imsakVal + (20 / 60.0); // İmsak + 20 Dakika
+
+        const times = [
+            { name: "İmsak", raw: fajrRaw, result: imsakVal },
+            { name: 'Sabah <span class="badge">İmsak + 20 dk</span>', raw: null, result: sabahVal },
+            { name: "Güneş", raw: sunriseRaw, result: sunriseRaw + (temkin.sunrise / 60.0) },
+            { name: "Öğle", raw: dhuhrRaw, result: dhuhrRaw + (temkin.dhuhr / 60.0) },
+            { name: `İkindi <span class="badge">${asrFactor === 1 ? '1 Kat Gölge (16:34)' : '2 Kat Gölge (17:26)'}</span>`, raw: asrRaw, result: asrRaw + (temkin.asr / 60.0) },
+            { name: "Akşam", raw: maghribRaw, result: maghribRaw + (temkin.maghrib / 60.0) },
+            { name: "Yatsı", raw: ishaRaw, result: ishaRaw + (temkin.isha / 60.0) }
+        ];
+
+        // Ekran Tablosunu Oluştur
+        const tbody = document.querySelector('#resultsTable tbody');
+        tbody.innerHTML = '';
+
+        let feedback = `Tarih: ${dateInput} | Enlem: ${lat}, Boylam: ${lng}\n--- SONUÇLAR ---\n`;
+
+        times.forEach(t => {
+            const rawStr = t.raw !== null ? floatToTime(t.raw) : "--:--";
+            const resStr = floatToTime(t.result);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><strong>${t.name}</strong></td><td>${rawStr}</td><td><strong>${resStr}</strong></td>`;
+            tbody.appendChild(tr);
+
+            feedback += `${t.name.replace(/<[^>]*>?/gm, '')}: ${resStr} (Ham: ${rawStr})\n`;
+        });
+
+        document.getElementById('feedbackText').value = feedback;
+    }
+
+    window.onload = calculatePrayerTimes;
+</script>
+
+</body>
+</html>
