@@ -5,11 +5,14 @@
 > **Hayat Rehberi**, günlük ibadetlerinizi vaktinde ifa etmenizi, Kur'an-ı Kerim'i hem orijinal baskı hissiyle hem de bilgisayar hattıyla okuyup ezberlemenizi, geçmiş kaza borçlarınızı hesaplayıp kapatmanızı ve kadim Osmanlı zaman şuurunu yaşamanızı sağlayan kapsamlı, modern ve açık kaynaklı bir web uygulamasıdır.
 
 ---
+## 🌐 Live Demo
+
+🚀 **[Click Here to View the Live Project](https://selimuysal.github.io/hayat-rehberi/)**
 
 ## 🌟 Öne Çıkan Ana Modüller
 
 ### 1. 🕌 Vakitler & Takvim
-* **Diyanet Uyumlu Ezan Vakitleri:** Bulunduğunuz şehre ve GPS konumunuza göre 5 vakit namaz ve kerâhet vakitleri.
+* **Tam Temkinli Ezan Vakitleri:** Bulunduğunuz şehre ve GPS konumunuza göre 5 vakit namaz ve kerâhet vakitleri.
 * **Canlı Geri Sayım:** Bir sonraki vakte kalan süreyi dinamik olarak hesaplayan geri sayım sayacı.
 * **Aylık ve Yıllık İmsakiye:** Tüm ayın vakitlerini tek ekranda inceleme imkânı.
 * **Dini Günler ve Hicri Takvim:** Kandiller, bayramlar ve üç aylar takibi.
