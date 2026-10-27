@@ -86,7 +86,7 @@
 * **Paket Yöneticisi:** `npm` veya `bun` / `yarn`
 ### 1. Depoyu Klonlayın
 ```bash
-git clone https://github.com/KULLANICI_ADINIZ/hayat-rehberi.git
+git clone https://github.com/SelimUysal/hayat-rehberi.git
 cd hayat-rehberi
 ```
 
