@@ -82,11 +82,25 @@ export interface KazaModeProps {
   targetTimestamp?: number;
 }
 
+const getLocalDay = () => {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+const isNonNegativeInt = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const clampCount = (value: number) => Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(value)));
+
 export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestamp }) => {
   // 1. Tema ve Görünüm
   const [theme, setTheme] = useState<KazaTheme>(() => {
     try {
-      return (localStorage.getItem('kaza_theme') as KazaTheme) || 'dark';
+      const saved = localStorage.getItem('kaza_theme');
+      const globalTheme = localStorage.getItem('app_theme_mode');
+      if (globalTheme === 'dark' || globalTheme === 'light') return globalTheme === 'dark' ? 'dark' : 'emerald';
+      return saved === 'dark' || saved === 'emerald' ? saved : 'dark';
     } catch {
       return 'dark';
     }
@@ -98,13 +112,14 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
 
   const toggleTheme = (newTheme: KazaTheme) => {
     setTheme(newTheme);
+    try { localStorage.setItem('kaza_theme', newTheme); } catch { /* private mode */ }
     broadcastThemeChange(newTheme === 'dark');
   };
 
   const [viewMode, setViewMode] = useState<KazaViewMode>(() => {
     try {
       const saved = localStorage.getItem('kaza_view_mode') as KazaViewMode;
-      if (saved) return saved;
+      if (saved === 'mobile' || saved === 'desktop') return saved;
       return window.innerWidth < 768 ? 'mobile' : 'desktop';
     } catch {
       return 'desktop';
@@ -128,8 +143,21 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
       const saved = localStorage.getItem('kaza_namazlari_data');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 6) {
-          return parsed;
+        if (Array.isArray(parsed) && DEFAULT_PRAYERS.every(def => {
+          const item = parsed.find((p: any) => p?.id === def.id);
+          return item && isNonNegativeInt(item.count) && isNonNegativeInt(item.completed);
+        })) {
+          return DEFAULT_PRAYERS.map(def => {
+            const item = parsed.find((p: PrayerItem) => p.id === def.id)!;
+            return {
+              ...def,
+              count: item.count,
+              completed: item.completed,
+              initial: isNonNegativeInt(item.initial)
+                ? Math.max(item.initial, item.count + item.completed)
+                : item.count + item.completed
+            };
+          });
         }
       }
       // Eski sürüm varsa dönüştür
@@ -157,8 +185,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   // Bugün Kılınanlar Takibi
   const [todayCompleted, setTodayCompleted] = useState<number>(() => {
     try {
-      const todayKey = `kaza_today_${new Date().toISOString().slice(0, 10)}`;
-      return parseInt(localStorage.getItem(todayKey) || '0', 10);
+      const todayKey = `kaza_today_${getLocalDay()}`;
+      const value = Number(localStorage.getItem(todayKey) || '0');
+      return isNonNegativeInt(value) ? value : 0;
     } catch {
       return 0;
     }
@@ -179,13 +208,46 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
       const saved = localStorage.getItem('kaza_custom_counters_data');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item: any) =>
+            item && typeof item.id === 'string' && typeof item.title === 'string' &&
+            typeof item.unit === 'string' && isNonNegativeInt(item.count) &&
+            isNonNegativeInt(item.completed)
+          ).map((item: CustomCounterItem) => ({ ...item }));
+        }
       }
     } catch {
       // ignore
     }
     return DEFAULT_CUSTOM_COUNTERS;
   });
+
+  const activeDayRef = useRef(getLocalDay());
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`kaza_today_${activeDayRef.current}`, String(todayCompleted));
+    } catch { /* Storage may be unavailable. */ }
+  }, [todayCompleted]);
+
+  // Gece yarısını geçen açık sekmelerde günlük sayaç yanlış güne taşınmasın.
+  useEffect(() => {
+    const onVisibility = () => {
+      const day = getLocalDay();
+      if (day === activeDayRef.current) return;
+      activeDayRef.current = day;
+      try {
+        const saved = Number(localStorage.getItem(`kaza_today_${day}`) || 0);
+        setTodayCompleted(isNonNegativeInt(saved) ? saved : 0);
+      } catch { setTodayCompleted(0); }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onVisibility);
+    };
+  }, []);
 
   const [newCounterTitle, setNewCounterTitle] = useState<string>('');
   const [newCounterCount, setNewCounterCount] = useState<number>(0);
@@ -203,13 +265,17 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   // Yeni Özel Sayaç Ekleme
   const addCustomCounter = (title: string, count: number = 0, unit: string = 'Adet') => {
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
+    if (!isNonNegativeInt(count)) {
+      showToast('Geçerli bir sıfır veya pozitif tam sayı girin.');
+      return false;
+    }
     
     // Aynı isimde sayaç kontrolü
     const existing = customCounters.find(c => c.title.toLowerCase() === trimmed.toLowerCase());
     if (existing) {
       showToast(`'${trimmed}' adıyla bir sayaç zaten mevcut.`);
-      return;
+      return false;
     }
 
     const newItem: CustomCounterItem = {
@@ -220,20 +286,25 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
       unit: unit || 'Adet'
     };
 
+    pushHistory(`Sayaç eklendi: ${trimmed}`);
     setCustomCounters(prev => [newItem, ...prev]);
     showToast(`'${trimmed}' özel sayacı oluşturuldu.`);
+    return true;
   };
 
   const handleCreateCustomCounter = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCounterTitle.trim()) return;
-    addCustomCounter(newCounterTitle, newCounterCount, newCounterUnit);
-    setNewCounterTitle('');
-    setNewCounterCount(0);
+    if (addCustomCounter(newCounterTitle, newCounterCount, newCounterUnit)) {
+      setNewCounterTitle('');
+      setNewCounterCount(0);
+    }
   };
 
   // Özel Sayaç Sayısını Artırma / Azaltma (-10, -1, +1, +10)
   const adjustCustomCounter = (id: string, delta: number) => {
+    if (!customCounters.some(item => item.id === id)) return;
+    pushHistory('Özel sayaç güncellendi');
     setCustomCounters(prev => prev.map(item => {
       if (item.id === id) {
         const nextCount = Math.max(0, item.count + delta);
@@ -251,19 +322,25 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
 
   // Özel Sayaç Silme
   const deleteCustomCounter = (id: string, title: string) => {
+    if (!window.confirm(`'${title}' sayacı ve geçmişi silinsin mi? Bu işlemi Geri Al ile geri alabilirsiniz.`)) return;
+    pushHistory(`Sayaç silindi: ${title}`);
     setCustomCounters(prev => prev.filter(item => item.id !== id));
     showToast(`'${title}' sayacı listeden silindi.`);
   };
 
-  // Günlük sayacı kaydet
+  // Günlük sayaç yalnızca gerçek kılınan miktar kadar artar.
   const incrementToday = (amount: number) => {
-    try {
-      const todayKey = `kaza_today_${new Date().toISOString().slice(0, 10)}`;
-      const next = Math.max(0, todayCompleted + amount);
-      setTodayCompleted(next);
-      localStorage.setItem(todayKey, next.toString());
-    } catch {
-      // ignore
+    const day = getLocalDay();
+    if (day !== activeDayRef.current) {
+      activeDayRef.current = day;
+      let previous = 0;
+      try {
+        const saved = Number(localStorage.getItem(`kaza_today_${day}`) || 0);
+        if (isNonNegativeInt(saved)) previous = saved;
+      } catch { /* ignored */ }
+      setTodayCompleted(clampCount(previous + amount));
+    } else {
+      setTodayCompleted(prev => clampCount(prev + amount));
     }
   };
 
@@ -282,7 +359,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
 
   const progressPercent = useMemo(() => {
     const totalAll = totalRemaining + totalCompleted;
-    if (totalAll === 0) return 100;
+    if (totalAll === 0) return 0;
     return Math.min(100, Math.round((totalCompleted / totalAll) * 100));
   }, [totalRemaining, totalCompleted]);
 
@@ -298,6 +375,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   interface HistoryStep {
     prayers: PrayerItem[];
     todayCompleted: number;
+    todayDate: string;
+    customCounters: CustomCounterItem[];
+    dailyHistory?: Record<string, number>;
     actionName: string;
   }
   const [history, setHistory] = useState<HistoryStep[]>([]);
@@ -312,13 +392,30 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     }, 4000);
   };
 
-  // Son işlemleri geri alabilmek için geçmişe anlık durum ekle (Maksimum 15 adım)
-  const pushHistory = (actionName: string) => {
+  const readDailyHistory = (): Record<string, number> => {
+    const result: Record<string, number> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || !/^kaza_today_\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+        const count = Number(localStorage.getItem(key));
+        if (isNonNegativeInt(count)) result[key.slice('kaza_today_'.length)] = count;
+      }
+    } catch { /* Browser storage may not be available. */ }
+    result[activeDayRef.current] = todayCompleted;
+    return result;
+  };
+
+  // Son 15 işlemi, isteğe bağlı günlük geçmiş ile birlikte geri al.
+  const pushHistory = (actionName: string, includeDailyHistory = false) => {
     setHistory((prev) => [
       ...prev.slice(-14),
       {
         prayers: JSON.parse(JSON.stringify(prayers)),
         todayCompleted,
+        todayDate: activeDayRef.current,
+        customCounters: JSON.parse(JSON.stringify(customCounters)),
+        dailyHistory: includeDailyHistory ? readDailyHistory() : undefined,
         actionName
       }
     ]);
@@ -329,7 +426,24 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     if (history.length === 0) return;
     const lastStep = history[history.length - 1];
     setPrayers(lastStep.prayers);
-    setTodayCompleted(lastStep.todayCompleted);
+    setCustomCounters(lastStep.customCounters);
+    if (lastStep.dailyHistory) {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && /^kaza_today_\d{4}-\d{2}-\d{2}$/.test(key)) keys.push(key);
+        }
+        keys.forEach(key => localStorage.removeItem(key));
+        Object.entries(lastStep.dailyHistory).forEach(([day, count]) =>
+          localStorage.setItem(`kaza_today_${day}`, String(count))
+        );
+      } catch { showToast('Günlük geçmişin bir kısmı geri yüklenemedi.'); }
+    }
+    if (lastStep.todayDate === getLocalDay()) {
+      activeDayRef.current = lastStep.todayDate;
+      setTodayCompleted(lastStep.todayCompleted);
+    }
     setHistory((prev) => prev.slice(0, prev.length - 1));
     showToast(`Son işlem geri alındı: ${lastStep.actionName}`);
   };
@@ -339,10 +453,19 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     prayers: PrayerItem[];
     todayCompleted: number;
     date: string;
+    localDay?: string;
   } | null>(() => {
     try {
       const saved = localStorage.getItem('kaza_emergency_backup');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.prayers) &&
+            parsed.prayers.length === DEFAULT_PRAYERS.length &&
+            isNonNegativeInt(parsed.todayCompleted) &&
+            DEFAULT_PRAYERS.every(def => parsed.prayers.some((p: any) =>
+              p?.id === def.id && isNonNegativeInt(p.count) && isNonNegativeInt(p.completed)
+            ))) return parsed;
+      }
     } catch {
       // ignore
     }
@@ -350,11 +473,13 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   });
 
   // JSON Yedeğini Dosya Olarak İndir
-  const handleExportJson = () => {
+  const handleExportJson = (): boolean => {
     try {
+      const dailyHistory = readDailyHistory();
       const backupData = {
         appName: "Hayat Rehberi - Kaza Namazı Takipçisi",
-        version: "1.0",
+        version: "2.0",
+        dailyHistory,
         exportDate: new Date().toISOString(),
         formattedDate: new Date().toLocaleString('tr-TR'),
         stats: {
@@ -376,9 +501,11 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast('Yedek dosyanız (.json) başarıyla indirildi.');
+      showToast('Yedek dosyanızın indirilmesi başlatıldı.');
+      return true;
     } catch (e) {
-      showToast('Yedek indirilirken bir sorun oluştu.');
+      showToast('Yedek indirilemedi; sıfırlama yapılmadı.');
+      return false;
     }
   };
 
@@ -423,74 +550,130 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     }
   };
 
-  // İndirilen JSON Dosyasından Verileri Geri Yükle
+  // Yedek aktarımı eksik veya bozuk veriyi mevcut kayıtların üzerine yazmaz.
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Yedek dosyası beklenenden büyük (en fazla 5 MB).');
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onerror = () => showToast('Yedek dosyası okunamadı.');
+    reader.onload = event => {
       try {
-        const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-
-        const candidatePrayers = Array.isArray(parsed) ? parsed : parsed.prayers;
-        if (!Array.isArray(candidatePrayers) || candidatePrayers.length === 0) {
-          throw new Error('Geçersiz yedek dosyası formatı');
+        const parsed = JSON.parse(String(event.target?.result ?? ''));
+        const prayerData = Array.isArray(parsed) ? parsed : parsed?.prayers;
+        if (!Array.isArray(prayerData) || prayerData.length !== DEFAULT_PRAYERS.length) {
+          throw new Error('Eksik namaz kayıtları');
         }
-
-        const validPrayers: PrayerItem[] = DEFAULT_PRAYERS.map((def) => {
-          const match = candidatePrayers.find((c: any) => c.id === def.id);
+        const uniqueIds = new Set(prayerData.map((item: any) => item?.id));
+        if (uniqueIds.size !== DEFAULT_PRAYERS.length ||
+            !DEFAULT_PRAYERS.every(def => uniqueIds.has(def.id))) {
+          throw new Error('Farklı namaz türleri');
+        }
+        const validatedPrayers: PrayerItem[] = DEFAULT_PRAYERS.map(def => {
+          const found = prayerData.find((item: any) => item?.id === def.id);
+          if (!isNonNegativeInt(found?.count) || !isNonNegativeInt(found?.completed)) {
+            throw new Error('Geçersiz borç veya tamamlanan miktar');
+          }
+          const initial = isNonNegativeInt(found.initial)
+            ? found.initial : clampCount(found.count + found.completed);
           return {
             ...def,
-            count: match && typeof match.count === 'number' && match.count >= 0 ? match.count : 0,
-            completed: match && typeof match.completed === 'number' && match.completed >= 0 ? match.completed : 0,
-            initial: match && typeof match.initial === 'number' && match.initial >= 0 ? match.initial : (match?.count || 0)
+            count: found.count,
+            completed: found.completed,
+            initial: Math.max(initial, clampCount(found.count + found.completed))
           };
         });
 
-        // Yükleme öncesini de history'e ekle (Böylece yanlışlıkla yüklenirse o bile geri alınabilir!)
-        pushHistory('Yedek Yükleme Öncesi');
+        let validatedCounters = customCounters;
+        if (!Array.isArray(parsed) && parsed.customCounters !== undefined) {
+          if (!Array.isArray(parsed.customCounters) || parsed.customCounters.length > 1000) {
+            throw new Error('Hatalı özel sayaçlar');
+          }
+          const seen = new Set<string>();
+          validatedCounters = parsed.customCounters.map((item: any) => {
+            if (!item || typeof item.id !== 'string' || item.id.length > 120 ||
+                typeof item.title !== 'string' || !item.title.trim() || item.title.length > 150 ||
+                typeof item.unit !== 'string' || !item.unit.trim() || item.unit.length > 30 ||
+                !isNonNegativeInt(item.count) || !isNonNegativeInt(item.completed) ||
+                seen.has(item.id)) throw new Error('Hatalı özel sayaç verisi');
+            seen.add(item.id);
+            return { id: item.id, title: item.title, unit: item.unit,
+              count: item.count, completed: item.completed };
+          });
+        }
 
-        setPrayers(validPrayers);
-        if (parsed.stats?.todayCompleted !== undefined && typeof parsed.stats.todayCompleted === 'number') {
+        let validatedDays: Record<string, number> | null = null;
+        if (!Array.isArray(parsed) && parsed.dailyHistory !== undefined) {
+          if (!parsed.dailyHistory || typeof parsed.dailyHistory !== 'object' ||
+              Array.isArray(parsed.dailyHistory)) throw new Error('Hatalı günlük geçmiş');
+          validatedDays = {};
+          const entries = Object.entries(parsed.dailyHistory);
+          if (entries.length > 5000) throw new Error('Günlük geçmiş dosyası fazla büyük');
+          for (const [day, count] of entries) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !isNonNegativeInt(count)) {
+              throw new Error('Geçersiz günlük kayıt');
+            }
+            validatedDays[day] = count;
+          }
+        }
+
+        if (!window.confirm('Mevcut kaza kayıtları yedekteki kayıtlarla değiştirilsin mi? Yanlışlıkla yüklenirse Geri Al ile dönebilirsiniz.')) return;
+
+        pushHistory('Yedek dosyası geri yükleme', true);
+        setPrayers(validatedPrayers);
+        setCustomCounters(validatedCounters);
+        if (validatedDays) {
+          try {
+            Object.entries(validatedDays).forEach(([day, count]) =>
+              localStorage.setItem(`kaza_today_${day}`, String(count))
+            );
+          } catch { /* Storage may be full. */ }
+          setTodayCompleted(validatedDays[getLocalDay()] ?? 0);
+        } else if (!Array.isArray(parsed) &&
+                   isNonNegativeInt(parsed.stats?.todayCompleted) &&
+                   typeof parsed.exportDate === 'string' &&
+                   !isNaN(Date.parse(parsed.exportDate)) &&
+                   getLocalDay() === (() => {
+                     const date = new Date(parsed.exportDate);
+                     const pad = (n: number) => String(n).padStart(2, '0');
+                     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+                   })()) {
           setTodayCompleted(parsed.stats.todayCompleted);
         }
-
-        if (Array.isArray(parsed.customCounters)) {
-          setCustomCounters(parsed.customCounters);
-        }
-
-        showToast('Yedek dosyanız başarıyla yüklendi ve tüm verileriniz geri getirildi!');
+        activeDayRef.current = getLocalDay();
         setIsBackupModalOpen(false);
-      } catch (err) {
-        alert('Seçilen dosya geçerli bir Kaza Namazı yedek (.json) dosyası değil.');
+        showToast('Yedek doğrulandı ve verileriniz geri yüklendi.');
+      } catch {
+        showToast('Geçersiz veya eksik yedek. Mevcut kayıtlar değiştirilmedi.');
       }
     };
     reader.readAsText(file);
-    e.target.value = '';
   };
 
   // 4. Namaz Sayısını Ayarla (Tekil)
   const adjustCount = (id: string, amount: number) => {
     const target = prayers.find((p) => p.id === id);
+    if (!target || !Number.isSafeInteger(amount) || amount === 0) return;
+    const completedDelta = amount < 0 ? Math.min(target.count, Math.abs(amount)) : 0;
     pushHistory(`${target?.name || 'Vakit'} (${amount > 0 ? `+${amount}` : amount})`);
 
     setPrayers((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          const nextCount = Math.max(0, p.count + amount);
+          const nextCount = clampCount(p.count + amount);
           let nextCompleted = p.completed;
           let nextInitial = p.initial;
 
           // Eğer kılındıysa (-1)
           if (amount < 0) {
-            const completedDelta = Math.min(p.count, Math.abs(amount));
-            nextCompleted += completedDelta;
-            incrementToday(completedDelta);
+            nextCompleted += Math.min(p.count, Math.abs(amount));
           } else {
             // Eklendiyse
-            nextInitial += amount;
+            nextInitial = clampCount(nextInitial + amount);
           }
 
           return {
@@ -503,14 +686,14 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
         return p;
       })
     );
+    if (completedDelta > 0) incrementToday(completedDelta);
   };
 
   // 1 Günlük Kaza Kıl (Tüm vakitleri 1'er adet düş)
   const completeOneFullDay = () => {
-    const hasRemaining = prayers.some((p) => p.count > 0);
-    if (!hasRemaining) return;
-
-    pushHistory('1 Günlük Kaza (-6 Vakit)');
+    const completedNow = prayers.filter((p) => p.count > 0).length;
+    if (completedNow === 0) return;
+    pushHistory(`Birer Vakit Kaza (-${completedNow})`);
 
     setPrayers((prev) =>
       prev.map((p) => {
@@ -524,8 +707,8 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
         return p;
       })
     );
-    incrementToday(6);
-    showToast('Tüm vakitlerden 1 gün (6 rekatlık borç) kılındı!');
+    incrementToday(completedNow);
+    showToast(`${completedNow} vakit kaza tamamlandı olarak kaydedildi.`);
   };
 
   // 5. Modallar (Toplu Ayarlar, Süre Hesaplayıcı, Bilgi Rehberi, Sıfırlama)
@@ -549,7 +732,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     setPrayers((prev) =>
       prev.map((p) => {
         const val = bulkInputs[p.id];
-        const newCount = typeof val === 'number' && !isNaN(val) && val >= 0 ? val : p.count;
+        const newCount = isNonNegativeInt(val) ? val : p.count;
         return {
           ...p,
           count: newCount,
@@ -567,7 +750,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     const inputs: Record<string, number> = {};
     prayers.forEach((p) => {
       const currentVal = bulkInputs[p.id] !== undefined ? bulkInputs[p.id] : p.count;
-      inputs[p.id] = currentVal + days;
+      inputs[p.id] = clampCount(currentVal + days);
     });
     setBulkInputs(inputs);
   };
@@ -583,15 +766,15 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
 
   // Verileri Sıfırla (Onaylı & Kurtarma Korumalı)
   const confirmReset = (downloadBackupFirst = false) => {
-    if (downloadBackupFirst) {
-      handleExportJson();
-    }
+    if (downloadBackupFirst && !handleExportJson()) return;
 
+    pushHistory('Namaz verileri sıfırlandı');
     // Sıfırlamadan hemen önceki durumu kurtarma belleğine al
     const backupSnapshot = {
       prayers: JSON.parse(JSON.stringify(prayers)),
       todayCompleted,
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      localDay: getLocalDay()
     };
     setEmergencyBackup(backupSnapshot);
     try {
@@ -611,7 +794,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
     try {
       localStorage.removeItem('kaza_namazlari_data');
       localStorage.removeItem('kaza_namazlari');
-      const todayKey = `kaza_today_${new Date().toISOString().slice(0, 10)}`;
+      const todayKey = `kaza_today_${getLocalDay()}`;
       localStorage.removeItem(todayKey);
     } catch {
       // ignore
@@ -623,8 +806,21 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   // Kurtarma Yedeğinden Geri Yükle (Yanlışlıkla sıfırlayan kullanıcı için kurtarıcı)
   const restoreEmergencyBackup = () => {
     if (!emergencyBackup) return;
+    if ((totalRemaining > 0 || totalCompleted > 0) &&
+        !window.confirm('Kurtarma yedeği mevcut verilerinizin üzerine yazılacak. Devam edilsin mi?')) return;
+    pushHistory('Acil kurtarma');
     setPrayers(emergencyBackup.prayers);
-    setTodayCompleted(emergencyBackup.todayCompleted);
+    const backupDate = emergencyBackup.localDay ||
+      (emergencyBackup.date && !isNaN(Date.parse(emergencyBackup.date))
+        ? (() => {
+            const d = new Date(emergencyBackup.date);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+          })() : '');
+    if (backupDate === getLocalDay()) {
+      activeDayRef.current = backupDate;
+      setTodayCompleted(emergencyBackup.todayCompleted);
+    }
     setEmergencyBackup(null);
     try {
       localStorage.removeItem('kaza_emergency_backup');
@@ -635,6 +831,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   };
 
   const dismissEmergencyBackup = () => {
+    if (!window.confirm('Acil kurtarma kopyası silinsin mi? Bu işlem geri alınamaz.')) return;
     setEmergencyBackup(null);
     try {
       localStorage.removeItem('kaza_emergency_backup');
@@ -642,6 +839,56 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
       // ignore
     }
   };
+
+  // Arama veya hızlı bağlantıdan alt bölümlere geçiş.
+  useEffect(() => {
+    if (!targetAction) return;
+    if (targetAction === 'calculator') openSettings();
+    else if (targetAction === 'guide') setIsGuideOpen(true);
+    else if (targetAction === 'backup') setIsBackupModalOpen(true);
+    else if (targetAction === 'counters' || targetAction === 'prayers') {
+      requestAnimationFrame(() => {
+        document.getElementById(targetAction === 'counters' ? 'kaza-counters' : 'kaza-prayers')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [targetAction, targetTimestamp]);
+
+  // Modallerde Esc ve Tab klavye desteği.
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const modal = document.querySelector<HTMLElement>('[data-kaza-dialog="true"]');
+    if (!modal) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement : null;
+    modal.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (isSettingsOpen) setIsSettingsOpen(false);
+        if (isGuideOpen) setIsGuideOpen(false);
+        if (isResetModalOpen) setIsResetModalOpen(false);
+        if (isBackupModalOpen) setIsBackupModalOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = Array.from(modal.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]'
+      )).filter(el => el.getClientRects().length > 0);
+      if (!items.length) { event.preventDefault(); modal.focus(); return; }
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === modal)) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === modal)) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previousFocusRef.current?.focus();
+    };
+  }, [isSettingsOpen, isGuideOpen, isResetModalOpen, isBackupModalOpen]);
 
   // Rastgele Motivasyon
   const [motivationIndex, setMotivationIndex] = useState(0);
@@ -659,6 +906,11 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
 
   return (
     <div className={`min-h-screen ${bgMain} font-sans transition-colors duration-200 pb-16`}>
+      {toastMessage && (
+        <div role="status" aria-live="polite" className={`fixed bottom-5 left-1/2 -translate-x-1/2 max-w-[min(90vw,480px)] w-max z-[80] px-4 py-3 rounded-xl text-sm font-semibold shadow-2xl border ${isDark ? 'bg-slate-800 text-white border-emerald-500/60' : 'bg-white text-slate-900 border-emerald-600/40'}`}>
+          {toastMessage}
+        </div>
+      )}
       
       {/* 1. ÜST KONTROL VE ARAÇ ÇUBUĞU BARI (Namaz Sureleri ile Birebir Aynı Konum) */}
       <div
@@ -700,6 +952,20 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
           {/* Sağ: Kontroller ve Modlar */}
           <div className="flex items-center flex-wrap gap-2 sm:gap-2.5 ml-auto">
             
+            {emergencyBackup && (
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={restoreEmergencyBackup}
+                  className="min-h-[44px] px-3 rounded-xl border border-amber-500/60 text-amber-600 dark:text-amber-300 text-xs font-bold hover:bg-amber-500/10">
+                  Verilerimi Kurtar
+                </button>
+                <button type="button" onClick={dismissEmergencyBackup}
+                  className="min-h-[44px] min-w-[44px] rounded-lg border border-rose-400/40 flex items-center justify-center"
+                  aria-label="Acil kurtarma kopyasını sil" title="Acil kurtarma kopyasını sil">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             {/* Yedekle / Kurtar Butonu */}
             <button
               type="button"
@@ -741,8 +1007,8 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
 
             {/* Sıfırla Butonu */}
             <button
-              onClick={() => setIsResetModalOpen(true)}
-              className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+              onClick={() => setIsResetModalOpen(true)} aria-label="Kaza namazı verilerini sıfırla"
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                 isDark
                   ? 'bg-[#262d3a] border-[#384254] text-rose-300 hover:bg-rose-950/50 hover:border-rose-400'
                   : 'bg-slate-50 border-slate-200 text-rose-600 hover:bg-rose-50'
@@ -755,9 +1021,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
             {/* Görünüm Modu: Masaüstü vs Mobil */}
             <div className={`inline-flex p-1 rounded-xl border ${isDark ? 'bg-[#262d3a] border-[#384254]' : 'bg-slate-100 border-slate-200'}`}>
               <button
-                id="btn-kaza-view-desktop"
+                id="btn-kaza-view-desktop" aria-label="Masaüstü görünümü" aria-pressed={viewMode === 'desktop'}
                 onClick={() => toggleViewMode('desktop')}
-                className={`flex items-center justify-center p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   viewMode === 'desktop'
                     ? isDark
                       ? 'bg-[#1b3a32] text-[#4ade80] border border-[#4ade80]/40 shadow-xs'
@@ -772,9 +1038,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
               </button>
 
               <button
-                id="btn-kaza-view-mobile"
+                id="btn-kaza-view-mobile" aria-label="Mobil görünüm" aria-pressed={viewMode === 'mobile'}
                 onClick={() => toggleViewMode('mobile')}
-                className={`flex items-center justify-center p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   viewMode === 'mobile'
                     ? isDark
                       ? 'bg-[#1b3a32] text-[#4ade80] border border-[#4ade80]/40 shadow-xs'
@@ -792,9 +1058,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
             {/* Tema Seçici: Koyu vs Yeşil UI */}
             <div className={`inline-flex p-1 rounded-xl border ${isDark ? 'bg-[#262d3a] border-[#384254]' : 'bg-slate-100 border-slate-200'}`}>
               <button
-                id="btn-kaza-theme-dark"
+                id="btn-kaza-theme-dark" aria-label="Koyu tema" aria-pressed={isDark}
                 onClick={() => toggleTheme('dark')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   isDark
                     ? 'bg-[#1b3a32] text-[#4ade80] border border-[#4ade80]/40 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -805,9 +1071,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
               </button>
 
               <button
-                id="btn-kaza-theme-emerald"
+                id="btn-kaza-theme-emerald" aria-label="Aydınlık tema" aria-pressed={!isDark}
                 onClick={() => toggleTheme('emerald')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   !isDark
                     ? 'bg-white text-emerald-800 shadow-xs border border-emerald-300'
                     : 'text-[#e2e8f0] hover:text-white'
@@ -844,7 +1110,9 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                 </div>
 
                 {/* İlerleme Çubuğu */}
-                <div className={`w-full h-3 rounded-full overflow-hidden ${isDark ? 'bg-[#262d3a]' : 'bg-slate-100'}`}>
+                <div role="progressbar" aria-label="Kaza namazı genel ilerleme"
+                  aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}
+                  className={`w-full h-3 rounded-full overflow-hidden ${isDark ? 'bg-[#262d3a]' : 'bg-slate-100'}`}>
                   <div
                     className="bg-emerald-500 h-full rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${progressPercent}%` }}
@@ -887,7 +1155,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                     <span>Hızlı Kaza Aksiyonu</span>
                   </div>
                   <p className={`text-xs leading-relaxed ${textMuted}`}>
-                    Günün sonunda 1 günlük (6 vakit) kaza kıldıysanız tek tıkla tüm vakitleri düşürebilirsiniz:
+                    Kıldığınız her vakitten birer borç düşmek için kullanın. Borcu biten vakitler değişmez:
                   </p>
                 </div>
 
@@ -903,7 +1171,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                   }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>1 Günlük Kaza Kılındı (-6 Vakit)</span>
+                  <span>Birer Vakit Kılındı (-{prayers.filter(p => p.count > 0).length})</span>
                 </button>
 
                 {daysRemainingEstimate > 0 && (
@@ -923,7 +1191,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
         {/* =========================================================================
             3. 6 VAKİT NAMAZ LİSTESİ / KARTLARI
            ========================================================================= */}
-        <div className={`grid ${viewMode === 'desktop' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'} gap-4`}>
+        <div id="kaza-prayers" className={`grid scroll-mt-32 ${viewMode === 'desktop' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'} gap-4`}>
           {prayers.map((prayer) => {
             const isZero = prayer.count === 0;
 
@@ -1063,7 +1331,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
         {/* =========================================================================
             3b. KAZA ORUCU VE KİŞİSELLEŞTİRİLMİŞ MANEVİ BORÇ / ZİKİR TAKİP MODÜLÜ
            ========================================================================= */}
-        <div className={`mt-10 p-5 sm:p-6 rounded-2xl border transition-all ${cardBg}`}>
+        <div id="kaza-counters" className={`mt-10 p-5 sm:p-6 rounded-2xl border transition-all scroll-mt-32 ${cardBg}`}>
           
           {/* Bölüm Başlığı & Açıklama */}
           <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 pb-4 border-b ${isDark ? 'border-[#333c4d]' : 'border-slate-200'}`}>
@@ -1095,6 +1363,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                 <input
                   type="text"
                   value={newCounterTitle}
+                  maxLength={150} aria-label="Sayaç veya manevi borç adı"
                   onChange={(e) => setNewCounterTitle(e.target.value)}
                   placeholder="Örn: Kaza Orucu, 41 Yasin, Cevşen, Salavat..."
                   className={`w-full px-3 py-2 rounded-xl text-xs font-medium border outline-none transition-all ${
@@ -1111,7 +1380,12 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                   type="number"
                   min="0"
                   value={newCounterCount}
-                  onChange={(e) => setNewCounterCount(Math.max(0, parseInt(e.target.value) || 0))}
+                  step="1" inputMode="numeric"
+                  aria-label="Hedef miktar"
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setNewCounterCount(isNonNegativeInt(value) ? value : 0);
+                  }}
                   className={`w-full px-3 py-2 rounded-xl text-xs font-bold font-mono border outline-none transition-all ${
                     isDark ? 'bg-[#1a1f29] border-[#3d485c] text-white focus:border-[#4ade80]' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
                   }`}
@@ -1123,6 +1397,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                 <label className={`block text-[11px] font-semibold mb-1 ${isDark ? 'text-[#f1f5f9]' : 'text-slate-700'}`}>Birim:</label>
                 <select
                   value={newCounterUnit}
+                  aria-label="Sayaç birimi"
                   onChange={(e) => setNewCounterUnit(e.target.value)}
                   className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold border outline-none transition-all ${
                     isDark ? 'bg-[#1a1f29] border-[#3d485c] text-white focus:border-[#4ade80]' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
@@ -1213,8 +1488,8 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                           {/* Sil Butonu */}
                           <button
                             type="button"
-                            onClick={() => deleteCustomCounter(item.id, item.title)}
-                            className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
+                            onClick={() => deleteCustomCounter(item.id, item.title)} aria-label={`${item.title} sayacını sil`}
+                            className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                               isDark
                                 ? 'border-[#455268] bg-[#2c3545] text-rose-300 hover:bg-rose-950/60 hover:text-rose-200'
                                 : 'border-slate-200 bg-slate-50 text-rose-500 hover:bg-rose-500/10'
@@ -1320,7 +1595,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
             <div className="flex items-center gap-2.5">
               <Info className={`w-5 h-5 shrink-0 ${isDark ? 'text-[#4ade80]' : 'text-emerald-600'}`} />
               <div className="text-xs leading-relaxed">
-                <strong>Verileriniz Güvende:</strong> Girdiğiniz tüm kaza namazı borçları ve kıldığınız vakitler tarayıcınızın yerel hafızasında (localStorage) saklanır, internete ihtiyaç duymaz.
+                <strong>Veriler bu tarayıcıda saklanır:</strong> Gizli sekme, cihaz değişikliği veya tarayıcı verilerinin silinmesi kayıt kaybına neden olabilir. Düzenli JSON yedeği indirin.
               </div>
             </div>
 
@@ -1343,7 +1618,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
          ========================================================================= */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className={`rounded-2xl max-w-lg w-full p-6 border shadow-2xl ${cardBg}`}>
+          <div data-kaza-dialog="true" role="dialog" aria-modal="true" aria-label="Toplu kaza borcu düzenleme" tabIndex={-1} className={`rounded-2xl max-w-lg w-full p-4 sm:p-6 border shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto ${cardBg}`}>
             
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-lg font-bold flex items-center gap-2">
@@ -1352,7 +1627,8 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
               </h3>
               <button
                 onClick={() => setIsSettingsOpen(false)}
-                className={`p-1 rounded-lg cursor-pointer ${isDark ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600'}`}
+                aria-label="Toplu düzenleme penceresini kapat"
+                className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg cursor-pointer ${isDark ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1418,10 +1694,13 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                       type="number"
                       min="0"
                       value={bulkInputs[prayer.id] ?? prayer.count}
+                      step="1" inputMode="numeric"
+                      aria-label={`${prayer.name} için kalan kaza miktarı`}
                       onChange={(e) =>
                         setBulkInputs({
                           ...bulkInputs,
-                          [prayer.id]: parseInt(e.target.value) || 0
+                          [prayer.id]: isNonNegativeInt(Number(e.target.value))
+                            ? Number(e.target.value) : 0
                         })
                       }
                       className={`w-full px-3 py-2 rounded-xl border text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
@@ -1463,7 +1742,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
          ========================================================================= */}
       {isGuideOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className={`rounded-2xl max-w-lg w-full p-6 border shadow-2xl max-h-[85vh] overflow-y-auto ${cardBg}`}>
+          <div data-kaza-dialog="true" role="dialog" aria-modal="true" aria-label="Kaza namazı rehberi" tabIndex={-1} className={`rounded-2xl max-w-lg w-full p-4 sm:p-6 border shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto max-h-[85vh] overflow-y-auto ${cardBg}`}>
             
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
@@ -1472,7 +1751,8 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
               </h3>
               <button
                 onClick={() => setIsGuideOpen(false)}
-                className={`p-1 rounded-lg cursor-pointer ${isDark ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600'}`}
+                aria-label="Rehberi kapat"
+                className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg cursor-pointer ${isDark ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1542,7 +1822,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
          ========================================================================= */}
       {isResetModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className={`rounded-2xl max-w-lg w-full p-6 border shadow-2xl ${cardBg}`}>
+          <div data-kaza-dialog="true" role="dialog" aria-modal="true" aria-label="Verileri sıfırlama onayı" tabIndex={-1} className={`rounded-2xl max-w-lg w-full p-4 sm:p-6 border shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto ${cardBg}`}>
             <div className="flex items-start gap-3.5 mb-4">
               <div className="w-11 h-11 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-6 h-6" />
@@ -1552,7 +1832,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                   Kaza Namazı Verilerini Sıfırla
                 </h3>
                 <p className={`text-xs mt-1 leading-relaxed ${textMuted}`}>
-                  Kalan kaza namazı borçlarınız, kılınan/ödenen geçmişiniz ve bugünkü sayaç sıfırlanacaktır.
+                  Yalnızca kaza namazı kayıtları ve bugünkü namaz sayacı sıfırlanır. Kaza orucu ve diğer kişisel sayaçlarınız korunur.
                 </p>
               </div>
             </div>
@@ -1562,7 +1842,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
               <div className="flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div className="text-xs leading-relaxed">
-                  <strong className={isDark ? 'text-[#4ade80]' : 'text-emerald-600'}>Veri Güvenliği Garantisi:</strong> Sıfırlama yapsanız dahi sistemimiz <strong>otomatik bir acil kurtarma yedeği</strong> saklayacaktır. Yanlışlıkla yaptıysanız ekranın üstündeki kurtarma butonundan tek tıkla eski haline döndürebilirsiniz.
+                  <strong className={isDark ? 'text-[#4ade80]' : 'text-emerald-600'}>Yerel kurtarma:</strong> Sıfırlama öncesi namaz kayıtlarının kopyası bu tarayıcıda tutulur; tarayıcı verileri silinirse veya kayıt başarısız olursa o kopya da kaybolabilir. En güvenlisi önceden JSON yedeği indirmektir.
                 </div>
               </div>
             </div>
@@ -1608,7 +1888,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
          ========================================================================= */}
       {isBackupModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className={`rounded-2xl max-w-xl w-full p-6 border shadow-2xl ${cardBg}`}>
+          <div data-kaza-dialog="true" role="dialog" aria-modal="true" aria-label="Veri yedekleme ve kurtarma" tabIndex={-1} className={`rounded-2xl max-w-xl w-full p-4 sm:p-6 border shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto ${cardBg}`}>
             
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2.5">
@@ -1617,17 +1897,20 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                 </div>
                 <div>
                   <h3 className="text-base sm:text-lg font-bold">Veri Güvenliği ve Yedekleme</h3>
-                  <p className={`text-xs ${textMuted}`}>Kaza namazı verilerinizi güvence altına alın, indirin veya geri yükleyin</p>
+                  <p className={`text-xs ${textMuted}`}>Namaz, günlük takip ve özel sayaç kayıtlarını indirin veya geri yükleyin</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsBackupModalOpen(false)}
-                className={`p-1 rounded-lg cursor-pointer ${isDark ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600'}`}
+                aria-label="Yedekleme penceresini kapat"
+                className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg cursor-pointer ${isDark ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            <input ref={fileInputRef} type="file" accept="application/json,.json"
+              onChange={handleImportFile} className="hidden" tabIndex={-1} aria-hidden="true" />
             <div className="space-y-3.5 my-4">
               
               {/* 1. JSON Yedeği İndir */}
@@ -1638,7 +1921,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                     <span>Yedek Dosyası İndir (.json)</span>
                   </div>
                   <p className={`text-xs leading-relaxed ${textMuted}`}>
-                    Tüm kaza borçlarınızı, kılınan vakit sayılarını ve başlangıç değerlerini telefonunuza veya bilgisayarınıza dosya olarak indirir.
+                    Namazlarınızı, özel sayaçlarınızı ve günlük istatistiklerinizi JSON dosyasına aktarır.
                   </p>
                 </div>
                 <button
@@ -1659,7 +1942,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                     <span>Yedek Dosyası Yükle (.json)</span>
                   </div>
                   <p className={`text-xs leading-relaxed ${textMuted}`}>
-                    Daha önce indirdiğiniz `.json` yedek dosyasını seçerek tüm verilerinizi ve geçmişinizi tek tıkla geri getirin.
+                    Daha önce indirdiğiniz .json dosyasını seçin. Dosya doğrulanır ve mevcut kayıtların üzerine yazılmadan önce onayınız istenir.
                   </p>
                 </div>
                 <button
@@ -1682,7 +1965,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                     <span>Yazdırılabilir Durum Raporu (.txt)</span>
                   </div>
                   <p className={`text-xs leading-relaxed ${textMuted}`}>
-                    6 vakitteki kalan borçlarınızı, kılınanları, toplam rekatları ve bitiş tahminlerini temiz bir metin dosyası olarak indirin veya yazdırın.
+                    6 vakitteki kalan borçlarınızı, kılınanları, bitiş tahminlerini temiz bir metin dosyası olarak indirin veya yazdırın.
                   </p>
                 </div>
                 <button
@@ -1708,7 +1991,7 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
                     <strong>Geri Al (Undo):</strong> Yanlışlıkla eksilttiğiniz veya artırdığınız vakitleri sağ üstteki <strong>"Geri Al"</strong> butonuyla hemen önceki haline getirebilirsiniz (son 15 işlem hafızada tutulur).
                   </li>
                   <li>
-                    <strong>Acil Kurtarma Noktası:</strong> Tüm veriler sıfırlansa dahi, otomatik bir kurtarma yedeği tutulur ve sayfanın üstünde <em>"Verilerimi Kurtar"</em> butonu belirir.
+                    <strong>Acil Kurtarma Noktası:</strong> Namaz verileri sıfırlanmadan önce yerel kurtarma kopyası oluşturulur. Depolama izin verirse üstte <em>"Verilerimi Kurtar"</em> butonu görünür.
                   </li>
                 </ul>
               </div>
