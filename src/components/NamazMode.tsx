@@ -40,6 +40,7 @@ import { NAMAZ_ITEMS, VIRTUAL_NEW_ITEMS, ALL_NAMAZ_ITEMS } from '../data/namazDa
 import { MUSLUMAN_SUALLERI_DATA } from '../data/muslumanSualleriData';
 import { NamazItem } from '../types';
 import { getNamazTargetFromUrl, getNamazSectionForId, getDefaultNamazItemId, makeNamazItemHash, makeNamazSectionHash, parseNamazHash, NamazSection } from '../utils/namazDeepLinks';
+import { navigateToAppHash } from '../utils/appNavigation';
 
 export type NamazTheme = 'dark' | 'emerald';
 export type NamazViewMode = 'desktop' | 'mobile';
@@ -98,12 +99,12 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
   const selectNamazItem = (id: string) => {
     if (!getNamazSectionForId(id)) return;
     setSelectedId(id);
-    window.history.pushState(null, '', `${window.location.pathname}${makeNamazItemHash(id)}`);
+    navigateToAppHash(makeNamazItemHash(id));
   };
   const selectNamazSection = (section: NamazSection) => {
     const id = getDefaultNamazItemId(section);
     setSelectedId(id);
-    window.history.pushState(null, '', `${window.location.pathname}${makeNamazSectionHash(section)}`);
+    navigateToAppHash(makeNamazSectionHash(section));
   };
   useEffect(() => {
     const onRouteChange = () => {

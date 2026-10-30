@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { navigateToAppHash } from '../utils/appNavigation';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import { QuranMatrixModule } from './QuranMatrixLab/QuranMatrixModule';
 import {
@@ -635,6 +636,10 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       });
   };
 
+  // Geri/ileri hareketi iç state'i güncellerken URL'yi tekrar yazıp geçmişi bozma.
+  const restoringHistoryRef = useRef(false);
+  const initialUrlSyncRef = useRef(true);
+
   // URL Hash & Kaldığı Yerden Devam Etme (Local Storage) Senkronizasyonu
   useEffect(() => {
     // 1. Session kaydı (Kişinin kaldığı yeri hatırla)
@@ -669,8 +674,18 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       if (typeof currentMatrixStage === 'number') newHash += `/asama-${currentMatrixStage}`;
     }
 
-    if (typeof window !== 'undefined' && window.location.hash !== `#${newHash}`) {
-      window.history.replaceState(null, '', `#${newHash}`);
+    if (typeof window !== 'undefined') {
+      if (restoringHistoryRef.current) {
+        restoringHistoryRef.current = false;
+      } else if (initialUrlSyncRef.current) {
+        // Mevcut bir dış bağlantı varsa ilk render'da koru, iç ayarı URL'ye zorla yazma.
+        if (window.location.hash === '#elifba' || window.location.hash === '#') {
+          navigateToAppHash(`#${newHash}`, 'replace');
+        }
+      } else if (window.location.hash.startsWith('#elifba') || window.location.hash.startsWith('#tecvid')) {
+        navigateToAppHash(`#${newHash}`);
+      }
+      initialUrlSyncRef.current = false;
     }
   }, [
     activeTab,
@@ -686,6 +701,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   useEffect(() => {
     const handleHashChange = () => {
       const parsed = parseElifbaUrl();
+      if (parsed) restoringHistoryRef.current = true;
       if (!parsed) return;
       if (parsed.tab) setActiveTab(parsed.tab);
       if (typeof parsed.heceStep === 'number') setHeceStep(parsed.heceStep);
@@ -704,7 +720,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
     };
 
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleHashChange);
+    };
   }, []);
 
   // Arama motorundan doğrudan ilgili alt sekmeye, harfe veya duaya yönlendirme

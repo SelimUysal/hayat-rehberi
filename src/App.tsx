@@ -21,6 +21,7 @@ import { broadcastThemeChange, useThemeSync, applyGlobalTheme } from './utils/th
 import { getNamazTargetFromUrl, makeNamazItemHash, parseNamazHash } from './utils/namazDeepLinks';
 import { makeTakvimHash, parseTakvimHash } from './utils/takvimDeepLinks';
 import { getMainTabFromHash, makeMainTabHash } from './utils/mainDeepLinks';
+import { navigateToAppHash } from './utils/appNavigation';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -94,7 +95,7 @@ export function App() {
   useEffect(() => {
     if (window.location.hash) return; // Paylaşılan alt sayfa bağlantılarına dokunma.
     const entryHash = activeTab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(activeTab);
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${entryHash}`);
+    navigateToAppHash(entryHash, 'replace');
   }, []);
 
   const [mushafTarget, setMushafTarget] = useState<{ surahId?: number; page?: number; mode?: 'mushaf' | 'computer'; timestamp?: number } | null>(null);
@@ -108,6 +109,8 @@ export function App() {
   // Paylaşılan adresler ve tarayıcının geri/ileri tuşları sayfayı yeniden yüklemeden çalışır.
   useEffect(() => {
     const onLocationChange = () => {
+      // Gerideki ekranın menü/modal katmanları yeni sayfayı örtmesin.
+      setSpecialView(null);
       const takvimRoute = parseTakvimHash(window.location.hash);
       if (takvimRoute) {
         setTakvimTargetSubTab(takvimRoute);
@@ -258,7 +261,7 @@ export function App() {
         ? currentHash !== nextHash
         : hashTab !== tab || !currentHash;
       if (needsHistoryEntry) {
-        window.history.pushState({ hayatRehberiTab: tab }, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+        navigateToAppHash(nextHash);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -274,9 +277,8 @@ export function App() {
     setActiveTab('takvim');
     try { localStorage.setItem('quran_active_tab', 'takvim'); } catch {}
     if (typeof window !== 'undefined') {
-      const nextUrl = `${window.location.pathname}${window.location.search}${makeTakvimHash('daily')}`;
       if (window.location.hash !== makeTakvimHash('daily')) {
-        window.history.pushState(null, '', nextUrl);
+        navigateToAppHash(makeTakvimHash('daily'));
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

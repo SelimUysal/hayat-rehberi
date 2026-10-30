@@ -9,6 +9,7 @@ import { DEFAULT_CITY } from '../data/cities';
 import { DEFAULT_TEMKIN, calculatePrayerTimesForDate } from '../utils/astronomy';
 import { Header, TakvimSubTab } from './Header';
 import { makeTakvimHash, parseTakvimHash } from '../utils/takvimDeepLinks';
+import { navigateToAppHash } from '../utils/appNavigation';
 import { HeroCountdown } from './HeroCountdown';
 import { PrayerCards } from './PrayerCards';
 import { MonthlyCalendar } from './MonthlyCalendar';
@@ -52,7 +53,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
 
   const selectTakvimTab = (tab: TakvimSubTab) => {
     setActiveTab(tab);
-    if (typeof window !== 'undefined') window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${makeTakvimHash(tab)}`);
+    navigateToAppHash(makeTakvimHash(tab));
   };
 
   useEffect(() => {
