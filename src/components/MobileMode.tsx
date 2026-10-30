@@ -337,8 +337,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       <div className={`rounded-2xl p-3 sm:p-4 shadow-sm border mb-4 sticky top-16 z-30 transition-colors ${
         isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200'
       }`}>
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 min-w-0">
+          <div className="flex-1 min-w-0 w-full">
             <span className={`text-[10px] font-bold uppercase tracking-wider block mb-1 ${
               isDark ? 'text-[#3fb996]' : 'text-emerald-800'
             }`}>
@@ -366,7 +366,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center justify-end gap-1.5">
             {/* Meal Aç/Kapa Butonu */}
             <button
               onClick={() => setShowMeal(!showMeal)}
