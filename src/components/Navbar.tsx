@@ -41,6 +41,7 @@ export type TabType =
 interface NavbarProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
+  onGoHome: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
 }
@@ -59,6 +60,7 @@ interface NavItem {
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
+  onGoHome,
   isDarkMode = true,
   onToggleDarkMode
 }) => {
@@ -314,7 +316,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* 1. SOL: Logo & Marka */}
             <div className="flex items-center gap-3 shrink-0">
               <button
-                onClick={() => handleSelectTab('takvim')}
+                onClick={onGoHome}
+                type="button"
+                aria-label="Ana sayfa: Bugünkü namaz vakitleri"
                 className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
                 title="Ana Sayfa (Vakitler)"
               >
