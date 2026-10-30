@@ -53,7 +53,7 @@ export const QuickSurahBookmarks: React.FC<QuickSurahBookmarksProps> = ({
   const currentSurahMeta = SURAHS.find(s => s.id === currentSurahId);
 
   return (
-    <div className="flex items-center gap-2 max-w-full">
+    <div className="flex items-center gap-2 w-full min-w-0 max-w-full">
       {/* Sade + (Hızlı Erişime Ekle / Çıkar) Butonu */}
       <button
         type="button"
@@ -88,7 +88,7 @@ export const QuickSurahBookmarks: React.FC<QuickSurahBookmarksProps> = ({
 
       {/* Kaydedilen Sureler Çip Listesi */}
       {savedIds.length > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar py-0.5 max-w-full">
+        <div className="flex flex-1 min-w-0 items-center gap-1.5 overflow-x-auto custom-scrollbar py-0.5 max-w-full">
           {savedIds.map(id => {
             const surah = SURAHS.find(s => s.id === id);
             if (!surah) return null;
