@@ -23,7 +23,7 @@ import { AMBIENCE_SLIDES } from '../data/ambienceImages';
 import { Ayah } from '../types';
 import { fetchSurahData } from '../services/quranApi';
 import { SurahSearchSelect } from './SurahSearchSelect';
-import { nextSurahInListeningLoop, shouldTreatNativePauseAsUserPause } from '../utils/listeningPlaybackGuards';
+import { nextSurahInListeningLoop } from '../utils/listeningPlaybackGuards';
 
 interface ListeningModeProps {
   targetSurahId?: number;
@@ -381,11 +381,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     player.volume = usesDeviceVolumeRef.current ? 1 : (mutedRef.current ? 0 : volumeRef.current);
   }, []);
   const playRequestRef = useRef(0);
-  // An internal audio swap/retry can fire a delayed native pause event.
-  // Never confuse it with an intentional pause from Android / Bluetooth.
-  const internallyPausedPlayersRef = useRef(new WeakSet<HTMLAudioElement>());
+  // Only explicit UI / MediaSession commands can cancel playback intent.
+  // A native audio 'pause' also fires on normal 'ended', source swaps and retries;
+  // treating it as user intent interrupts the endless ayah sequence.
   const pauseInternally = useCallback((player: HTMLAudioElement) => {
-    if (!player.paused) internallyPausedPlayersRef.current.add(player);
     player.pause();
   }, []);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -553,7 +552,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     setIsRecovering(false);
   }, []);
 
-  // Shared pause path for the UI, lock screen, headset, and native audio events.
+  // Shared pause path for explicit UI, lock-screen and headset commands.
   // Incrementing the request token invalidates pending loads and retry callbacks.
   const pausePlayback = useCallback(() => {
     const player = audioRef.current;
@@ -568,33 +567,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, position);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
   }, [cancelReconnect, persistBookmark]);
-
-  // Some Android browsers pause the HTMLAudioElement without invoking our
-  // MediaSession action handler. Sync these native pauses, but ignore swaps.
-  useEffect(() => {
-    const players = [audioRef.current, preloadNextAudioRef.current, preloadAfterNextAudioRef.current];
-    const onNativePause = (event: Event) => {
-      const player = event.currentTarget as HTMLAudioElement;
-      if (internallyPausedPlayersRef.current.has(player)) {
-        internallyPausedPlayersRef.current.delete(player);
-        return;
-      }
-      // Media elements generate a native pause right before a natural "ended".
-      // That is NOT a user command. Cancelling the playback request here would
-      // suppress onended and leave continuous recitation stuck at one ayah.
-      if (shouldTreatNativePauseAsUserPause({
-        isCurrentPlayer: audioRef.current === player,
-        isPlaybackRequested: isPlayingRef.current,
-        ended: player.ended,
-        duration: player.duration,
-        currentTime: player.currentTime,
-      })) {
-        pausePlayback();
-      }
-    };
-    players.forEach((player) => player.addEventListener('pause', onNativePause));
-    return () => players.forEach((player) => player.removeEventListener('pause', onNativePause));
-  }, [pausePlayback]);
 
   const updateMediaPosition = useCallback((player: HTMLAudioElement) => {
     if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
