@@ -3,14 +3,13 @@ import type { Coordinates, PrayerTimes } from '../types/prayer';
 import { DEFAULT_CITY } from '../data/cities';
 import { calculatePrayerTimesForDate, DEFAULT_TEMKIN } from '../utils/astronomy';
 
-// Kaynak: Atcovi, "The Adhan - Muslim Call to Prayer - Aaqib Azeez.mp3"
-// Wikimedia Commons, CC BY-SA 4.0. 87 saniye, MP3 134 kbps.
-// https://commons.wikimedia.org/wiki/File:The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3
-// Kayıt değiştirilmedi; tarayıcıda 1,5× hızda oynatılır.
-// Kullanıcı ayarı kapalıyken üçüncü taraf dosyaya istek gönderilmez.
+// Kullanıcının sağladığı 10,17 saniyelik ezan klibinin 1,5× hızlandırılmış,
+// yaklaşık 6,8 saniyelik AAC sürümü. Dosya bu depodadır ve üçüncü taraf
+// ses hizmetlerine istek göndermez. Ses daha önce hızlandırıldığı için
+// tarayıcıda ikinci kez hızlandırma yapılmaz.
 export const ADHAN_RECORDING_URL =
-  'https://upload.wikimedia.org/wikipedia/commons/7/7d/The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3';
-export const ADHAN_PLAYBACK_RATE = 1.5;
+  import.meta.env.BASE_URL + 'audio/ezan_kisa_1_5x.m4a';
+export const ADHAN_PLAYBACK_RATE = 1;
 
 const SETTING_KEY = 'namaz_adhan_sound_enabled_v1';
 const LAST_EVENT_KEY = 'namaz_adhan_last_event_v1';
@@ -135,8 +134,7 @@ export function usePrayerAdhanSound() {
       audio.src = ADHAN_RECORDING_URL;
       audio.preload = 'none';
       audio.volume = 0.7;
-      // Ezanın yaklaşık 58 saniyede tamamlanması için 1,5× oynat.
-      // Modern tarayıcılar varsayılan olarak ses perdesini korur.
+      // Kayıt zaten 1,5× hızlıdır, burada yeniden hızlandırılmaz.
       audio.defaultPlaybackRate = ADHAN_PLAYBACK_RATE;
       audio.playbackRate = ADHAN_PLAYBACK_RATE;
       audio.onplay = () => setPlaying(true);

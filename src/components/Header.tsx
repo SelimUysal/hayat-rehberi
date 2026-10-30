@@ -244,18 +244,8 @@ export const Header: React.FC<HeaderProps> = ({
                         </p>
                       )}
                       <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                        Ezan kaydı 1,5× hızda çalınır. İlk açılışta kapalıdır; bildirim göndermez.
-                      </p>
-                      <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-                        Ses: <a
-                          href="https://commons.wikimedia.org/wiki/File:The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3"
-                          target="_blank" rel="noopener noreferrer"
-                          className="underline underline-offset-2 hover:text-emerald-800"
-                        >Atcovi / Aaqib Azeez</a> ·
-                        {' '}<a href="https://creativecommons.org/licenses/by-sa/4.0/"
-                          target="_blank" rel="noopener noreferrer"
-                          className="underline underline-offset-2 hover:text-emerald-800"
-                        >CC BY-SA 4.0</a> · oynatma hızı 1,5×
+                        Kullanıcının sağladığı kısa ezan (yaklaşık 7 saniye, 1,5× hızlandırılmış).
+                        Ses varsayılan kapalıdır; ekran bildirimi göndermez.
                       </p>
                     </div>
                   )}
