@@ -388,6 +388,17 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     player.pause();
   }, []);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHandoff = useCallback(() => {
+    if (handoffTimerRef.current !== null) {
+      clearTimeout(handoffTimerRef.current);
+      handoffTimerRef.current = null;
+    }
+  }, []);
+  const pauseAllPlayers = useCallback(() => {
+    new Set([audioRef.current, preloadNextAudioRef.current, preloadAfterNextAudioRef.current])
+      .forEach((audio) => audio.pause());
+  }, []);
   const retryAttemptsRef = useRef(0);
   const lastAudioProgressRef = useRef({ at: Date.now(), seconds: 0 });
   const reconnectPlaybackRef = useRef<() => void>(() => {});
@@ -536,11 +547,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     setIsPlaying(false);
     isPlayingRef.current = false;
 
-    // Kullanıcının seçtiği dakika dolduğu anda sesi durdur, tekrar başlamasını engelle.
-    player.pause();
+    // Timer must silence an outgoing player waiting for a seamless handoff too.
+    cancelHandoff();
+    pauseAllPlayers();
     applyOutputVolume(player);
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     isSleepStoppingRef.current = false;
-  }, [persistBookmark, applyOutputVolume]);
+  }, [persistBookmark, applyOutputVolume, cancelHandoff, pauseAllPlayers]);
 
   // Tek bir bozuk ses dosyası veya kısa internet kesintisi oynatmayı kalıcı olarak durdurmaz.
   const cancelReconnect = useCallback(() => {
@@ -563,10 +576,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     shouldAutoPlayNextSurahRef.current = false;
     setIsPlaying(false);
     cancelReconnect();
-    player?.pause();
+    cancelHandoff();
+    pauseAllPlayers();
     persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, position);
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-  }, [cancelReconnect, persistBookmark]);
+  }, [cancelReconnect, cancelHandoff, pauseAllPlayers, persistBookmark]);
 
   const updateMediaPosition = useCallback((player: HTMLAudioElement) => {
     if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
@@ -607,6 +621,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Ayeti Çal (Merkezi Çalma Fonksiyonu)
   const playAyahAt = useCallback((idx: number, startTime = 0, ayahList?: Ayah[]) => {
+    cancelHandoff();
     if (isSleepStoppingRef.current) return;
     if (sleepTargetEndTimeRef.current && Date.now() >= sleepTargetEndTimeRef.current) {
       triggerSleepStop();
@@ -656,8 +671,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       (candidate) => candidate.src === ayah.audio && candidate.readyState >= 2
     );
     const player = ready || previousPlayer;
-    if (ready && ready !== previousPlayer) {
-      pauseInternally(previousPlayer);
+    // Never stop (or replace the source of) the outgoing playing element
+    // before the incoming preloaded element has actually begun playback.
+    // Otherwise Chrome for Android briefly releases audio focus, removing
+    // and re-creating its notification at every single ayah.
+    const outgoingPlayer = ready && ready !== previousPlayer ? previousPlayer : null;
+    if (outgoingPlayer) {
       previousPlayer.ontimeupdate = null;
       previousPlayer.onended = null;
       previousPlayer.onloadedmetadata = null;
@@ -672,6 +691,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       player.src = ayah.audio;
     }
 
+    // Reusing the outgoing element as a preload slot is safe only AFTER
+    // the incoming element starts; changing its src early also stops it.
+    const prepareUpcomingAudio = () => {
     // Kesintisiz (Gapless) geçiş için sıradaki 1. ve 2. ayetin ses dosyalarını arka planda önceden belleğe yükle (Preload)
     const nextAyah = list[idx + 1];
     if (nextAyah?.audio && preloadNextAudioRef.current.src !== nextAyah.audio) {
@@ -699,6 +721,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         })
         .catch(() => {});
     }
+    };
+    if (!outgoingPlayer) prepareUpcomingAudio();
 
     const requestId = ++playRequestRef.current;
     reconnectPlaybackRef.current = () => {
@@ -719,6 +743,33 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     let lastSavedSecond = -1;
     let hasAdvancedToNext = false;
+
+    // The browser emits timeupdate only a few times per second; arrange a
+    // short final-frame check while the next ayah is already buffered.
+    // This allows the incoming stream to start before the outgoing stream
+    // naturally ends, without skipping meaningful Quran audio.
+    const scheduleNearEndHandoff = () => {
+      if (requestId !== playRequestRef.current || !isPlayingRef.current ||
+          player.paused || player.ended || handoffTimerRef.current !== null) return;
+      const duration = player.duration;
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      const remaining = duration - player.currentTime;
+      if (remaining <= 0 || remaining > 1.5) return;
+      const nextAudio = list[idx + 1]?.audio;
+      // No early switch if the next audio has not been buffered.
+      if (!nextAudio || ![preloadNextAudioRef.current, preloadAfterNextAudioRef.current]
+        .some((candidate) => candidate.src === nextAudio && candidate.readyState >= 2)) return;
+      const targetMargin = 0.045;
+      if (remaining <= targetMargin + 0.02) {
+        advanceToNextAyah();
+        return;
+      }
+      handoffTimerRef.current = setTimeout(() => {
+        handoffTimerRef.current = null;
+        if (requestId !== playRequestRef.current || !isPlayingRef.current || player.paused || player.ended) return;
+        scheduleNearEndHandoff();
+      }, Math.max(12, ((remaining - targetMargin) / (player.playbackRate || 1)) * 1000));
+    };
 
     const advanceToNextAyah = () => {
       if (hasAdvancedToNext || requestId !== playRequestRef.current || isSleepStoppingRef.current || !isPlayingRef.current) return;
@@ -756,11 +807,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, curTime);
         }
 
-        // MP3 sonundaki ~85ms ölü sessizlik payını (trailing silence) beklemeyip pürüzsüz geçiş yap
-        const dur = player.duration;
-        if (dur && isFinite(dur) && dur > 1.2 && dur - curTime <= 0.085) {
-          advanceToNextAyah();
-        }
+        // Prefer a small, buffered overlap to prevent Android media focus
+        // from dropping between ayahs; always retain onended as a fallback.
+        scheduleNearEndHandoff();
       }
     };
 
@@ -778,7 +827,19 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       } else if (startTime === 0 && player.currentTime > 0) {
         try { player.currentTime = 0; } catch {}
       }
-      player.play().catch((err) => {
+      player.play().then(() => {
+        if (requestId !== playRequestRef.current || !isPlayingRef.current) {
+          player.pause();
+          return;
+        }
+        // Keep Android's media notification alive: incoming audio is already
+        // playing before the outgoing audio stops and enters the preload pool.
+        if (outgoingPlayer) {
+          pauseInternally(outgoingPlayer);
+          prepareUpcomingAudio();
+        }
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      }).catch((err) => {
         if (requestId !== playRequestRef.current || !isPlayingRef.current) return;
         console.warn('Ses geçici olarak çalınamadı:', err);
         if (err?.name === 'NotAllowedError') {
@@ -806,6 +867,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     player.onplaying = () => {
       if (requestId === playRequestRef.current) {
         lastAudioProgressRef.current = { at: Date.now(), seconds: player.currentTime || 0 };
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
       }
     };
 
@@ -817,7 +879,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     setIsPlaying(true);
     isPlayingRef.current = true;
-  }, [persistBookmark, triggerSleepStop, cancelReconnect, scheduleReconnect, pauseInternally, updateMediaPosition, applyOutputVolume]);
+  }, [persistBookmark, triggerSleepStop, cancelReconnect, scheduleReconnect, pauseInternally, updateMediaPosition, applyOutputVolume, cancelHandoff]);
 
   // Mobile lock-screen / notification / headset playback controls.
   // The OS designs the media card; the app supplies metadata and commands.
@@ -871,12 +933,19 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     if (!('mediaSession' in navigator)) return;
     const session = navigator.mediaSession;
     session.playbackState = isPlaying ? 'playing' : 'paused';
-    if (typeof MediaMetadata === 'undefined') return;
+  }, [isPlaying]);
+
+  // Keep the Android notification's identity stable throughout a surah.
+  // Replacing MediaMetadata for each ayah can cause some Android versions
+  // to redraw the entire media card. Ayah/second remain visible in-app.
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+    const session = navigator.mediaSession;
     const surah = SURAHS.find((item) => item.id === currentSurahId);
     const reciter = RECITERS.find((item) => item.id === selectedReciter);
     try {
       session.metadata = new MediaMetadata({
-        title: `${surah?.name || 'Kur’an-ı Kerim'} Suresi · ${currentAyahIndex + 1}. Ayet`,
+        title: `${surah?.name || 'Kur’an-ı Kerim'} Suresi · Kesintisiz Dinleme`,
         artist: reciter?.name || 'Kur’an-ı Kerim',
         album: 'Hayat Rehberi · Kesintisiz Dinleme',
         artwork: [{
@@ -888,7 +957,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     } catch {
       // Audio must work even when metadata is unsupported.
     }
-  }, [currentSurahId, currentAyahIndex, selectedReciter, isPlaying]);
+  }, [currentSurahId, selectedReciter]);
 
   // Mobil arka planda ve masaüstünde takılı kalan medya akışını takip et.
   useEffect(() => {
@@ -1032,6 +1101,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       isPlayingRef.current = false;
       shouldAutoPlayNextSurahRef.current = false;
       cancelReconnect();
+      cancelHandoff();
       const players = new Set([audioRef.current, preloadNextAudioRef.current, preloadAfterNextAudioRef.current]);
       players.forEach((audio) => {
         audio.onended = null;
@@ -1048,7 +1118,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         navigator.mediaSession.metadata = null;
       }
     };
-  }, [cancelReconnect, persistBookmark]);
+  }, [cancelReconnect, cancelHandoff, persistBookmark]);
 
   // Uyku Zamanlayıcısı Sayacı (Gerçek zamanlı Date.now() duvar saati kontrolü)
   useEffect(() => {
@@ -1114,6 +1184,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
     ++playRequestRef.current;
     cancelReconnect();
+    cancelHandoff();
     setIsPlaying(false);
     isPlayingRef.current = false;
     shouldAutoPlayNextSurahRef.current = false;
@@ -1121,7 +1192,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       audioRef.current.ontimeupdate = null;
       audioRef.current.onended = null;
       audioRef.current.onloadedmetadata = null;
-      audioRef.current.pause();
+      pauseAllPlayers();
       audioRef.current.removeAttribute('src');
       audioRef.current.load();
     }
