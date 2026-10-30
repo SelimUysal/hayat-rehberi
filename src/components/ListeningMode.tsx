@@ -320,6 +320,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Uyku Zamanlayıcısı (Sleep Timer)
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
+  const [customSleepMinutes, setCustomSleepMinutes] = useState<number>(45);
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [audioEpoch, setAudioEpoch] = useState(0);
@@ -667,7 +668,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           }
         }
       } catch (err) {
-        console.error('Dinleme modu veri hatası:', err);
+        if (!isCancelled) {
+          console.error('Dinleme modu veri hatası:', err);
+          shouldAutoPlayNextSurahRef.current = false;
+          setAudioError('Sure verisi alınamadı. İnternet bağlantısını kontrol edip başka bir sure seçerek yeniden deneyin.');
+          setIsPlaying(false);
+          isPlayingRef.current = false;
+        }
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -776,20 +783,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, pausedTime);
     } else {
       const curAyah = ayahs[currentAyahIndex];
-      if (
-        audioRef.current.src &&
-        curAyah?.audio &&
-        audioRef.current.src === curAyah.audio &&
-        audioRef.current.currentTime > 0
-      ) {
-        audioRef.current.play().catch((err) => console.warn('Oynatma hatası:', err));
-        setIsPlaying(true);
-        isPlayingRef.current = true;
-      } else {
-        // Sayfa yeni açıldığında veya süre bitip durduğunda doğrudan kaldığı ayet ve saniyeden devam et
-        const resumeTime = savedCurrentTimeRef.current > 0 ? savedCurrentTimeRef.current : 0;
-        playAyahAt(currentAyahIndex, resumeTime);
-      }
+      // Duraklatmanın geçersiz kıldığı eski handler yerine güncel handler kurulmalı.
+      const resumeTime = audioRef.current.currentTime > 0
+        ? audioRef.current.currentTime
+        : (savedCurrentTimeRef.current > 0 ? savedCurrentTimeRef.current : 0);
+      playAyahAt(currentAyahIndex, resumeTime);
     }
   };
 
@@ -825,7 +823,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Uyku Zamanlayıcısı Ayarla (Kesin Duvar Saati Bazlı)
   const handleSetTimer = (minutes: number) => {
-    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 720) return;
     const targetTime = Date.now() + minutes * 60 * 1000;
     sleepTargetEndTimeRef.current = targetTime;
     isSleepStoppingRef.current = false;
@@ -1547,6 +1545,23 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                           {mins}d
                         </button>
                       ))}
+                      <label className="sr-only" htmlFor="customSleepMinutes">Özel uyku süresi (dakika)</label>
+                      <input
+                        id="customSleepMinutes"
+                        type="number"
+                        min="1"
+                        max="720"
+                        value={customSleepMinutes}
+                        onChange={(e) => setCustomSleepMinutes(Number(e.target.value))}
+                        className="w-12 sm:w-14 rounded-md bg-slate-900 border border-white/30 px-1 py-0.5 text-[11px] text-white text-center"
+                        title="Özel süre (1-720 dakika)"
+                      />
+                      <button
+                        onClick={() => handleSetTimer(customSleepMinutes)}
+                        disabled={!Number.isInteger(customSleepMinutes) || customSleepMinutes < 1 || customSleepMinutes > 720}
+                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 rounded-md text-[11px] text-white"
+                        title="Girilen dakika sonunda durdur"
+                      >Kur</button>
                     </div>
                   )}
                 </div>
