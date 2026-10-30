@@ -5672,8 +5672,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 type="button"
                 onClick={() => {
                   setMobileCategory('sure');
-                  const firstSure = NAMAZ_ITEMS.find(i => i.category === 'sure');
-                  if (firstSure && activeItem.category !== 'sure') selectNamazItem(firstSure.id);
+                  selectNamazSection('sureler');
                 }}
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'sure'
@@ -5693,8 +5692,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 type="button"
                 onClick={() => {
                   setMobileCategory('dua');
-                  const firstDua = NAMAZ_ITEMS.find(i => i.category === 'dua');
-                  if (firstDua && activeItem.category !== 'dua') selectNamazItem(firstDua.id);
+                  selectNamazSection('dualar');
                 }}
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'dua'
@@ -5714,7 +5712,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 type="button"
                 onClick={() => {
                   setMobileCategory('yeni');
-                  selectNamazItem('musluman-sualleri');
+                  selectNamazSection('rehber');
                 }}
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'yeni'
