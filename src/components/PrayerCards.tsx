@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CalculatedDay, PrayerTimes, AsrMethod } from '../types/prayer';
 import { 
   CloudMoon, Sunrise, Sun, SunDim, SunMedium, CloudSun, Sunset, Moon, Star, Users,
-  Sparkles, HelpCircle, BookOpen
+  UsersRound, HelpCircle, BookOpen
 } from 'lucide-react';
 import { timeStrToMinutes } from '../utils/astronomy';
 import { zoneNowDate } from '../utils/locationTimezone';
@@ -98,7 +98,7 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
       subtitle: 'Güneş Doğuşundan 45 Dk Sonra',
       badge: 'Bayrama Özel Vakit',
       extraInfo: 'Nasıl Kılınır? Tıklayınız',
-      icon: <Sparkles className="w-5 h-5 text-amber-600" />,
+      icon: <UsersRound className="w-5 h-5 text-amber-600" />,
       accentColor: 'text-amber-950',
       bgLight: 'bg-gradient-to-br from-amber-50 via-emerald-50/40 to-amber-100/60 hover:from-amber-100/70 hover:to-emerald-100/70',
       borderColor: 'border-amber-400 ring-2 ring-amber-300/60 shadow-sm',
@@ -112,7 +112,7 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
       time: todayData.times.israk,
       subtitle: 'Kuşluk (Duhâ) Namazı Başlangıcı',
       badge: 'Kerahat Çıkışı',
-      icon: <Moon className="w-5 h-5 text-teal-700" />,
+      icon: <SunDim className="w-5 h-5 text-teal-700" />,
       accentColor: 'text-teal-900',
       bgLight: 'bg-teal-50/70 hover:bg-teal-100/60',
       borderColor: 'border-teal-200',
