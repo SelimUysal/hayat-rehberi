@@ -628,7 +628,6 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   };
 
   // Geri/ileri hareketi iç state'i güncellerken URL'yi tekrar yazıp geçmişi bozma.
-  const restoringHistoryRef = useRef(false);
   const initialUrlSyncRef = useRef(true);
 
   // URL Hash & Kaldığı Yerden Devam Etme (Local Storage) Senkronizasyonu
@@ -1736,7 +1735,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                     </div>
 
                     {isOpen && (
-                      <div className={`p-4 pt-0 border-t ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
+                      <div id={`content-${key}`} className={`p-4 pt-0 border-t ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
                         <div className="space-y-2.5 my-3">
                           {item.arabic.map((arText, aIdx) => (
                             <p
@@ -1977,7 +1976,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                     </div>
 
                     {isOpen && (
-                      <div className={`p-4 pt-0 border-t ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
+                      <div id={`content-${key}`} className={`p-4 pt-0 border-t ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
                         <div className="space-y-3 my-3">
                           {item.arabic.map((arText, aIdx) => (
                             <div
@@ -2138,7 +2137,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                     </div>
 
                     {isOpen && (
-                      <div className={`p-4 sm:p-5 pt-0 border-t ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
+                      <div id={`content-${key}`} className={`p-4 sm:p-5 pt-0 border-t ${isDark ? 'border-[#3a3226]' : 'border-slate-100'}`}>
                        {item.hasAudioPlayer && (
                           <div
                             className={`mt-4 p-3.5 sm:p-4 rounded-2xl border flex flex-col gap-3 ${
