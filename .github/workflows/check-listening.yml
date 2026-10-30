@@ -22,6 +22,6 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
       - name: Run continuous-listening regression tests
-        run: npx tsx --test tests/listeningPlaybackGuards.test.ts tests/listeningContinuity.test.tsx
+        run: npx tsx --test tests/listeningPlaybackGuards.test.ts tests/listeningContinuity.test.tsx tests/listeningDiagnostics.test.ts
       - name: Verify production build
         run: npx vite build
