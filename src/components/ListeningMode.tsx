@@ -23,6 +23,7 @@ import { AMBIENCE_SLIDES } from '../data/ambienceImages';
 import { Ayah } from '../types';
 import { fetchSurahData } from '../services/quranApi';
 import { SurahSearchSelect } from './SurahSearchSelect';
+import { nextSurahInListeningLoop, shouldTreatNativePauseAsUserPause } from '../utils/listeningPlaybackGuards';
 
 interface ListeningModeProps {
   targetSurahId?: number;
@@ -578,7 +579,18 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         internallyPausedPlayersRef.current.delete(player);
         return;
       }
-      if (audioRef.current === player && isPlayingRef.current) pausePlayback();
+      // Media elements generate a native pause right before a natural "ended".
+      // That is NOT a user command. Cancelling the playback request here would
+      // suppress onended and leave continuous recitation stuck at one ayah.
+      if (shouldTreatNativePauseAsUserPause({
+        isCurrentPlayer: audioRef.current === player,
+        isPlaybackRequested: isPlayingRef.current,
+        ended: player.ended,
+        duration: player.duration,
+        currentTime: player.currentTime,
+      })) {
+        pausePlayback();
+      }
     };
     players.forEach((player) => player.addEventListener('pause', onNativePause));
     return () => players.forEach((player) => player.removeEventListener('pause', onNativePause));
@@ -644,7 +656,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     // Eğer son ayet bittiyse bir sonraki sureye geç (Örn: Fatiha 7. ayet -> Bakara 1. ayet)
     // 114. sure (Nâs) bitince başa (1. Fatiha) dönüp kesintisiz devam eder
     if (idx >= list.length) {
-      const nextId = currentSurahIdRef.current < 114 ? currentSurahIdRef.current + 1 : 1;
+      const nextId = nextSurahInListeningLoop(currentSurahIdRef.current);
       ++playRequestRef.current;
       currentSurahIdRef.current = nextId;
       currentAyahIndexRef.current = 0;
@@ -703,7 +715,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
     // Sure sonuna yaklaşıldığında (son 2 ayet) bir sonraki surenin verisini ve ilk ayet sesini şimdiden önbelleğe hazırla
     if (idx >= list.length - 2) {
-      const upcomingSurahId = currentSurahIdRef.current < 114 ? currentSurahIdRef.current + 1 : 1;
+      const upcomingSurahId = nextSurahInListeningLoop(currentSurahIdRef.current);
       fetchSurahData(upcomingSurahId, selectedReciterRef.current)
         .then((nextSurahRes) => {
           const firstNextSurahAudio = nextSurahRes.ayahs?.[0]?.audio;
