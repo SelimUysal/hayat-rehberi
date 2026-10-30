@@ -46,6 +46,7 @@ Object.defineProperty(dom.window.navigator, 'mediaSession', {
 
 class FakeAudio extends dom.window.EventTarget {
   static all: FakeAudio[] = [];
+  static handoffSnapshots: { incoming: string; activeBefore: string[] }[] = [];
   private source = '';
   currentTime = 0;
   duration = 8;
@@ -82,6 +83,10 @@ class FakeAudio extends dom.window.EventTarget {
     }
   }
   play(): Promise<void> {
+    FakeAudio.handoffSnapshots.push({
+      incoming: this.source,
+      activeBefore: FakeAudio.all.filter(audio => audio !== this && !audio.paused).map(audio => audio.src),
+    });
     this.paused = false;
     this.ended = false;
     ++this.playCalls;
@@ -209,3 +214,47 @@ test('explicit Android notification pause prevents auto-advance and resume works
   }
 });
 
+
+test('buffered next-ayah handoff starts the incoming player before pausing the outgoing one', async () => {
+  const page = await mountListening(1, 0);
+  try {
+    const outgoing = currentAudio();
+    const outgoingSrc = outgoing.src;
+    // Mirrors Chrome's final timeupdate just before the natural end.
+    await React.act(async () => {
+      outgoing.currentTime = outgoing.duration - 0.04;
+      outgoing.ontimeupdate?.(new dom.window.Event('timeupdate') as Event);
+    });
+    const incoming = currentAudio();
+    assert.equal(incoming.src, 'https://audio.test/1/2.mp3');
+    const lastStart = FakeAudio.handoffSnapshots.findLast((snap) => snap.incoming.endsWith('/1/2.mp3'));
+    assert.ok(lastStart, 'the preloaded next ayah must start playing');
+    assert.ok(lastStart.activeBefore.includes(outgoingSrc), 'the previous media stream must remain active until the new one starts');
+    assert.equal(outgoing.paused, true, 'outgoing stream must be cleaned after successful handoff');
+    assert.equal(navigator.mediaSession.playbackState, 'playing', 'Media Session must stay playing during handoff');
+    assert.equal(FakeAudio.all.filter((audio) => !audio.paused).length, 1, 'only one ayah should remain audible');
+
+    // Stale ended event from the previous player must not skip an extra ayah.
+    await React.act(async () => {
+      outgoing.onended?.(new dom.window.Event('ended') as Event);
+    });
+    assert.equal(currentAudio().src, 'https://audio.test/1/2.mp3');
+  } finally {
+    await page.cleanup();
+  }
+});
+
+test('user pause during or after handoff silences all players', async () => {
+  const page = await mountListening(1, 0);
+  try {
+    const next = mediaActions.get('nexttrack');
+    assert.equal(typeof next, 'function');
+    await React.act(async () => next?.());
+    assert.equal(currentAudio().src, 'https://audio.test/1/2.mp3');
+    await React.act(async () => mediaActions.get('pause')?.());
+    assert.equal(FakeAudio.all.filter((audio) => !audio.paused).length, 0);
+    assert.equal(navigator.mediaSession.playbackState, 'paused');
+  } finally {
+    await page.cleanup();
+  }
+});
