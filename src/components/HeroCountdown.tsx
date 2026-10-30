@@ -4,7 +4,7 @@ import { timeStrToMinutes } from '../utils/astronomy';
 import { zoneNowDate } from '../utils/locationTimezone';
 import { 
   Sun, Moon, Sunrise, Sunset, ChevronLeft, ChevronRight, 
-  Calendar, MapPin, Compass, Sparkles, LayoutGrid, Split, Clock, Activity,
+  Calendar, MapPin, Compass, Sparkles, LayoutGrid, Gem, Split, Clock,
   Check, BookOpen, ChevronDown, CloudMoon, SunMedium, CloudSun, SunDim, Star,
   History, HelpCircle, Users, Landmark, ArrowRight
 } from 'lucide-react';
@@ -23,10 +23,10 @@ export type HeroTemplateType = 'classic-light' | 'osmanli' | 'emerald' | 'midnig
 const TEMPLATES: { id: HeroTemplateType; name: string; icon: React.ReactNode; desc: string }[] = [
   { id: 'classic-light', name: 'Geleneksel Açık', icon: <BookOpen className="w-4 h-4 text-emerald-800" />, desc: 'Fildişi zemin, 2-3 sade renk, büyük puntolar' },
   { id: 'osmanli', name: 'Osmanlı', icon: <Sparkles className="w-4 h-4 text-[#1CA39C]" />, desc: 'İznik çinisi, padişah tuğrası, lale mercanı & koyu kobalt motifleri' },
-  { id: 'emerald', name: 'Zümrüt', icon: <LayoutGrid className="w-4 h-4 text-emerald-600" />, desc: 'Zümrüt yeşili ve dikey odak' },
+  { id: 'emerald', name: 'Zümrüt', icon: <Gem className="w-4 h-4 text-emerald-600" />, desc: 'Zümrüt yeşili ve dikey odak' },
   { id: 'midnight-split', name: 'Gece Kubbesi', icon: <Split className="w-4 h-4 text-indigo-400" />, desc: '2 bölmeli bento split ve dairesel sayaç' },
   { id: 'amber-timeline', name: 'Zaman Çizelgesi', icon: <Clock className="w-4 h-4 text-amber-500" />, desc: 'Sıcak kehribar ve 24 saatlik vakit seyri' },
-  { id: 'minimal-grid', name: 'Minimal Grid', icon: <Activity className="w-4 h-4 text-zinc-300" />, desc: 'Yüksek kontrastlı, net ve büyük puntolar' },
+  { id: 'minimal-grid', name: 'Minimal Grid', icon: <LayoutGrid className="w-4 h-4 text-zinc-300" />, desc: 'Yüksek kontrastlı, net ve büyük puntolar' },
   { id: 'muvakkithane', name: 'Osmanlı Muvakkithane', icon: <Landmark className="w-4 h-4 text-[#8c6b1c]" />, desc: 'Alaturka ezânî saat, Rûmî-Hicrî takvim, altın tezhib & muvakkithane cetveli' }
 ];
 
@@ -271,7 +271,7 @@ export const HeroCountdown: React.FC<HeroCountdownProps> = ({
     if (name.includes('İmsak')) return <CloudMoon className={`${className} text-indigo-400`} />;
     if (name.includes('Sabah')) return <Sunrise className={`${className} text-emerald-500`} />;
     if (name.includes('Güneş')) return <Sun className={`${className} text-amber-500`} />;
-    if (name.includes('İşrak') || name.includes('Kuşluk')) return <Moon className={`${className} text-teal-400`} />;
+    if (name.includes('İşrak') || name.includes('Kuşluk')) return <SunDim className={`${className} text-teal-400`} />;
     if (name.includes('Öğle')) return <SunMedium className={`${className} text-amber-500`} />;
     if (name.includes('İkindi')) return <CloudSun className={`${className} text-orange-400`} />;
     if (name.includes('Akşam')) return <Sunset className={`${className} text-rose-500`} />;
