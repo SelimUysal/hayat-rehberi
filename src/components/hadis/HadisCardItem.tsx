@@ -298,6 +298,7 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
           </div>
           <div className="flex items-center flex-wrap gap-1.5">
             {renderSelectForListButton()}
+            <button type="button" onClick={handleCopyLink} title="Hadis bağlantısını kopyala" aria-label={`Hadis ${item.id} bağlantısını kopyala`} className="p-1.5 rounded-lg border border-emerald-500/40 text-emerald-500"><Link2 className="w-3.5 h-3.5" /></button>
             <button
               onClick={() => onToggleFavorite(item.id)}
               className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${

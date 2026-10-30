@@ -290,7 +290,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
   useEffect(() => {
     if (sharedHadisId === null || !allHadisler.some(h => h.id === sharedHadisId)) return;
     setSearchQuery(''); setQuickFilter('all'); setSelectedCategory('all');
-    setSortBy('default');
+    // Do not overwrite the user's saved sort preference when following a share link.
     setUiAlt(2);
   }, [sharedHadisId]);
 
