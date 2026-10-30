@@ -216,6 +216,18 @@ export const HadisMode: React.FC<HadisModeProps> = ({
   const [clozeRatio, setClozeRatio] = useState<number>(0.5);
   const [deeplinkCopied, setDeeplinkCopied] = useState<boolean>(false);
 
+  const readHadisHash = () => {
+    const match = window.location.hash.match(/^#hadis\/(\d+)(?:\/|$)/);
+    return match ? Number(match[1]) : null;
+  };
+  const [sharedHadisId, setSharedHadisId] = useState<number | null>(() => typeof window === 'undefined' ? null : readHadisHash());
+  useEffect(() => {
+    const sync = () => setSharedHadisId(readHadisHash());
+    window.addEventListener('popstate', sync);
+    window.addEventListener('hashchange', sync);
+    return () => {window.removeEventListener('popstate', sync); window.removeEventListener('hashchange', sync);};
+  }, []);
+
   // Prop değişimlerini yakala
   useEffect(() => {
     if (targetHadisId) {
@@ -275,12 +287,25 @@ export const HadisMode: React.FC<HadisModeProps> = ({
     [allHadisler, searchQuery, selectedCategory, quickFilter, sortBy, customOrderIds]
   );
 
+  useEffect(() => {
+    if (sharedHadisId === null || !allHadisler.some(h => h.id === sharedHadisId)) return;
+    setSearchQuery(''); setQuickFilter('all'); setSelectedCategory('all');
+    setSortBy('default');
+  }, [sharedHadisId]);
+
   const safeFocusedIndex = useMemo(() => {
     if (filteredHadisler.length === 0) return 0;
     return Math.min(focusedIndex, filteredHadisler.length - 1);
   }, [focusedIndex, filteredHadisler.length]);
 
-  const activeHadis = filteredHadisler[safeFocusedIndex] || allHadisler[0];
+  const sharedIndex = sharedHadisId === null ? -1 : filteredHadisler.findIndex(h => h.id === sharedHadisId);
+  const activeHadis = filteredHadisler[sharedIndex >= 0 ? sharedIndex : safeFocusedIndex] || allHadisler[0];
+  useEffect(() => {
+    if (sharedIndex < 0) return;
+    setFocusedIndex(sharedIndex);
+    const timeout = window.setTimeout(() => document.getElementById(`hadis-card-${sharedHadisId}`)?.scrollIntoView({behavior:'smooth',block:'center'}), 180);
+    return () => window.clearTimeout(timeout);
+  }, [sharedIndex, sharedHadisId, uiAlt]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -547,15 +572,12 @@ export const HadisMode: React.FC<HadisModeProps> = ({
 
   const handleCopyDeeplink = () => {
     if (typeof window === 'undefined') return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', 'hadis');
-    url.searchParams.set('ui', String(uiAlt));
-    if (activeHadis) url.searchParams.set('hadisId', String(activeHadis.id));
-    if (selectedCategory !== 'all') url.searchParams.set('cat', selectedCategory);
-    // Kopyalama işlemi kullanıcı geçmişindeki mevcut sayfayı değiştirmemeli.
-    navigator.clipboard?.writeText(url.toString());
-    setDeeplinkCopied(true);
-    setTimeout(() => setDeeplinkCopied(false), 2000);
+    if (!activeHadis) return;
+    const url = `${window.location.origin}${window.location.pathname}#hadis/${activeHadis.id}`;
+    if (!navigator.clipboard?.writeText) { window.prompt('Hadis bağlantısını kopyalayın:',url); return; }
+    navigator.clipboard.writeText(url).then(() => {
+      setDeeplinkCopied(true); setTimeout(() => setDeeplinkCopied(false), 2000);
+    }).catch(() => window.prompt('Hadis bağlantısını kopyalayın:',url));
   };
 
   const categories = useMemo(
@@ -606,7 +628,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
           {/* Sol Üst: Sayfa Başlığı ve Hemen Sağında İkon Grubu */}
           <div className="flex items-center flex-wrap gap-3 w-full md:contents">
             <h1
-              className={`text-base sm:text-lg lg:text-xl font-bold tracking-tight whitespace-nowrap ${
+              className={`text-base sm:text-lg lg:text-xl font-bold tracking-tight break-words ${
                 isDark ? 'text-[#f8fafc]' : 'text-black'
               } md:order-1`}
             >
@@ -853,7 +875,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
                 {/* 7 Temel UI Seçeneği Açılır Menüsü */}
                 {isUiMenuOpen && (
                   <div
-                    className={`absolute left-0 sm:left-auto sm:right-0 mt-2 w-80 sm:w-96 rounded-2xl border p-2.5 shadow-2xl z-50 space-y-1.5 ${
+                    className={`absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl border p-2.5 shadow-2xl z-50 space-y-1.5 ${
                       isDark
                         ? 'bg-[#252a34] border-[#384152] text-[#f3f4f6]'
                         : 'bg-white border-slate-200 text-slate-800'
@@ -1475,7 +1497,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
 
         {filteredHadisler.length === 0 ? (
           <div
-            className={`p-10 rounded-2xl border text-center space-y-3 ${
+            className={`p-6 sm:p-10 rounded-2xl border text-center space-y-3 ${
               isDark ? 'bg-[#252a34] border-[#384152]' : 'bg-white border-slate-200'
             }`}
           >
