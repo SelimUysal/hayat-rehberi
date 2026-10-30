@@ -3,7 +3,7 @@ import { resolveLocationTimezone } from '../utils/locationTimezone';
 import { Coordinates } from '../types/prayer';
 import { CITIES_DATA } from '../data/cities';
 import { reverseGeocode, searchLocations, getApproximateLocationByIP, GeocodedAddress } from '../utils/geocoding';
-import { X, Search, MapPin, Navigation, Loader2, Sparkles, Copy, CheckCircle2, ExternalLink, AlertCircle } from 'lucide-react';
+import { X, Search, MapPin, LocateFixed, Loader2, Sparkles, Copy, CheckCircle2, ExternalLink, AlertCircle } from 'lucide-react';
 
 interface CitySelectorModalProps {
   isOpen: boolean;
@@ -357,7 +357,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
               disabled={geoLoading}
               className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
             >
-              {geoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+              {geoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
               <span>{geoLoading ? 'Mahalle & İlçe Adresiniz Taranıyor...' : 'GPS Konumumu & Mahallemi Otomatik Bul (6 Hane Hassas)'}</span>
             </button>
 

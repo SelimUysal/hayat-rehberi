@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Coordinates, TemkinSettings, AsrMethod, CalculatedDay } from '../types/prayer';
 import { calculateMonthlyPrayers } from '../utils/astronomy';
 import { buildPdfFromJpegPages, dataUrlToUint8Array } from '../services/hadisService';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Printer, Download, Sparkles } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, FileDown, Download, Sparkles } from 'lucide-react';
 
 interface MonthlyCalendarProps {
   currentLocation: Coordinates;
@@ -227,10 +227,10 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-            title="Yazdır veya PDF olarak kaydet"
+            title="Aylık vakit takvimini PDF olarak indir"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Yazdır</span>
+            <FileDown className="w-3.5 h-3.5" />
+            <span>PDF İndir</span>
           </button>
 
           <button

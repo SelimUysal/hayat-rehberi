@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   History,
   BookOpen,
-  Sparkles,
+  ScrollText,
   Feather,
   ArrowUp,
   ArrowDown,
@@ -495,7 +495,7 @@ export const DailyFourCardsSection: React.FC<DailyFourCardsSectionProps> = ({
       >
         <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 pb-2 border-b ${styles.header}`}>
           <div className="flex items-center gap-1.5 min-w-0 uppercase tracking-wide text-[10px] sm:text-[11px]">
-            <Sparkles className={`w-3.5 h-3.5 shrink-0 ${styles.icon}`} />
+            <ScrollText className={`w-3.5 h-3.5 shrink-0 ${styles.icon}`} />
             <span className={styles.title}>{CARD_META.hadis.label}</span>
             {item.kategori && (
               <span className={`hidden md:inline-block text-[9px] px-2 py-0.5 rounded-full border normal-case ${styles.badge}`}>

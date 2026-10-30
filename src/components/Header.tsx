@@ -1,6 +1,6 @@
 import React from 'react';
 import { Coordinates, CalculatedDay } from '../types/prayer';
-import { Compass, Calendar as CalendarIcon, Clock, MapPin, Target, Globe, Landmark, Link2, Check } from 'lucide-react';
+import { Compass, Calendar as CalendarIcon, Clock, MapPinned, Target, Globe, Landmark, Link2, Check } from 'lucide-react';
 import { makeTakvimHash } from '../utils/takvimDeepLinks';
 import {
   SpecialGoalItem,
@@ -265,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 hover:shadow-xs border border-transparent hover:border-slate-200/60'
             }`}
           >
-            <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <MapPinned className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span>Yakındaki Camiler</span>
           </button>
 
