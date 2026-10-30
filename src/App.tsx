@@ -88,6 +88,15 @@ export function App() {
     return 'namaz';
   });
 
+  // İlk yüklenen bölümün URL'sini geçmişte sakla. Aksi hâlde, örneğin
+  // kaydedilmiş Mushaf ekranından Namaz'a geçip Geri'ye basınca önceki
+  // kaydın bir bölüm adresi olmayabilir.
+  useEffect(() => {
+    if (window.location.hash) return; // Paylaşılan alt sayfa bağlantılarına dokunma.
+    const entryHash = activeTab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(activeTab);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${entryHash}`);
+  }, []);
+
   const [mushafTarget, setMushafTarget] = useState<{ surahId?: number; page?: number; mode?: 'mushaf' | 'computer'; timestamp?: number } | null>(null);
   const [ezberTargetSurahId, setEzberTargetSurahId] = useState<number | null>(null);
   const [listenTargetSurahId, setListenTargetSurahId] = useState<number | undefined>(undefined);
@@ -231,7 +240,7 @@ export function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  const handleTabChange = (tab: TabType) => {
+  const handleTabChange = (tab: TabType, requestedHash?: string) => {
     setActiveTab(tab);
     try {
       localStorage.setItem('quran_active_tab', tab);
@@ -241,10 +250,15 @@ export function App() {
     if (typeof window !== 'undefined') {
       const currentHash = window.location.hash;
       const hashTab = getMainTabFromHash(currentHash);
-      // Aynı modülün alt başlıkları korunur; başka bir modüle geçince doğru kök URL kullanılır.
-      if (hashTab !== tab || !currentHash) {
-        const nextHash = tab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(tab);
-        window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+      // Bir kullanıcı eylemiyle başka bir modüle veya içeriğe gidiliyorsa
+      // eski ekranı replaceState ile silme: Android geri tuşu için pushState kullan.
+      // Aynı modülün özel alt sayfasını gereksiz yere sıfırlama.
+      const nextHash = requestedHash || (tab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(tab));
+      const needsHistoryEntry = requestedHash
+        ? currentHash !== nextHash
+        : hashTab !== tab || !currentHash;
+      if (needsHistoryEntry) {
+        window.history.pushState({ hayatRehberiTab: tab }, '', `${window.location.pathname}${window.location.search}${nextHash}`);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -274,6 +288,7 @@ export function App() {
       return;
     }
     const nowTs = Date.now();
+    let requestedHash: string | undefined;
 
     if (params?.surahId || params?.mushafMode || params?.page) {
       setMushafTarget({ 
@@ -307,9 +322,7 @@ export function App() {
     if (params?.namazItemId) {
       setNamazTargetId(params.namazItemId);
       setNamazTimestamp(nowTs);
-      if (typeof window !== 'undefined') {
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${makeNamazItemHash(params.namazItemId)}`);
-      }
+      if (tab === 'namaz') requestedHash = makeNamazItemHash(params.namazItemId);
       try {
         localStorage.setItem('namaz_last_selected_id', params.namazItemId);
         localStorage.setItem('namaz_selected_id', params.namazItemId);
@@ -332,9 +345,7 @@ export function App() {
       const mapped = surahMap[params.surahId] || 'fatiha';
       setNamazTargetId(mapped);
       setNamazTimestamp(nowTs);
-      if (typeof window !== 'undefined') {
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${makeNamazItemHash(mapped)}`);
-      }
+      requestedHash = makeNamazItemHash(mapped);
       try {
         localStorage.setItem('namaz_last_selected_id', mapped);
         localStorage.setItem('namaz_selected_id', mapped);
@@ -352,6 +363,7 @@ export function App() {
       if (params.city) setTakvimTargetCity(params.city);
       setTakvimTargetAction(params.takvimAction || null);
       setTakvimTimestamp(nowTs);
+      if (tab === 'takvim') requestedHash = makeTakvimHash(params.takvimSubTab || 'daily');
     }
     if (params?.kazaAction) {
       setKazaTargetAction(params.kazaAction);
@@ -377,7 +389,7 @@ export function App() {
     if (params?.adminPasskey !== undefined) {
       setSupportAdminPasskey(params.adminPasskey);
     }
-    handleTabChange(tab);
+    handleTabChange(tab, requestedHash);
   };
 
   return (
