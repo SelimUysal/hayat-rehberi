@@ -7,6 +7,7 @@ import { KazaMode } from './components/KazaMode';
 import { MushafMode } from './components/MushafMode';
 import { EzberAsistani } from './components/EzberAsistani';
 import { PrayerApp } from './components/PrayerApp';
+import { PrayerErrorBoundary } from './components/takvim/PrayerErrorBoundary';
 import { usePrayerAdhanSound } from './utils/prayerAdhanSound';
 import { HadisMode } from './components/HadisMode';
 import { EsmaMode } from './components/EsmaMode';
@@ -446,6 +447,7 @@ export function App() {
         {activeTab === 'mushaf' && <MushafMode targetSurah={mushafTarget?.surahId} targetPage={mushafTarget?.page} targetMode={mushafTarget?.mode} timestamp={mushafTarget?.timestamp} isDark={isDark} />}
         {activeTab === 'ezber' && <EzberAsistani targetSurahId={ezberTargetSurahId} />}
         {activeTab === 'takvim' && (
+          <PrayerErrorBoundary>
           <PrayerApp
             initialDate={takvimTargetDate}
             initialSubTab={takvimTargetSubTab}
@@ -457,6 +459,7 @@ export function App() {
             onOpenOsmanli={() => handleTabChange('osmanli')}
             adhanSound={prayerAdhan}
           />
+          </PrayerErrorBoundary>
         )}
         {activeTab === 'osmanli' && (
           <OsmanliModule

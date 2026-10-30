@@ -19,6 +19,8 @@ import { NearbyMosques } from './NearbyMosques';
 import { HolyDaysWidget } from './HolyDaysWidget';
 import { CitySelectorModal } from './CitySelectorModal';
 import { SpecialGoalsAndCountdown } from './takvim/components/SpecialGoalsAndCountdown';
+import { PrayerDiagnosticsPanel } from './takvim/PrayerDiagnosticsPanel';
+import { recordPrayerIssue } from '../utils/prayerDiagnostics';
 
 interface PrayerAppProps {
   initialDate?: Date | null;
@@ -44,7 +46,9 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
           return parsed;
         }
       }
-    } catch {}
+    } catch (error) {
+      recordPrayerIssue('app', 'load-location', error, 'warning');
+    }
     return DEFAULT_CITY;
   });
 
@@ -69,7 +73,8 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     return () => { window.removeEventListener('hashchange', syncRoute); window.removeEventListener('popstate', syncRoute); };
   }, []);
 
-  // Ortak Canlı Sistem Saati ("Canlı Saat Rozeti" ve Özel Hedefler Geri Sayımı için tam senkronize)
+  // Yalnızca gün değişimi kontrolü: canlı saniyelik saatler Header ve hedef
+  // bileşenlerinde kendi küçük zamanlayıcılarıyla güncellenir.
   const [systemNow, setSystemNow] = useState<Date>(() => new Date());
   // Migrate older saved international locations without changing Turkey presets.
   useEffect(() => {
@@ -78,16 +83,22 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     resolveLocationTimezone(currentLocation).then(resolved => {
       if (cancelled || !resolved.timezoneId) return;
       setCurrentLocation(resolved);
-      try { localStorage.setItem('namaz_current_location', JSON.stringify(resolved)); } catch {}
+      try { localStorage.setItem('namaz_current_location', JSON.stringify(resolved)); }
+      catch (error) { recordPrayerIssue('city', 'save-resolved', error, 'warning'); }
     });
     return () => { cancelled = true; };
   }, [currentLocation.lat, currentLocation.lng, currentLocation.country, currentLocation.timezoneId]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSystemNow(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+    const update = () => setSystemNow(new Date());
+    const timer = window.setInterval(update, 30_000);
+    window.addEventListener('focus', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', update);
+      document.removeEventListener('visibilitychange', update);
+    };
   }, []);
 
   useEffect(() => {
@@ -110,7 +121,9 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
       setCurrentLocation(updatedLocation);
       try {
         localStorage.setItem('namaz_current_location', JSON.stringify(updatedLocation));
-      } catch {}
+      } catch (error) {
+        recordPrayerIssue('city', 'save-initial', error, 'warning');
+      }
     }
     if (initialAction === 'city') {
       setIsCityModalOpen(true);
@@ -153,12 +166,18 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     };
     // Keep the previous, verified location visible until the new timezone is resolved.
     // This prevents briefly displaying Kuala Lumpur with Istanbul UTC+3 prayer times.
-    const resolvedLocation = await resolveLocationTimezone(updatedLocation);
-    if (requestId !== selectionId.current) return;
-    setCurrentLocation(resolvedLocation);
     try {
-      localStorage.setItem('namaz_current_location', JSON.stringify(resolvedLocation));
-    } catch {}
+      const resolvedLocation = await resolveLocationTimezone(updatedLocation);
+      if (requestId !== selectionId.current) return;
+      setCurrentLocation(resolvedLocation);
+      try {
+        localStorage.setItem('namaz_current_location', JSON.stringify(resolvedLocation));
+      } catch (error) {
+        recordPrayerIssue('city', 'save-selection', error, 'warning');
+      }
+    } catch (error) {
+      recordPrayerIssue('timezone', 'resolve-selection', error);
+    }
   };
 
   // Seçili tarihe ait namaz vakitleri (enlem/boylam değişimine tam hassas dinamik hesaplama)
@@ -232,7 +251,6 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
         todayData={todayData}
         activeTab={activeTab}
         onTabChange={selectTakvimTab}
-        systemNow={systemNow}
         onOpenWorldClock={onOpenWorldClock}
         onOpenOsmanli={onOpenOsmanli}
         adhanSound={adhanSound}
@@ -327,10 +345,11 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
 
         {activeTab === 'goals' && (
           <div className="animate-fadeIn space-y-6">
-            <SpecialGoalsAndCountdown systemNow={systemNow} />
+            <SpecialGoalsAndCountdown />
           </div>
         )}
 
+        <PrayerDiagnosticsPanel />
       </main>
 
       {/* Şehir Seçici Modal */}

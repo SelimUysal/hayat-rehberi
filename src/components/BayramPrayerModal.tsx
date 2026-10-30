@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sparkles, BookOpen, CheckCircle, Clock, ChevronRight } from 'lucide-react';
 
@@ -17,6 +17,33 @@ export const BayramPrayerModal: React.FC<BayramPrayerModalProps> = ({
   bayramTime,
   onNavigateToNamaz
 }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault(); onCloseRef.current(); return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), [tabindex="0"]'
+      )).filter(item => item.getClientRects().length > 0);
+      if (!focusable.length) { event.preventDefault(); dialogRef.current.focus(); return; }
+      const first = focusable[0], last = focusable[focusable.length-1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); previous?.focus(); };
+  }, [isOpen]);
   if (!isOpen) return null;
 
   return createPortal(
@@ -26,7 +53,10 @@ export const BayramPrayerModal: React.FC<BayramPrayerModalProps> = ({
     >
       <div 
         className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-emerald-200 overflow-hidden max-h-[85vh] flex flex-col"
+        ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
+        aria-labelledby="bayram-prayer-dialog-title"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
@@ -35,6 +65,7 @@ export const BayramPrayerModal: React.FC<BayramPrayerModalProps> = ({
           <button
             onClick={onClose}
             className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            ref={closeRef}
             aria-label="Kapat"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -45,7 +76,7 @@ export const BayramPrayerModal: React.FC<BayramPrayerModalProps> = ({
             <span>Fıkhi Rehber & Pratik Tarif</span>
           </div>
 
-          <h2 className="text-base sm:text-xl font-bold text-white pr-6">
+          <h2 id="bayram-prayer-dialog-title" className="text-base sm:text-xl font-bold text-white pr-6">
             {bayramName} Nasıl Kılınır?
           </h2>
 

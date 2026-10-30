@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Coordinates, TemkinSettings, AsrMethod, CalculatedDay } from '../types/prayer';
 import { calculateMonthlyPrayers } from '../utils/astronomy';
+import { recordPrayerIssue } from '../utils/prayerDiagnostics';
 import { buildPdfFromJpegPages, dataUrlToUint8Array } from '../services/hadisService';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, FileDown, Download, Sparkles } from 'lucide-react';
 
@@ -28,7 +29,12 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
   ];
 
   // Seçilen ayın günlerini otomatik hesapla
-  const days: CalculatedDay[] = calculateMonthlyPrayers(viewYear, viewMonth, currentLocation, temkin, asrMethod);
+  const days: CalculatedDay[] = useMemo(() => {
+    try { return calculateMonthlyPrayers(viewYear, viewMonth, currentLocation, temkin, asrMethod); }
+    catch (error) { recordPrayerIssue('calendar', 'calculate-month', error); return []; }
+  }, [viewYear, viewMonth, currentLocation.lat, currentLocation.lng,
+      currentLocation.timezone, currentLocation.timezoneId, temkin.fajr,
+      temkin.sunrise, temkin.dhuhr, temkin.asr, temkin.maghrib, temkin.isha, asrMethod]);
 
   const handlePrevMonth = () => {
     if (viewMonth === 0) {
@@ -61,7 +67,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
     canvas.width = PAGE_W;
     canvas.height = PAGE_H;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) { recordPrayerIssue('export', 'pdf-canvas', new Error('CanvasUnavailable')); return; }
 
     const FONT = '"Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
@@ -124,10 +130,15 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
       y += rowH;
     });
 
-    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    const pdfBlob = buildPdfFromJpegPages([
+    let jpegDataUrl: string;
+    try { jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92); }
+    catch (error) { recordPrayerIssue('export', 'pdf-canvas-encode', error); return; }
+    let pdfBlob: Blob;
+    try {
+      pdfBlob = buildPdfFromJpegPages([
       { jpegBytes: dataUrlToUint8Array(jpegDataUrl), width: PAGE_W, height: PAGE_H }
-    ]);
+      ]);
+    } catch (error) { recordPrayerIssue('export', 'pdf-build', error); return; }
     const url = URL.createObjectURL(pdfBlob);
     const a = document.createElement('a');
     a.href = url;
@@ -198,7 +209,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
         {/* Ay Değiştirici & Aksiyonlar */}
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
-            <button
+            <button type="button" aria-label="Önceki ay"
               onClick={handlePrevMonth}
               className="p-1.5 rounded-lg hover:bg-white text-slate-700 hover:shadow-xs transition-all cursor-pointer"
               title="Önceki Ay"
@@ -208,7 +219,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
             <span className="px-3 text-xs font-bold text-slate-800 min-w-[110px] text-center">
               {turkishMonths[viewMonth]} {viewYear}
             </span>
-            <button
+            <button type="button" aria-label="Sonraki ay"
               onClick={handleNextMonth}
               className="p-1.5 rounded-lg hover:bg-white text-slate-700 hover:shadow-xs transition-all cursor-pointer"
               title="Sonraki Ay"
@@ -245,7 +256,7 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
       </div>
 
       {/* Namaz Vakitleri Tablosu */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <div className="overflow-x-auto rounded-xl border border-slate-200" role="region" aria-label="Aylık namaz vakitleri tablosu" tabIndex={0}>
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-50/90 text-slate-700 font-bold border-b border-slate-200">
@@ -269,6 +280,14 @@ export const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
               return (
                 <tr
                   key={day.dateString}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${day.dateString} tarihini aç`}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault(); onSelectDate(day.date);
+                    }
+                  }}
                   onClick={() => onSelectDate(day.date)}
                   className={`transition-colors cursor-pointer hover:bg-emerald-50/50 ${
                     current ? 'bg-emerald-100/70 font-semibold ring-1 ring-emerald-400' : isFriday ? 'bg-slate-50/40' : 'bg-white'

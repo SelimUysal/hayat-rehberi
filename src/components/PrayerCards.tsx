@@ -8,6 +8,7 @@ import { timeStrToMinutes } from '../utils/astronomy';
 import { zoneNowDate } from '../utils/locationTimezone';
 import { BayramPrayerModal } from './BayramPrayerModal';
 
+
 interface PrayerCardsProps {
   todayData: CalculatedDay;
   asrMethod: AsrMethod;
@@ -39,10 +40,15 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+    const update = () => setNow(new Date());
+    const timer = window.setInterval(update, 15_000);
+    window.addEventListener('focus', update);
+    document.addEventListener('visibilitychange', update);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', update);
+      document.removeEventListener('visibilitychange', update);
+    };
   }, []);
 
   const locationNow = timezoneId ? zoneNowDate(timezoneId) : now;
@@ -244,8 +250,9 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
         </div>
 
         {/* Kullanıcının mod seçicisi: 5 Vakit mi, Tüm Vakitler mi? */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto text-xs font-bold">
+        <div role="group" aria-label="Vakit kartı görünümü" className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto text-xs font-bold">
           <button
+            type="button" aria-pressed={viewMode === 'all'}
             onClick={() => setViewMode('all')}
             className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
               viewMode === 'all'
@@ -256,6 +263,7 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
             Tüm Vakitler (İmsak, Sabah, Güneş, İşrak...)
           </button>
           <button
+            type="button" aria-pressed={viewMode === 'five'}
             onClick={() => setViewMode('five')}
             className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
               viewMode === 'five'
@@ -281,6 +289,15 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
             <div
               key={card.id}
               onClick={isBayram ? () => setIsBayramModalOpen(true) : undefined}
+              role={isBayram ? 'button' : undefined}
+              tabIndex={isBayram ? 0 : undefined}
+              aria-label={isBayram ? `${card.name} nasıl kılınır?` : undefined}
+              onKeyDown={isBayram ? event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setIsBayramModalOpen(true);
+                }
+              } : undefined}
               className={`relative rounded-2xl p-4 sm:p-5 border transition-all duration-300 flex flex-col justify-between ${
                 isBayram ? 'cursor-pointer hover:scale-[1.02] hover:shadow-md' : ''
               } ${
