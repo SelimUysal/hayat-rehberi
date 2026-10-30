@@ -290,6 +290,22 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const [loading, setLoading] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.85);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  // Mobile browsers cannot read or control Android/iOS system media volume.
+  // Use the device's hardware keys rather than a competing in-app volume slider.
+  const [usesDeviceVolume, setUsesDeviceVolume] = useState<boolean>(() =>
+    typeof window !== 'undefined' && (
+      window.matchMedia('(pointer: coarse)').matches ||
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    )
+  );
+  useEffect(() => {
+    const query = window.matchMedia('(pointer: coarse)');
+    const update = () => setUsesDeviceVolume(
+      query.matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    );
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem('quran_listening_speed'));
@@ -355,6 +371,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const mutedRef = useRef<boolean>(isMuted);
   volumeRef.current = volume;
   mutedRef.current = isMuted;
+  const usesDeviceVolumeRef = useRef<boolean>(usesDeviceVolume);
+  usesDeviceVolumeRef.current = usesDeviceVolume;
+
+  const applyOutputVolume = useCallback((player: HTMLAudioElement) => {
+    // In device mode, let hardware volume keys control the single effective scale.
+    player.muted = false;
+    player.volume = usesDeviceVolumeRef.current ? 1 : (mutedRef.current ? 0 : volumeRef.current);
+  }, []);
   const playRequestRef = useRef(0);
   // An internal audio swap/retry can fire a delayed native pause event.
   // Never confuse it with an intentional pause from Android / Bluetooth.
@@ -460,13 +484,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return () => clearInterval(interval);
   }, [isSlideshowRunning, isBlackScreenMode]);
 
-  // Ses Seviyesi ve Hızı Güncelle
+  // Desktop uses an app-level volume slider; touch devices use system keys.
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+      applyOutputVolume(audioRef.current);
       audioRef.current.playbackRate = playbackSpeed;
     }
-  }, [volume, isMuted, playbackSpeed]);
+  }, [volume, isMuted, playbackSpeed, usesDeviceVolume, applyOutputVolume]);
 
   const changeSpeed = (spd: number) => {
     setPlaybackSpeed(spd);
@@ -514,9 +538,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     // Kullanıcının seçtiği dakika dolduğu anda sesi durdur, tekrar başlamasını engelle.
     player.pause();
-    player.volume = mutedRef.current ? 0 : volumeRef.current;
+    applyOutputVolume(player);
     isSleepStoppingRef.current = false;
-  }, [persistBookmark]);
+  }, [persistBookmark, applyOutputVolume]);
 
   // Tek bir bozuk ses dosyası veya kısa internet kesintisi oynatmayı kalıcı olarak durdurmaz.
   const cancelReconnect = useCallback(() => {
@@ -706,7 +730,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     lastAudioProgressRef.current = { at: Date.now(), seconds: Math.max(0, startTime) };
     setAudioError(null);
     player.preload = 'auto';
-    player.volume = mutedRef.current ? 0 : volumeRef.current;
+    applyOutputVolume(player);
     player.playbackRate = playbackSpeedRef.current;
 
     let lastSavedSecond = -1;
@@ -809,7 +833,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     setIsPlaying(true);
     isPlayingRef.current = true;
-  }, [persistBookmark, triggerSleepStop, cancelReconnect, scheduleReconnect, pauseInternally, updateMediaPosition]);
+  }, [persistBookmark, triggerSleepStop, cancelReconnect, scheduleReconnect, pauseInternally, updateMediaPosition, applyOutputVolume]);
 
   // Mobile lock-screen / notification / headset playback controls.
   // The OS designs the media card; the app supplies metadata and commands.
@@ -1822,29 +1846,44 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   </span>
                 </div>
 
-                {/* Ses Düzeyi */}
-                <div className="flex w-full min-w-0 items-center justify-center gap-2 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:px-2.5">
-                  <button
-                    onClick={() => setIsMuted(!isMuted)}
-                    className="text-slate-400 hover:text-white cursor-pointer"
-                    title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                {/* On phones the OS owns volume. Do not pretend to display its level. */}
+                {usesDeviceVolume ? (
+                  <div
+                    role="note"
+                    className="flex w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-2.5 py-2 text-slate-300 lg:w-auto"
+                    title="Ses seviyesini telefonun ses açma ve kısma tuşlarıyla ayarlayın."
                   >
-                    {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />}
-                  </button>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => {
-                      setVolume(parseFloat(e.target.value));
-                      setIsMuted(false);
-                    }}
-                    className="w-full min-w-0 max-w-20 lg:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                    title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
-                  />
-                </div>
+                    <Volume2 aria-hidden="true" className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <span className="text-[11px] font-semibold whitespace-nowrap">Ses: Telefon tuşları</span>
+                  </div>
+                ) : (
+                  <div className="flex w-full min-w-0 items-center justify-center gap-2 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:px-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsMuted(!isMuted)}
+                      aria-label={isMuted ? 'Sesi aç' : 'Sesi kapat'}
+                      aria-pressed={isMuted}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                      title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                    >
+                      {isMuted || volume === 0 ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />}
+                    </button>
+                    <input
+                      type="range"
+                      aria-label="Uygulama ses seviyesi"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => {
+                        setVolume(parseFloat(e.target.value));
+                        setIsMuted(false);
+                      }}
+                      className="w-full min-w-0 max-w-20 lg:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
+                    />
+                  </div>
+                )}
 
                 {/* Kompakt uyku modu: sade düğme, ayrıntılar yalnızca açıldığında görünür. */}
                 <div ref={sleepMenuRef} className="relative col-span-2 min-w-0 w-full lg:w-auto">
