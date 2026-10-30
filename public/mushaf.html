@@ -1534,6 +1534,7 @@
 </div>
 
 <!-- DATA VE LOGIC -->
+<script src="./mushaf-diagnostics.js"></script>
 <script src="./quran-data.js"></script>
 <script>
 (function(){
@@ -1675,20 +1676,28 @@
     focus: false
   }, readJSON(SETTINGS_KEY, {}));
 
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) settings = {};
+  settings = Object.assign({appMode:"computer",theme:"light",mushafView:"single",mushafSource:"default",currentPage:1,currentSurah:1},settings);
   if (settings.theme === "auto") settings.theme = "light";
+  if (settings.appMode !== "computer" && settings.appMode !== "mushaf") settings.appMode = "computer";
+  if (["single","double","scroll"].indexOf(settings.mushafView) === -1) settings.mushafView = "single";
   if (settings.currentSurah) settings.currentSurah = parseInt(settings.currentSurah, 10) || 1;
   if (settings.currentPage) settings.currentPage = parseInt(settings.currentPage, 10) || 1;
+  if (!Number.isInteger(settings.currentPage) || settings.currentPage < 1 || settings.currentPage > 604) { settings.currentPage=1;window.MushafDiagnostics.log("SAVED_DATA_INVALID","warning",{stage:"page"}); }
+  if (!Number.isInteger(settings.currentSurah) || settings.currentSurah < 1 || settings.currentSurah > 114) { settings.currentSurah=1;window.MushafDiagnostics.log("SAVED_DATA_INVALID","warning",{stage:"surah"}); }
   if (["default", "mushaf-1", "mushaf-2", "mushaf-3"].indexOf(settings.mushafSource) === -1) {
     settings.mushafSource = "default";
   }
 
-  function readJSON(k, f){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch(e){ return f; } }
-  function writeJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  function readJSON(k, f){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch(e){ window.MushafDiagnostics.log("STORAGE_READ_FAILED","warning",{stage:"json",name:window.MushafDiagnostics.safeName(e)});return f; } }
+  function writeJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){window.MushafDiagnostics.log("STORAGE_WRITE_FAILED","warning",{stage:"json",name:window.MushafDiagnostics.safeName(e)});} }
   function saveSettings(){ writeJSON(SETTINGS_KEY, settings); }
 
   var currentSurahData = null;
   var memoryCache = {};
   var bookmarks = readJSON("kuran_user_bookmarks_v1", []);
+  if (!Array.isArray(bookmarks)){bookmarks=[];window.MushafDiagnostics.log("SAVED_DATA_INVALID","warning",{stage:"bookmarks"});}
+  bookmarks=bookmarks.filter(function(b){return b && Number.isInteger(Number(b.page)) && Number(b.page)>=1 && Number(b.page)<=604;}).slice(0,25).map(function(b){return {page:Number(b.page),title:String(b.title||"Sayfa "+b.page).slice(0,120),note:String(b.note||"").slice(0,1000),date:String(b.date||"").slice(0,40)};});
 
   function getJuzFromPage(page){
     for (var i = JUZ_PAGES.length - 1; i >= 0; i--) {
@@ -1912,6 +1921,7 @@
   }
 
   function fetchSurahData(surahId){
+    if (!Number.isInteger(Number(surahId)) || Number(surahId)<1 || Number(surahId)>114) return Promise.reject(new Error("Invalid surah"));
     if (memoryCache[surahId]) return Promise.resolve(memoryCache[surahId]);
     if (window.__QURAN_DATA__ && window.__QURAN_DATA__[surahId]) {
       memoryCache[surahId] = window.__QURAN_DATA__[surahId];
@@ -1930,7 +1940,8 @@
         memoryCache[surahId] = res;
         return res;
       })
-      .catch(function(){
+      .catch(function(error){
+        window.MushafDiagnostics.log("SURAH_FALLBACK","warning",{surah:Number(surahId),name:window.MushafDiagnostics.safeName(error),online:navigator.onLine});
         return fetch("https://api.alquran.cloud/v1/surah/" + surahId + "/editions/quran-uthmani,tr.diyanet")
           .then(function(r){ return r.json(); })
           .then(function(res){
@@ -1945,8 +1956,12 @@
             });
             var resData = { number: surahId, name: arEd.name, englishName: surahMeta.name, ayahs: ayahs };
             memoryCache[surahId] = resData;
+            window.MushafDiagnostics.log("SURAH_LOAD_RECOVERED","info",{surah:Number(surahId)});
             return resData;
           });
+      }).catch(function(error){
+        window.MushafDiagnostics.log("SURAH_LOAD_FAILED","error",{surah:Number(surahId),name:window.MushafDiagnostics.safeName(error),online:navigator.onLine});
+        throw error;
       });
   }
 
@@ -2320,7 +2335,6 @@
   var mView = settings.mushafView || "single";
   var mSource = settings.mushafSource || "default";
   var scrollObserver = null;
-  var renderedScrollRange = { start: 1, end: 1 };
   var loadTokenCounter = 0;
   var detectedLocalPatternIdx = { "mushaf-1": 0, "mushaf-2": 0, "mushaf-3": 0 };
   var memoryBlobUrls = { "mushaf-1": {}, "mushaf-2": {}, "mushaf-3": {} };
@@ -2505,15 +2519,6 @@
     return isLocalMushafSource(mSource) ? mSource : "mushaf-1";
   }
 
-  function fileToBase64(file){
-    return new Promise(function(resolve){
-      var reader = new FileReader();
-      reader.onload = function(){ resolve(reader.result); };
-      reader.onerror = function(){ resolve(null); };
-      reader.readAsDataURL(file);
-    });
-  }
-
   window.handleMushafFilesSelected = function(fileList, forcedSource){
     if (!fileList || !fileList.length) return;
     var validEntries = [];
@@ -2579,13 +2584,15 @@
     // GitHub Pages statiktir: yükleme yalnızca IndexedDB'ye yapılır.
     savePagesBatchToIDB(validEntries).then(function(result){
       var ok = Boolean(result && result.success);
+      window.MushafDiagnostics.log(ok ? "IMAGE_UPLOAD_SAVED":"IMAGE_UPLOAD_FAILED",ok ? "info":"error",{count:validEntries.length,source:mSource});
       if (progBar) progBar.style.width = ok ? "100%" : "0%";
       if (pctTxt) pctTxt.innerText = ok ? "%100" : "Kaydedilemedi";
       if (statusTxt) statusTxt.innerText = ok
         ? "✓ " + validEntries.length + " sayfa yalnızca bu tarayıcıya kaydedildi."
         : "⚠ Kalıcı kayıt başarısız. Görseller yalnızca bu sekme açıkken kullanılabilir. " + ((result && result.reason) || "");
       refreshMushafCounts();
-    }).catch(function(){
+    }).catch(function(error){
+      window.MushafDiagnostics.log("IMAGE_UPLOAD_FAILED","error",{name:window.MushafDiagnostics.safeName(error)});
       if (statusTxt) statusTxt.innerText = "⚠ Yerel kayıt başarısız.";
       if (pctTxt) pctTxt.innerText = "Hata";
     });
@@ -2677,13 +2684,12 @@
   }
 
   // Sayfa numaraları her baskıda mevcut; kayıt durumu konumu değiştirmez.
-  function ensureValidLocalPageForSource(src){ return; }
 
   window.setMushafSource = function(src){
     if (["default", "mushaf-1", "mushaf-2", "mushaf-3"].indexOf(src) === -1) src = "default";
     mSource = src;
+    window.MushafDiagnostics.log("SOURCE_CHANGED","info",{source:src});
     settings.mushafSource = src;
-    ensureValidLocalPageForSource(src);
     saveSettings();
     updateMushafSourceButtons();
     scrollInitialized = false;
@@ -2751,6 +2757,7 @@
   }
 
   window.__onMushafScrollImgError = function(imgEl, pageNum){
+    window.MushafDiagnostics.log("MUSHAF_IMAGE_RETRY","warning",{page:pageNum,source:mSource});
     if (!imgEl) return;
     var activeSrc = mSource;
     if (isLocalMushafSource(activeSrc) && !imgEl.getAttribute("data-idb-checked")) {
@@ -2902,8 +2909,10 @@
           if (holder.getAttribute("data-load-token") !== currentToken) return;
           attempt++;
           if (attempt < urlList.length) {
+            window.MushafDiagnostics.log("MUSHAF_IMAGE_RETRY","warning",{page:pageNum,source:activeSrc,attempt:attempt});
             tryLoad();
           } else {
+            window.MushafDiagnostics.log("MUSHAF_IMAGE_FAILED","error",{page:pageNum,source:activeSrc,online:navigator.onLine});
             if (isLocalMushafSource(activeSrc)) {
               var firstAvailBtn = "";
               loader.innerHTML =
@@ -3446,8 +3455,8 @@
       return '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-radius:10px; transition:all .15s ease;">' +
                '<div style="cursor:pointer; flex:1; min-width:0;" role="button" tabindex="0" onclick="jumpToBookmark(' + b.page + ')" onkeydown="if(event.keyCode===13||event.keyCode===32){event.preventDefault();jumpToBookmark(' + b.page + ')}">' +
                  '<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
-                   '<span style="font-weight:700; font-size:13px; color:var(--emerald);">' + b.title + '</span>' +
-                   '<span style="font-size:10.5px; color:var(--ink-soft); opacity:.8;">• ' + b.date + '</span>' +
+                   '<span style="font-weight:700; font-size:13px; color:var(--emerald);">' + escapeHtml(b.title) + '</span>' +
+                   '<span style="font-size:10.5px; color:var(--ink-soft); opacity:.8;">• ' + escapeHtml(b.date) + '</span>' +
                  '</div>' +
                  noteHtml +
                '</div>' +
@@ -3458,14 +3467,14 @@
 
   function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   window.saveCurrentPageBookmarkWithNote = function(){
     var p = (settings.appMode === "computer") ? (SURAHS.find(function(s){ return s.id === settings.currentSurah; }) || SURAHS[0]).page : mPage;
     var s = getSurahFromPage(p);
     var noteInp = document.getElementById("bookmarkNoteInput");
-    var noteVal = noteInp ? noteInp.value.trim() : '';
+    var noteVal = noteInp ? noteInp.value.trim().slice(0,1000) : '';
 
     // Eğer bu sayfa zaten varsa güncelle
     var existingIdx = bookmarks.findIndex(function(b){ return b.page === p; });
@@ -3585,7 +3594,7 @@
       var noteIcon = b.note ? '<i class="fa-regular fa-comment" style="font-size:10px; opacity:.85;"></i> ' : '';
       return '<span class="bookmark-chip"' + noteTitle + ' style="display: inline-flex; align-items: center; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; color: var(--emerald); transition: all 0.15s ease;" onclick="jumpToBookmark(' + b.page + ')">' +
                noteIcon +
-               '<span>' + b.title + '</span>' +
+               '<span>' + escapeHtml(b.title) + '</span>' +
                '<i class="fa-solid fa-xmark" style="color: var(--danger); margin-left: 2px; padding: 2px; cursor: pointer;" onclick="event.stopPropagation(); removeBookmarkAndRefresh(' + idx + ')"></i>' +
              '</span>';
     }).join('');
