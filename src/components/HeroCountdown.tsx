@@ -1236,6 +1236,7 @@ export const HeroCountdown: React.FC<HeroCountdownProps> = ({
               prayerTimeStr={nextPrayer.timeStr}
               isNextPrayer={true}
               now={now}
+              timezoneId={currentLocation.timezoneId}
               sizePx={240}
             />
           </div>
