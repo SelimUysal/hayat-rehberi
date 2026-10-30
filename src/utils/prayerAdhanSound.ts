@@ -171,21 +171,44 @@ export function usePrayerAdhanSound() {
   }, [ensureAudio]);
 
   const changeEnabled = useCallback((next: boolean) => {
+    let persisted = true;
     try {
       localStorage.setItem(SETTING_KEY, next ? 'true' : 'false');
     } catch {
-      setStatus('Ses tercihi kaydedilemedi. Tarayıcı depolamasını kontrol edin.');
-      return;
+      persisted = false;
     }
+    // Depolama başarısız olsa bile kapatma komutu sesi anında durdurur.
     enabledSinceRef.current = Date.now();
     setEnabled(next);
     cachedEventsRef.current = null;
     if (!next) {
       stop();
-      setStatus('Vakit ezanı kapatıldı.');
+      setStatus(persisted ? 'Vakit ezanı kapatıldı.' : 'Vakit ezanı kapatıldı; tercih tarayıcıya kaydedilemedi.');
     } else {
-      setStatus('Vakit ezanı açık. Tarayıcıda sesin çalıştığını kontrol etmek için “Sesi dene”ye basın.');
+      setStatus(persisted
+        ? 'Vakit ezanı açık. Sesin çalıştığını kontrol etmek için “Sesi dene”ye basın.'
+        : 'Vakit ezanı bu sekmede açık ancak tercih kaydedilemedi. “Sesi dene” ile kontrol edin.');
     }
+  }, [stop]);
+
+  // Birden çok Hayat Rehberi sekmesinde aç/kapat ayarı anında eşitlensin.
+  // Özellikle diğer sekmeden kapatma geldiğinde orada da çalan ses durur.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SETTING_KEY) return;
+      const next = event.newValue === 'true';
+      enabledSinceRef.current = Date.now();
+      setEnabled(next);
+      cachedEventsRef.current = null;
+      if (!next) {
+        stop();
+        setStatus('Vakit ezanı başka bir sekmeden kapatıldı.');
+      } else {
+        setStatus('Vakit ezanı açıldı. Sesin çalışması için “Sesi dene” ile kontrol edin.');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [stop]);
 
   const testSound = useCallback(() => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Coordinates, CalculatedDay } from '../types/prayer';
-import { Compass, Calendar as CalendarIcon, Clock, MapPinned, Target, Globe, Landmark, Link2, Check } from 'lucide-react';
+import { Compass, Calendar as CalendarIcon, Clock, MapPinned, Target, Globe, Landmark, Link2, Check, Volume2, VolumeX } from 'lucide-react';
 import { makeTakvimHash } from '../utils/takvimDeepLinks';
 import {
   SpecialGoalItem,
@@ -21,6 +21,13 @@ interface HeaderProps {
   systemNow?: Date;
   onOpenWorldClock?: () => void;
   onOpenOsmanli?: () => void;
+  adhanSound?: {
+    enabled: boolean;
+    changeEnabled: (next: boolean) => void;
+    playing: boolean;
+    testSound: () => void;
+    status: string;
+  };
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,10 +37,35 @@ export const Header: React.FC<HeaderProps> = ({
   onTabChange,
   systemNow,
   onOpenWorldClock,
-  onOpenOsmanli
+  onOpenOsmanli,
+  adhanSound
 }) => {
   const [internalNow, setInternalNow] = React.useState<Date>(() => systemNow || new Date());
   const [copiedTabLink, setCopiedTabLink] = React.useState(false);
+  const [isAdhanMenuOpen, setIsAdhanMenuOpen] = React.useState(false);
+  const adhanControlRef = React.useRef<HTMLDivElement | null>(null);
+  const adhanButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  React.useEffect(() => {
+    if (!isAdhanMenuOpen) return;
+    const onOutside = (event: PointerEvent) => {
+      if (!adhanControlRef.current?.contains(event.target as Node)) {
+        setIsAdhanMenuOpen(false);
+      }
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsAdhanMenuOpen(false);
+        adhanButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', onOutside);
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('pointerdown', onOutside);
+      document.removeEventListener('keydown', onEscape);
+    };
+  }, [isAdhanMenuOpen]);
   const copyTabLink = async () => {
     const link = `${window.location.origin}${window.location.pathname}${makeTakvimHash(activeTab)}`;
     try { await navigator.clipboard.writeText(link); setCopiedTabLink(true); window.setTimeout(() => setCopiedTabLink(false), 1800); }
@@ -93,8 +125,8 @@ export const Header: React.FC<HeaderProps> = ({
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
-      // Sayfanın en üstünde veya 40px içindeyse her zaman görünür olsun
-      if (currentScrollY < 40) {
+      // Açık ezan ayarını kaydırma sırasında gizleme.
+      if (isAdhanMenuOpen || currentScrollY < 40) {
         setIsVisible(true);
       } 
       // Aşağı doğru kaydırıyorsa ve en az 10px fark varsa gizle
@@ -111,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, [lastScrollY, isAdhanMenuOpen]);
 
   React.useEffect(() => {
     if (systemNow) return;
@@ -142,6 +174,82 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight truncate">
                 Namaz Vakitleri Takvimi
               </h1>
+              {adhanSound && (
+                <div ref={adhanControlRef} className="relative shrink-0">
+                  <button
+                    ref={adhanButtonRef}
+                    id="prayer-adhan-toggle"
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={isAdhanMenuOpen}
+                    aria-controls="prayer-adhan-panel"
+                    aria-label={`Vakit ezanı ses ayarları, ${adhanSound.enabled ? 'açık' : 'kapalı'}`}
+                    title={`Vakit ezanı: ${adhanSound.enabled ? 'Açık' : 'Kapalı'} · Ayarlar`}
+                    onClick={() => setIsAdhanMenuOpen(open => !open)}
+                    className={`relative inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${adhanSound.enabled
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-400 hover:bg-emerald-100'
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                  >
+                    {adhanSound.enabled ? <Volume2 className="h-4 w-4 sm:h-[18px] sm:w-[18px]" /> : <VolumeX className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />}
+                    <span
+                      aria-hidden="true"
+                      className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${adhanSound.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    />
+                  </button>
+
+                  {isAdhanMenuOpen && (
+                    <div
+                      id="prayer-adhan-panel"
+                      role="dialog"
+                      aria-label="Vakit ezanı ses kontrolü"
+                      className="fixed left-4 right-4 top-16 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-72 z-[70] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl text-slate-800"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold">Vakit ezanı</p>
+                          <p className="text-[11px] text-slate-500 mt-1">Site açıkken kısa ezan çalsın.</p>
+                        </div>
+                        <button
+                          id="prayer-adhan-switch"
+                          type="button"
+                          role="switch"
+                          aria-checked={adhanSound.enabled}
+                          aria-label="Vakit ezanını aç veya kapat"
+                          onClick={() => adhanSound.changeEnabled(!adhanSound.enabled)}
+                          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${adhanSound.enabled ? 'bg-emerald-700' : 'bg-slate-300'}`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-all ${adhanSound.enabled ? 'left-7' : 'left-1'}`}
+                          />
+                        </button>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                        <span className={`text-xs font-semibold ${adhanSound.enabled ? 'text-emerald-800' : 'text-slate-500'}`}>
+                          {adhanSound.enabled ? 'Ses açık' : 'Ses kapalı'}
+                        </span>
+                        {adhanSound.enabled && (
+                          <button
+                            type="button"
+                            onClick={adhanSound.testSound}
+                            className="min-h-9 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                          >
+                            {adhanSound.playing ? 'Sesi durdur' : 'Sesi dene'}
+                          </button>
+                        )}
+                      </div>
+                      {adhanSound.status && (
+                        <p role="status" aria-live="polite" className="mt-2 text-[11px] text-slate-600">
+                          {adhanSound.status}
+                        </p>
+                      )}
+                      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                        İlk açılışta kapalıdır. Bildirim göndermez; site kapanınca çalışmaz.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
               <span className="hidden lg:inline-block text-[11px] font-semibold text-slate-500">
                 · Hassas Temkinî Vakitler
               </span>
