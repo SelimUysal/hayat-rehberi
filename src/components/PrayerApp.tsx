@@ -29,9 +29,10 @@ interface PrayerAppProps {
   onNavigateToNamaz?: (targetId: string) => void;
   onOpenWorldClock?: () => void;
   onOpenOsmanli?: () => void;
+  adhanSound?: { enabled: boolean; changeEnabled: (next: boolean) => void; playing: boolean; testSound: () => void; status: string };
 }
 
-export function PrayerApp({ initialDate, initialSubTab, initialCity, initialAction, targetTimestamp, onNavigateToNamaz, onOpenWorldClock, onOpenOsmanli }: PrayerAppProps = {}) {
+export function PrayerApp({ initialDate, initialSubTab, initialCity, initialAction, targetTimestamp, onNavigateToNamaz, onOpenWorldClock, onOpenOsmanli, adhanSound }: PrayerAppProps = {}) {
   // Durum Yönetimi (Seçilen konumu ve koordinatları yerel depolamada saklar)
   const [currentLocation, setCurrentLocation] = useState<Coordinates>(() => {
     if (initialCity) return initialCity;
@@ -235,6 +236,28 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
         onOpenWorldClock={onOpenWorldClock}
         onOpenOsmanli={onOpenOsmanli}
       />
+
+      {/* Ezan sadece site açıkken ses verir; bildirim izni veya bildirimi yoktur. */}
+      {adhanSound && (
+        <div className="max-w-6xl w-full mx-auto px-4 sm:px-6 pt-4">
+          <div className="rounded-xl border border-emerald-200 bg-white/95 p-3 sm:p-4 text-slate-800 flex flex-wrap items-center gap-3 justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-sm">🔊 Vakit Ezanı</div>
+              <p className="text-xs text-slate-600 mt-1">Site açıkken beş namaz vaktinde kısa ezan. Varsayılan kapalı; ekran bildirimi gönderilmez.</p>
+              {adhanSound.status && <p role="status" aria-live="polite" className="text-xs text-emerald-700 mt-1">{adhanSound.status}</p>}
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer min-h-[44px] text-sm font-medium">
+              <input type="checkbox" checked={adhanSound.enabled} onChange={e => adhanSound.changeEnabled(e.target.checked)} className="w-5 h-5 accent-emerald-700" />
+              <span>Ses {adhanSound.enabled ? 'Açık' : 'Kapalı'}</span>
+            </label>
+            {adhanSound.enabled && (
+              <button type="button" onClick={adhanSound.testSound} className="min-h-[44px] rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">
+                {adhanSound.playing ? 'Sesi durdur' : 'Sesi dene'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Ana İçerik */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-8">

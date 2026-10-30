@@ -7,6 +7,7 @@ import { KazaMode } from './components/KazaMode';
 import { MushafMode } from './components/MushafMode';
 import { EzberAsistani } from './components/EzberAsistani';
 import { PrayerApp } from './components/PrayerApp';
+import { usePrayerAdhanSound } from './utils/prayerAdhanSound';
 import { HadisMode } from './components/HadisMode';
 import { EsmaMode } from './components/EsmaMode';
 import { ListeningMode } from './components/ListeningMode';
@@ -25,6 +26,7 @@ import { getMainTabFromHash, makeMainTabHash } from './utils/mainDeepLinks';
 import { navigateToAppHash } from './utils/appNavigation';
 
 export function App() {
+  const prayerAdhan = usePrayerAdhanSound();
   const [updateCheckRequest, setUpdateCheckRequest] = useState(0);
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
@@ -453,6 +455,7 @@ export function App() {
             onNavigateToNamaz={(targetId) => handleNavigate('namaz', { namazItemId: targetId })}
             onOpenWorldClock={() => handleTabChange('worldclock')}
             onOpenOsmanli={() => handleTabChange('osmanli')}
+            adhanSound={prayerAdhan}
           />
         )}
         {activeTab === 'osmanli' && (
