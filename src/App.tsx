@@ -20,6 +20,7 @@ import { X, ExternalLink } from 'lucide-react';
 import { broadcastThemeChange, useThemeSync, applyGlobalTheme } from './utils/themeSync';
 import { getNamazTargetFromUrl, makeNamazItemHash, parseNamazHash } from './utils/namazDeepLinks';
 import { makeTakvimHash, parseTakvimHash } from './utils/takvimDeepLinks';
+import { getMainTabFromHash, makeMainTabHash } from './utils/mainDeepLinks';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -28,6 +29,8 @@ export function App() {
         // Namaz bağlantıları önce çözülür; kaydedilmiş sekme veya başka bir query parametresi bunları bastırmaz.
         if (parseNamazHash(window.location.hash)) return 'namaz';
         if (parseTakvimHash(window.location.hash)) return 'takvim';
+        const mainHashTab = getMainTabFromHash(window.location.hash);
+        if (mainHashTab) return mainHashTab;
         const urlParams = new URLSearchParams(window.location.search);
         const urlTab = urlParams.get('mode') || urlParams.get('tab') || urlParams.get('page');
         if (urlTab === 'namaz') return 'namaz';
@@ -113,9 +116,11 @@ export function App() {
         window.scrollTo({ top: 0, behavior: 'instant' });
         return;
       }
-      // Elifba'nın eski bağlantıları korunur.
-      if (/^#(?:elifba|elif-ba|tecvid)(?:\/|$)/i.test(window.location.hash)) {
-        setActiveTab('elifba');
+      // Eski Elifba/Osmanlı/Hadis kısayolları da dahil bütün ana modüller.
+      const mainTab = getMainTabFromHash(window.location.hash);
+      if (mainTab) {
+        setActiveTab(mainTab);
+        try { localStorage.setItem('quran_active_tab', mainTab); } catch {}
       }
     };
     window.addEventListener('hashchange', onLocationChange);
@@ -235,16 +240,11 @@ export function App() {
     }
     if (typeof window !== 'undefined') {
       const currentHash = window.location.hash;
-      if (tab === 'takvim' && !parseTakvimHash(currentHash)) {
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${makeTakvimHash('daily')}`);
-      } else if (tab === 'namaz' && !parseNamazHash(currentHash)) {
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#namaz`);
-      } else if (
-        tab !== 'namaz' &&
-        (parseNamazHash(currentHash) || parseTakvimHash(currentHash) || /^#(?:elifba|elif-ba|tecvid)(?:\/|$)/i.test(currentHash))
-      ) {
-        // Diğer ekranlarda önceki Namaz/Elifba bağlantısı yanlışlıkla paylaşılmasın.
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+      const hashTab = getMainTabFromHash(currentHash);
+      // Aynı modülün alt başlıkları korunur; başka bir modüle geçince doğru kök URL kullanılır.
+      if (hashTab !== tab || !currentHash) {
+        const nextHash = tab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(tab);
+        window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
