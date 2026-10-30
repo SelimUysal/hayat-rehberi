@@ -552,7 +552,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
     url.searchParams.set('ui', String(uiAlt));
     if (activeHadis) url.searchParams.set('hadisId', String(activeHadis.id));
     if (selectedCategory !== 'all') url.searchParams.set('cat', selectedCategory);
-    window.history.replaceState({}, '', url.toString());
+    // Kopyalama işlemi kullanıcı geçmişindeki mevcut sayfayı değiştirmemeli.
     navigator.clipboard?.writeText(url.toString());
     setDeeplinkCopied(true);
     setTimeout(() => setDeeplinkCopied(false), 2000);
