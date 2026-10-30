@@ -323,6 +323,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const [customSleepMinutes, setCustomSleepMinutes] = useState<number>(45);
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [isRecovering, setIsRecovering] = useState(false);
   const [audioEpoch, setAudioEpoch] = useState(0);
 
   // Referanslar
@@ -336,6 +337,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   volumeRef.current = volume;
   mutedRef.current = isMuted;
   const playRequestRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAttemptsRef = useRef(0);
+  const lastAudioProgressRef = useRef({ at: Date.now(), seconds: 0 });
+  const reconnectPlaybackRef = useRef<() => void>(() => {});
 
   const currentSurahIdRef = useRef<number>(currentSurahId);
   currentSurahIdRef.current = currentSurahId;
@@ -474,6 +479,38 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     isSleepStoppingRef.current = false;
   }, [persistBookmark]);
 
+  // Tek bir bozuk ses dosyası veya kısa internet kesintisi oynatmayı kalıcı olarak durdurmaz.
+  const cancelReconnect = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    retryAttemptsRef.current = 0;
+    setIsRecovering(false);
+  }, []);
+
+  const scheduleReconnect = useCallback((requestId: number) => {
+    if (!isPlayingRef.current || isSleepStoppingRef.current || requestId !== playRequestRef.current) return;
+    if (sleepTargetEndTimeRef.current !== null && Date.now() >= sleepTargetEndTimeRef.current) {
+      triggerSleepStop();
+      return;
+    }
+    if (reconnectTimerRef.current !== null) return;
+    const attempt = ++retryAttemptsRef.current;
+    const delay = Math.min(30000, attempt <= 1 ? 800 : 1000 * Math.pow(2, Math.min(attempt - 1, 5)));
+    setIsRecovering(true);
+    if (attempt >= 2) setAudioError('Ses bağlantısı kesildi. Otomatik yeniden bağlanılıyor…');
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      if (!isPlayingRef.current || requestId !== playRequestRef.current || isSleepStoppingRef.current) return;
+      if (sleepTargetEndTimeRef.current !== null && Date.now() >= sleepTargetEndTimeRef.current) {
+        triggerSleepStop();
+        return;
+      }
+      reconnectPlaybackRef.current();
+    }, delay);
+  }, [triggerSleepStop]);
+
   // Ayeti Çal (Merkezi Çalma Fonksiyonu)
   const playAyahAt = useCallback((idx: number, startTime = 0, ayahList?: Ayah[]) => {
     if (isSleepStoppingRef.current) return;
@@ -482,6 +519,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       return;
     }
 
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     const list = ayahList || ayahsRef.current;
     if (!list || list.length === 0) {
       // Veri henüz yükleniyorsa oynatma niyetini işaretle; yüklendiği an otomatik başlar
@@ -564,6 +605,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
 
     const requestId = ++playRequestRef.current;
+    lastAudioProgressRef.current = { at: Date.now(), seconds: Math.max(0, startTime) };
     setAudioError(null);
     player.preload = 'auto';
     player.volume = mutedRef.current ? 0 : volumeRef.current;
@@ -592,6 +634,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
       if (isPlayingRef.current && !player.paused) {
         const curTime = player.currentTime || 0;
+        if (curTime > lastAudioProgressRef.current.seconds + 0.06) {
+          lastAudioProgressRef.current = { at: Date.now(), seconds: curTime };
+          if (retryAttemptsRef.current > 0) {
+            retryAttemptsRef.current = 0;
+            setIsRecovering(false);
+            setAudioError(null);
+          }
+        }
         const curSec = Math.floor(curTime);
         savedCurrentTimeRef.current = curTime;
         if (curSec !== lastSavedSecond) {
@@ -607,8 +657,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       }
     };
 
+    let alreadyStarted = false;
     const startPlayer = () => {
-      if (requestId !== playRequestRef.current || isSleepStoppingRef.current) return;
+      if (alreadyStarted || requestId !== playRequestRef.current || isSleepStoppingRef.current) return;
+      alreadyStarted = true;
       if (sleepTargetEndTimeRef.current && Date.now() >= sleepTargetEndTimeRef.current) {
         triggerSleepStop();
         return;
@@ -620,11 +672,16 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         try { player.currentTime = 0; } catch {}
       }
       player.play().catch((err) => {
-        if (requestId !== playRequestRef.current) return;
-        console.warn('Ses oynatma hatası:', err);
-        setAudioError('Ses çalınamadı. Tekrar oynatmayı deneyin.');
-        setIsPlaying(false);
-        isPlayingRef.current = false;
+        if (requestId !== playRequestRef.current || !isPlayingRef.current) return;
+        console.warn('Ses geçici olarak çalınamadı:', err);
+        if (err?.name === 'NotAllowedError') {
+          setAudioError('Tarayıcı sesi engelledi. Devam etmek için Oynat’a dokunun.');
+          setIsPlaying(false);
+          isPlayingRef.current = false;
+          cancelReconnect();
+        } else {
+          scheduleReconnect(requestId);
+        }
       });
     };
     player.onloadedmetadata = startPlayer;
@@ -633,18 +690,21 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     player.onended = () => {
       advanceToNextAyah();
     };
+    player.onplaying = () => {
+      if (requestId === playRequestRef.current) {
+        lastAudioProgressRef.current = { at: Date.now(), seconds: player.currentTime || 0 };
+      }
+    };
 
     player.onerror = (e) => {
-      console.warn(`Ayet ${idx + 1} ses yüklenemedi:`, e);
-      player.pause();
-      setAudioError('Ses kaynağı yüklenemedi. Yeniden oynatmayı deneyin.');
-      setIsPlaying(false);
-      isPlayingRef.current = false;
+      if (requestId !== playRequestRef.current) return;
+      console.warn(`Ayet ${idx + 1} yüklenemedi, otomatik tekrar deneniyor:`, e);
+      scheduleReconnect(requestId);
     };
 
     setIsPlaying(true);
     isPlayingRef.current = true;
-  }, [persistBookmark, triggerSleepStop]);
+  }, [persistBookmark, triggerSleepStop, cancelReconnect, scheduleReconnect]);
 
   // Sure Verisini Yükle
   useEffect(() => {
