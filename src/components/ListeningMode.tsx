@@ -1594,10 +1594,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               </div>
 
               {/* Sağ: Hız Kontrolü, Ses Düzeyi ve Uyku Zamanlayıcısı */}
-              <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 flex-wrap pt-2.5 lg:pt-0 border-t border-white/10 lg:border-t-0">
+              <div className="grid grid-cols-2 gap-2 w-full min-w-0 pt-2.5 border-t border-white/10 lg:flex lg:w-auto lg:items-center lg:justify-end lg:gap-2 lg:pt-0 lg:border-t-0">
                 
                 {/* Hız Slider (İmleçli) */}
-                <div className="flex items-center gap-1.5 sm:gap-2 bg-white/10 px-2.5 sm:px-3 py-1.5 rounded-xl sm:rounded-2xl border border-white/10">
+                <div className="flex min-w-0 w-full items-center justify-between gap-1.5 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:justify-start lg:px-3">
                   <div className="flex items-center gap-1 text-xs text-slate-300 font-bold whitespace-nowrap">
                     <Gauge className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="hidden sm:inline">Hız:</span>
@@ -1609,7 +1609,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                     step="0.1"
                     value={playbackSpeed}
                     onChange={(e) => changeSpeed(parseFloat(e.target.value))}
-                    className="w-14 sm:w-20 md:w-24 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                    className="w-full min-w-0 max-w-20 lg:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-400"
                     title={`Okuma Hızı: ${playbackSpeed.toFixed(2)}x`}
                   />
                   <span className="text-[11px] sm:text-xs font-mono font-bold text-emerald-300 w-8 text-right">
@@ -1618,7 +1618,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 </div>
 
                 {/* Ses Düzeyi */}
-                <div className="flex items-center gap-1.5 bg-white/10 px-2 sm:px-2.5 py-1.5 rounded-xl sm:rounded-2xl border border-white/10">
+                <div className="flex w-full min-w-0 items-center justify-center gap-2 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:px-2.5">
                   <button
                     onClick={() => setIsMuted(!isMuted)}
                     className="text-slate-400 hover:text-white cursor-pointer"
@@ -1636,13 +1636,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                       setVolume(parseFloat(e.target.value));
                       setIsMuted(false);
                     }}
-                    className="w-12 sm:w-16 md:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    className="w-full min-w-0 max-w-20 lg:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                     title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
                   />
                 </div>
 
                 {/* Uyku Zamanlayıcısı */}
-                <div className="flex items-center gap-1 bg-white/10 px-2 sm:px-2.5 py-1.5 rounded-xl sm:rounded-2xl border border-white/10">
+                <div className="col-span-2 flex w-full min-w-0 flex-wrap items-center justify-center gap-2 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:justify-start lg:px-2.5">
                   <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   {sleepSecondsLeft !== null ? (
                     <div className="flex items-center gap-1 sm:gap-1.5">
@@ -1657,7 +1657,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-0.5 sm:gap-1">
+                    <div className="flex min-w-0 flex-wrap items-center justify-center gap-1 sm:gap-1.5">
                       {[15, 30, 60].map((mins) => (
                         <button
                           key={mins}
@@ -1676,7 +1676,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                         max="720"
                         value={customSleepMinutes}
                         onChange={(e) => setCustomSleepMinutes(Number(e.target.value))}
-                        className="w-12 sm:w-14 rounded-md bg-slate-900 border border-white/30 px-1 py-0.5 text-[11px] text-white text-center"
+                        className="w-14 shrink-0 rounded-md bg-slate-900 border border-white/30 px-1 py-1 text-[11px] text-white text-center"
                         title="Özel süre (1-720 dakika)"
                       />
                       <button
