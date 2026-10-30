@@ -8,10 +8,10 @@ import {
   BookOpen, 
   Sparkles, 
   Info, 
-  Repeat, 
+
   ChevronRight,
   Volume2,
-  Trophy,
+
   Eye,
   EyeOff,
   Gauge,
@@ -20,18 +20,13 @@ import {
   Monitor,
   Moon,
   Sun,
-  Heart,
+
   Type,
-  ZoomIn,
-  ZoomOut,
+
   ChevronDown,
   HelpCircle,
   MessageSquare,
-  Award,
-  Check,
-  Layers,
-  ArrowRight,
-  ArrowLeft,
+
   Search,
   CheckCheck,
   Copy
@@ -41,10 +36,12 @@ import { MUSLUMAN_SUALLERI_DATA } from '../data/muslumanSualleriData';
 import { NamazItem } from '../types';
 import { getNamazTargetFromUrl, getNamazSectionForId, getDefaultNamazItemId, makeNamazItemHash, makeNamazSectionHash, parseNamazHash, NamazSection } from '../utils/namazDeepLinks';
 import { navigateToAppHash } from '../utils/appNavigation';
+import { recordNamazIssue as diagnostic, safeNamazErrorName } from '../utils/namazDiagnostics';
+import { resolveNamazAudioUrl } from '../utils/namazAudioPath';
+import { NamazDiagnosticsPanel } from './NamazDiagnosticsPanel';
 
 export type NamazTheme = 'dark' | 'emerald';
 export type NamazViewMode = 'desktop' | 'mobile';
-export type NamazFontSize = 'normal' | 'large' | 'xlarge' | 'xxlarge';
 
 interface NamazModeProps {
   targetId?: string;
@@ -68,7 +65,8 @@ const getInitialNamazId = (propTargetId?: string): string => {
     try {
       const savedLastId = localStorage.getItem('namaz_last_selected_id') || localStorage.getItem('namaz_selected_id');
       if (savedLastId && savedLastId.trim() !== '') {
-        return savedLastId.trim();
+        const validId = savedLastId.trim();
+        if (getNamazSectionForId(validId)) return validId;
       }
     } catch {
       // ignore
@@ -96,6 +94,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       setLinkCopied(label);
       window.setTimeout(() => setLinkCopied(null), 2400);
     } catch {
+      diagnostic('CLIPBOARD_ERROR', 'warning', { itemId: selectedId });
       // Panoya erişimi engelleyen tarayıcılar için bağlantıyı seçilebilir yap.
       window.prompt('Paylaşılabilir bağlantıyı kopyalayın:', url);
     }
@@ -103,6 +102,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
   const selectNamazItem = (id: string) => {
     if (!getNamazSectionForId(id)) return;
     setSelectedId(id);
+    diagnostic('ITEM_SELECTED', 'info', { itemId: id });
     navigateToAppHash(makeNamazItemHash(id));
   };
   const selectNamazSection = (section: NamazSection) => {
@@ -392,7 +392,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
     try {
       localStorage.setItem('namaz_memorized_ids', JSON.stringify(memorizedIds));
     } catch (e) {
-      console.warn('LocalStorage hatası:', e);
+      diagnostic('STORAGE_WRITE_ERROR', 'warning', { itemId: selectedId, details: { name: safeNamazErrorName(e) } });
     }
   }, [memorizedIds]);
 
@@ -406,6 +406,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       audioRef.current.onloadedmetadata = null;
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
     }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -450,12 +452,14 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
   // Recorded recitations are preferred; synthesized Arabic is an explicit user choice.
   const audioFailure = (version: number, message: string) => {
     if (version !== playbackVersionRef.current) return;
+    diagnostic('SPEECH_ERROR', 'error', { itemId: selectedId });
     stopAudio();
     setAudioError(message);
   };
   const speakArabic = (text: string, onEnd: () => void, version: number) => {
     if (version !== playbackVersionRef.current) return;
     if (!useDeviceVoice || typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      diagnostic('SPEECH_UNAVAILABLE', 'warning', { itemId: selectedId });
       audioFailure(version, 'Ses kaydı yüklenemedi. Bağlantıyı kontrol edin. Cihaz sesi ayrı bir tercihtir.');
       return;
     }
@@ -472,35 +476,38 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       if (completed || version !== playbackVersionRef.current) return;
       completed = true; audioFailure(version, 'Cihazın Arapça seslendirmesi çalışmadı.');
     };
-    try { window.speechSynthesis.speak(utterance); }
+    try { diagnostic('SPEECH_STARTED', 'info', { itemId: selectedId }); window.speechSynthesis.speak(utterance); }
     catch { audioFailure(version, 'Cihaz sesi kullanılamıyor.'); }
   };
   const playSentenceAudio = (item: NamazItem, sentenceIdx: number, onFinish: () => void, version: number) => {
     if (version !== playbackVersionRef.current) return;
     const sentence = item.sentences?.[sentenceIdx];
-    if (!sentence) { onFinish(); return; }
+    if (!sentence) { diagnostic('AUDIO_MISSING', 'warning', { itemId: item.id, sentence: sentenceIdx }); onFinish(); return; }
     const source = sentence.audioUrl || (item.sentences?.length === 1 ? item.audioUrl : null);
-    if (!source) { speakArabic(sentence.arabic, onFinish, version); return; }
+    if (!source) { diagnostic('AUDIO_MISSING', 'warning', { itemId: item.id, sentence: sentenceIdx }); speakArabic(sentence.arabic, onFinish, version); return; }
     const player = getAudio();
+    diagnostic('SENTENCE_STARTED', 'info', { itemId: item.id, sentence: sentenceIdx });
     let completed = false;
     const finish = () => {
       if (completed || version !== playbackVersionRef.current) return;
-      completed = true; onFinish();
+      completed = true; diagnostic('AUDIO_ENDED', 'info', { itemId: item.id, sentence: sentenceIdx }); onFinish();
     };
     const failed = () => {
       if (completed || version !== playbackVersionRef.current) return;
       completed = true;
+      diagnostic('AUDIO_ERROR', 'error', { itemId: item.id, sentence: sentenceIdx, details: { mediaCode: player.error?.code || 0, networkState: player.networkState } });
       player.onended = null; player.onerror = null; player.pause();
       speakArabic(sentence.arabic, onFinish, version);
     };
-    player.pause(); player.src = source; player.playbackRate = playbackSpeedRef.current;
+    player.pause(); player.src = resolveNamazAudioUrl(source, import.meta.env.BASE_URL, window.location.href); player.playbackRate = playbackSpeedRef.current;
     player.onloadedmetadata = () => { if (version === playbackVersionRef.current) player.playbackRate = playbackSpeedRef.current; };
     player.onended = finish; player.onerror = failed;
-    player.play().catch(failed);
+    player.play().catch((error) => { diagnostic('AUDIO_PLAY_REJECTED', 'error', { itemId: item.id, sentence: sentenceIdx, details: { name: safeNamazErrorName(error) } }); failed(); });
   };
   const playFullItem = () => {
     stopAudio();
     if (VIRTUAL_NEW_ITEMS.some(item => item.id === activeItem.id)) return;
+    diagnostic('PLAY_STARTED', 'info', { itemId: activeItem.id, details: { mode: 'full' } });
     const version = playbackVersionRef.current;
     setAudioError(null); setIsPlaying(true); setIsPlayingAll(true);
     const sentences = activeItem.sentences;
@@ -517,14 +524,14 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
         const finish = () => finishLoop(playOnce);
         if (!activeItem.audioUrl) { speakArabic(activeItem.arabic, finish, version); return; }
         const player = getAudio(); let completed = false;
-        const ended = () => { if (completed || version !== playbackVersionRef.current) return; completed = true; finish(); };
+        const ended = () => { if (completed || version !== playbackVersionRef.current) return; completed = true; diagnostic('AUDIO_ENDED', 'info', { itemId: activeItem.id }); finish(); };
         const failed = () => {
           if (completed || version !== playbackVersionRef.current) return;
-          completed = true; player.onended = null; player.onerror = null; player.pause();
+          completed = true; diagnostic('AUDIO_ERROR', 'error', { itemId: activeItem.id, details: { mediaCode: player.error?.code || 0 } }); player.onended = null; player.onerror = null; player.pause();
           speakArabic(activeItem.arabic, finish, version);
         };
-        player.pause(); player.src = activeItem.audioUrl; player.playbackRate = playbackSpeedRef.current;
-        player.onended = ended; player.onerror = failed; player.play().catch(failed);
+        player.pause(); player.src = resolveNamazAudioUrl(activeItem.audioUrl, import.meta.env.BASE_URL, window.location.href); player.playbackRate = playbackSpeedRef.current;
+        player.onended = ended; player.onerror = failed; player.play().catch((error) => { diagnostic('AUDIO_PLAY_REJECTED', 'error', { itemId: activeItem.id, details: { name: safeNamazErrorName(error) } }); failed(); });
       };
       playOnce(); return;
     }
@@ -542,6 +549,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
     stopAudio();
     const version = playbackVersionRef.current;
     setAudioError(null); setActiveSentenceIdx(idx); setIsPlaying(true); setIsPlayingAll(false);
+    diagnostic('PLAY_STARTED', 'info', { itemId: activeItem.id, sentence: idx, details: { mode: 'sentence' } });
     let count = 1; setCurrentLoop(count);
     const playOnce = () => {
       if (version !== playbackVersionRef.current) return;
@@ -5476,6 +5484,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       }`}
       style={{ '--namaz-scale': (arabicScalePercent / 100).toString() } as React.CSSProperties}
     >
+      <NamazDiagnosticsPanel />
       <style>{`
         .namaz-container .font-amiri,
         .namaz-container .font-quran {
