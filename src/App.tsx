@@ -19,6 +19,7 @@ import { Coordinates } from './types/prayer';
 import { X, ExternalLink } from 'lucide-react';
 import { broadcastThemeChange, useThemeSync, applyGlobalTheme } from './utils/themeSync';
 import { getNamazTargetFromUrl, makeNamazItemHash, parseNamazHash } from './utils/namazDeepLinks';
+import { makeTakvimHash, parseTakvimHash } from './utils/takvimDeepLinks';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -26,6 +27,7 @@ export function App() {
       if (typeof window !== 'undefined') {
         // Namaz bağlantıları önce çözülür; kaydedilmiş sekme veya başka bir query parametresi bunları bastırmaz.
         if (parseNamazHash(window.location.hash)) return 'namaz';
+        if (parseTakvimHash(window.location.hash)) return 'takvim';
         const urlParams = new URLSearchParams(window.location.search);
         const urlTab = urlParams.get('mode') || urlParams.get('tab') || urlParams.get('page');
         if (urlTab === 'namaz') return 'namaz';
@@ -94,6 +96,14 @@ export function App() {
   // Paylaşılan adresler ve tarayıcının geri/ileri tuşları sayfayı yeniden yüklemeden çalışır.
   useEffect(() => {
     const onLocationChange = () => {
+      const takvimRoute = parseTakvimHash(window.location.hash);
+      if (takvimRoute) {
+        setTakvimTargetSubTab(takvimRoute);
+        setTakvimTimestamp(Date.now());
+        setActiveTab('takvim');
+        try { localStorage.setItem('quran_active_tab', 'takvim'); } catch {}
+        return;
+      }
       const route = parseNamazHash(window.location.hash);
       if (route) {
         setActiveTab('namaz');
@@ -120,7 +130,7 @@ export function App() {
   const [esmaTargetAutoPlay, setEsmaTargetAutoPlay] = useState<boolean | undefined>(undefined);
   const [esmaTimestamp, setEsmaTimestamp] = useState<number | undefined>(undefined);
   const [takvimTargetDate, setTakvimTargetDate] = useState<Date | null>(null);
-  const [takvimTargetSubTab, setTakvimTargetSubTab] = useState<'daily' | 'monthly' | 'qibla' | 'mosques' | 'goals' | null>(null);
+  const [takvimTargetSubTab, setTakvimTargetSubTab] = useState<'daily' | 'monthly' | 'qibla' | 'mosques' | 'goals' | null>(() => typeof window !== 'undefined' ? parseTakvimHash(window.location.hash) : null);
   const [takvimTargetCity, setTakvimTargetCity] = useState<Coordinates | null>(null);
   const [takvimTargetAction, setTakvimTargetAction] = useState<'city' | 'holydays' | null>(null);
   const [takvimTimestamp, setTakvimTimestamp] = useState<number | undefined>(undefined);
@@ -225,11 +235,13 @@ export function App() {
     }
     if (typeof window !== 'undefined') {
       const currentHash = window.location.hash;
-      if (tab === 'namaz' && !parseNamazHash(currentHash)) {
+      if (tab === 'takvim' && !parseTakvimHash(currentHash)) {
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${makeTakvimHash('daily')}`);
+      } else if (tab === 'namaz' && !parseNamazHash(currentHash)) {
         window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#namaz`);
       } else if (
         tab !== 'namaz' &&
-        (parseNamazHash(currentHash) || /^#(?:elifba|elif-ba|tecvid)(?:\/|$)/i.test(currentHash))
+        (parseNamazHash(currentHash) || parseTakvimHash(currentHash) || /^#(?:elifba|elif-ba|tecvid)(?:\/|$)/i.test(currentHash))
       ) {
         // Diğer ekranlarda önceki Namaz/Elifba bağlantısı yanlışlıkla paylaşılmasın.
         window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
