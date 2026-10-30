@@ -255,7 +255,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
       const savedScroll = Number(
         sessionStorage.getItem('hadis_scroll_y') || localStorage.getItem('hadis_scroll_y')
       );
-      if (savedScroll && !isNaN(savedScroll) && savedScroll > 40 && !targetHadisId) {
+      if (savedScroll && !isNaN(savedScroll) && savedScroll > 40 && !targetHadisId && !readHadisHash()) {
         setTimeout(() => {
           window.scrollTo({ top: savedScroll, behavior: 'instant' as ScrollBehavior });
         }, 80);
@@ -291,6 +291,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
     if (sharedHadisId === null || !allHadisler.some(h => h.id === sharedHadisId)) return;
     setSearchQuery(''); setQuickFilter('all'); setSelectedCategory('all');
     setSortBy('default');
+    setUiAlt(2);
   }, [sharedHadisId]);
 
   const safeFocusedIndex = useMemo(() => {
@@ -300,6 +301,13 @@ export const HadisMode: React.FC<HadisModeProps> = ({
 
   const sharedIndex = sharedHadisId === null ? -1 : filteredHadisler.findIndex(h => h.id === sharedHadisId);
   const activeHadis = filteredHadisler[sharedIndex >= 0 ? sharedIndex : safeFocusedIndex] || allHadisler[0];
+  const selectHadisIndex = (index: number) => {
+    const item = filteredHadisler[index];
+    if (!item) return;
+    setSharedHadisId(null);
+    setFocusedIndex(index);
+    window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#hadis/${item.id}`);
+  };
   useEffect(() => {
     if (sharedIndex < 0) return;
     setFocusedIndex(sharedIndex);
@@ -1532,7 +1540,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setFocusedIndex(idx)}
+                    onClick={() => selectHadisIndex(idx)}
                     className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
                       activeHadis?.id === item.id
                         ? isDark
@@ -1589,9 +1597,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
             <div className="flex items-center justify-between gap-3">
               <button
                 onClick={() =>
-                  setFocusedIndex((prev) =>
-                    prev > 0 ? prev - 1 : filteredHadisler.length - 1
-                  )
+                  selectHadisIndex(safeFocusedIndex > 0 ? safeFocusedIndex - 1 : filteredHadisler.length - 1)
                 }
                 className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
                   isDark
@@ -1609,9 +1615,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
 
               <button
                 onClick={() =>
-                  setFocusedIndex((prev) =>
-                    prev + 1 < filteredHadisler.length ? prev + 1 : 0
-                  )
+                  selectHadisIndex(safeFocusedIndex + 1 < filteredHadisler.length ? safeFocusedIndex + 1 : 0)
                 }
                 className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
                   isDark
@@ -1755,7 +1759,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
               {filteredHadisler.slice(0, 16).map((h, idx) => (
                 <button
                   key={h.id}
-                  onClick={() => setFocusedIndex(idx)}
+                  onClick={() => selectHadisIndex(idx)}
                   className={`h-1.5 flex-1 rounded-full transition-all cursor-pointer ${
                     idx === safeFocusedIndex
                       ? 'bg-emerald-500'
@@ -1788,9 +1792,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() =>
-                  setFocusedIndex((prev) =>
-                    prev > 0 ? prev - 1 : filteredHadisler.length - 1
-                  )
+                  selectHadisIndex(safeFocusedIndex > 0 ? safeFocusedIndex - 1 : filteredHadisler.length - 1)
                 }
                 className={`py-3 rounded-xl border text-xs font-bold cursor-pointer ${
                   isDark ? 'bg-[#252a34] border-[#384152] text-[#f3f4f6] hover:border-[#4ade80]' : 'bg-white border-slate-200'
@@ -1800,9 +1802,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
               </button>
               <button
                 onClick={() =>
-                  setFocusedIndex((prev) =>
-                    prev + 1 < filteredHadisler.length ? prev + 1 : 0
-                  )
+                  selectHadisIndex(safeFocusedIndex + 1 < filteredHadisler.length ? safeFocusedIndex + 1 : 0)
                 }
                 className="py-3 rounded-xl bg-emerald-700 text-white text-xs font-bold cursor-pointer"
               >
