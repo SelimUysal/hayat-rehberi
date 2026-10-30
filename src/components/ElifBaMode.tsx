@@ -617,16 +617,14 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
     if (typeof window === 'undefined') return;
     const cleanHash = customHash.replace(/^#/, '');
     const url = `${window.location.origin}${window.location.pathname}#${cleanHash}`;
+    if (!navigator.clipboard?.writeText) { window.prompt('Bağlantıyı kopyalayın:', url); return; }
     navigator.clipboard
       .writeText(url)
       .then(() => {
         setCopiedToast(title ? `"${title}" bağlantısı kopyalandı! 🔗` : 'Bağlantı kopyalandı! 🔗');
         setTimeout(() => setCopiedToast(null), 2400);
       })
-      .catch(() => {
-        setCopiedToast('Bağlantı kopyalandı! 🔗');
-        setTimeout(() => setCopiedToast(null), 2400);
-      });
+      .catch(() => window.prompt('Bağlantıyı kopyalayın:', url));
   };
 
   // Geri/ileri hareketi iç state'i güncellerken URL'yi tekrar yazıp geçmişi bozma.
