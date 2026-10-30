@@ -130,7 +130,9 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
 
   // Konum değiştiğinde yeni nesne oluşturup anında vakitleri tetikle ve kaydet
+  const selectionId = React.useRef(0);
   const handleSelectCity = async (newCity: Coordinates) => {
+    const requestId = ++selectionId.current;
     const updatedLocation: Coordinates = {
       ...newCity,
       lat: Number(Number(newCity.lat).toFixed(6)),
@@ -138,7 +140,10 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
       timezone: Number(newCity.timezone)
     };
     // Resolve timezone including DST without modifying the existing temkin model.
+    // Show selection immediately; async timezone lookup must not overwrite newer choices.
+    setCurrentLocation(updatedLocation);
     const resolvedLocation = await resolveLocationTimezone(updatedLocation);
+    if (requestId !== selectionId.current) return;
     setCurrentLocation(resolvedLocation);
     try {
       localStorage.setItem('namaz_current_location', JSON.stringify(resolvedLocation));
@@ -155,6 +160,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     currentLocation.lat,
     currentLocation.lng,
     currentLocation.timezone,
+    currentLocation.timezoneId,
     temkin,
     asrMethod
   ]);
@@ -171,6 +177,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     currentLocation.lat,
     currentLocation.lng,
     currentLocation.timezone,
+    currentLocation.timezoneId,
     temkin,
     asrMethod
   ]);
