@@ -2158,10 +2158,9 @@ function matchOrBuildLocationFromIP(info: {
   const normCountry = normalizeForSearch(country || '');
 
   // Mevcut veri tabanımızda eşleşen şehir varsa zengin verisiyle döndür
-  const exactCity = WORLD_LOCATIONS_DATA.find(
-    (loc) =>
-      normalizeForSearch(loc.city) === normCity ||
-      normalizeForSearch(loc.cityEn) === normCity
+  const exactCity = WORLD_LOCATIONS_DATA.find(loc =>
+    Boolean(normCity) && (!countryCode || loc.countryCode.toUpperCase() === countryCode.toUpperCase()) &&
+    (normalizeForSearch(loc.city) === normCity || normalizeForSearch(loc.cityEn) === normCity)
   );
   if (exactCity) return exactCity;
 
@@ -2173,7 +2172,7 @@ function matchOrBuildLocationFromIP(info: {
       normalizeForSearch(loc.countryEn) === normCountry
   );
 
-  const resolvedTz = timezone || sameCountry?.timezone || 'Europe/Istanbul';
+  const resolvedTz = timezone && isValidWorldTimeZone(timezone) ? timezone : sameCountry?.timezone || getBrowserTimezoneLocation().timezone;
 
   if (sameCountry && city) {
     return {
@@ -2205,6 +2204,76 @@ function matchOrBuildLocationFromIP(info: {
   };
 }
 
+
+const clockTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+function clockTimeFormatter(tz: string) {
+  const zone = tz || 'UTC';
+  let formatter = clockTimeFormatters.get(zone);
+  if (!formatter) {
+    try {
+      formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone, hourCycle: 'h23', year:'numeric', month:'2-digit',
+        day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'
+      });
+    } catch {
+      return clockTimeFormatter('UTC');
+    }
+    clockTimeFormatters.set(zone, formatter);
+  }
+  return formatter;
+}
+export function isValidWorldTimeZone(tz: string): boolean {
+  if (typeof tz !== 'string' || !tz) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; }
+  catch { return false; }
+}
+export function getWorldDateParts(date: Date, tz: string) {
+  const result: Record<string, number> = {};
+  for (const part of clockTimeFormatter(tz).formatToParts(date)) {
+    if (part.type !== 'literal') result[part.type] = Number(part.value);
+  }
+  return {
+    year: result.year, month: result.month, day: result.day,
+    hour: result.hour === 24 ? 0 : result.hour,
+    minute: result.minute, second: result.second
+  };
+}
+export function getTimeZoneOffsetMinutesAt(date: Date, tz: string): number {
+  const p = getWorldDateParts(date, tz);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return Math.round((asUtc - Math.floor(date.getTime() / 1000) * 1000) / 60000);
+}
+export function getUTCOffsetLabelAt(date: Date, tz: string): string {
+  const minutes = getTimeZoneOffsetMinutesAt(date, tz);
+  const absolute = Math.abs(minutes);
+  return `UTC${minutes < 0 ? '-' : '+'}${String(Math.floor(absolute / 60)).padStart(2,'0')}:${String(absolute % 60).padStart(2,'0')}`;
+}
+export function getZonedHourInstant(year:number,month:number,day:number,hour:number,tz:string):Date|null {
+  const localAsUtc = Date.UTC(year,month-1,day,hour);
+  const offsetCandidates = new Set<number>();
+  for (const delta of [-36,-12,0,12,36]) {
+    offsetCandidates.add(getTimeZoneOffsetMinutesAt(new Date(localAsUtc + delta * 3600000),tz));
+  }
+  const matches = Array.from(offsetCandidates).map(offset=>new Date(localAsUtc-offset*60000))
+    .filter(d=>{
+      const p = getWorldDateParts(d,tz);
+      return p.year===year && p.month===month && p.day===day && p.hour===hour && p.minute===0;
+    }).sort((a,b)=>a.getTime()-b.getTime());
+  return matches[0]||null;
+}
+export function getBrowserTimezoneLocation():WorldLocationData {
+  const browserZone=Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const match=WORLD_LOCATIONS_DATA.find(item=>item.timezone===browserZone);
+  if(match)return match;
+  const timezone=isValidWorldTimeZone(browserZone)?browserZone:'UTC';
+  return {
+    id:'browser-time-zone',city:'Cihazın Saat Dilimi',capital:'',
+    country:timezone,countryEn:timezone,cityEn:'Local Time Zone',
+    countryCode:'',flag:'🕒',timezone,utcOffsetLabel:getUTCOffsetLabelAt(new Date(),timezone),
+    otherTimezones:[]
+  };
+}
+
 export interface CalculatedTimezoneTime {
   hours24: number;
   hours12: number;
@@ -2226,111 +2295,29 @@ export interface CalculatedTimezoneTime {
  * hedef IANA saat dilimindeki tam saat, dakika, saniye, milisaniye ve gün bilgilerini hesaplar.
  */
 export function getTimePartsInTimezone(
-  baseNow: Date,
-  timezone: string,
-  timeTravelMinutes = 0
-): CalculatedTimezoneTime {
-  const shiftedMs = baseNow.getTime() + timeTravelMinutes * 60 * 1000;
-  const targetDate = new Date(shiftedMs);
-  const milliseconds = targetDate.getMilliseconds();
-
-  let safeTz = timezone;
-  try {
-    Intl.DateTimeFormat('tr-TR', { timeZone: safeTz });
-  } catch {
-    safeTz = 'Europe/Istanbul';
-  }
-
-  const partsFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: safeTz,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
-  const parts = partsFormatter.formatToParts(targetDate);
-  const partMap: Record<string, string> = {};
-  for (const p of parts) {
-    partMap[p.type] = p.value;
-  }
-
-  let hours24 = parseInt(partMap.hour || '0', 10);
-  if (hours24 === 24) hours24 = 0;
-  const minutes = parseInt(partMap.minute || '0', 10);
-  const seconds = parseInt(partMap.second || '0', 10);
-
-  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  const ampm: 'ÖÖ' | 'ÖS' = hours24 < 12 ? 'ÖÖ' : 'ÖS';
-
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const formattedTime24 = `${pad(hours24)}:${pad(minutes)}`;
-  const formattedTime12 = `${pad(hours12)}:${pad(minutes)}`;
-
-  const dayName = new Intl.DateTimeFormat('tr-TR', {
-    timeZone: safeTz,
-    weekday: 'long'
-  }).format(targetDate);
-
-  const fullDateText = new Intl.DateTimeFormat('tr-TR', {
-    timeZone: safeTz,
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(targetDate);
-
-  // Yerel gün ile karşılaştırma (Bugün / Yarın / Dün)
-  const localYMD = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).format(targetDate);
-
-  const targetYMD = new Intl.DateTimeFormat('en-CA', {
-    timeZone: safeTz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).format(targetDate);
-
-  let relativeDayLabel: 'Bugün' | 'Yarın' | 'Dün' = 'Bugün';
-  if (targetYMD > localYMD) relativeDayLabel = 'Yarın';
-  else if (targetYMD < localYMD) relativeDayLabel = 'Dün';
-
-  // Yerel saat ile saat farkı
-  const targetAsLocal = new Date(
-    targetDate.toLocaleString('en-US', { timeZone: safeTz })
-  );
-  const localAsLocal = new Date(targetDate.toLocaleString('en-US'));
-  const diffMinutes = Math.round((targetAsLocal.getTime() - localAsLocal.getTime()) / 60000);
-  const diffHours = diffMinutes / 60;
-  let hourDiffFromLocal = 'Yerel saat ile aynı';
-  if (diffMinutes !== 0) {
-    const sign = diffHours > 0 ? '+' : '';
-    const formattedDiff = Number.isInteger(diffHours)
-      ? `${sign}${diffHours} saat`
-      : `${sign}${diffHours.toFixed(1)} saat`;
-    hourDiffFromLocal = `${formattedDiff}`;
-  }
-
-  const isDaytime = hours24 >= 6 && hours24 < 20;
-
+  baseNow:Date,timezone:string,timeTravelMinutes=0
+):CalculatedTimezoneTime{
+  const date=new Date(baseNow.getTime()+timeTravelMinutes*60000);
+  const zone=isValidWorldTimeZone(timezone)?timezone:'UTC';
+  const p=getWorldDateParts(date,zone);
+  const pad=(n:number)=>String(n).padStart(2,'0');
+  const dateKey=(y:number,m:number,d:number)=>`${String(y).padStart(4,'0')}-${pad(m)}-${pad(d)}`;
+  const localDay=dateKey(date.getFullYear(),date.getMonth()+1,date.getDate());
+  const remoteDay=dateKey(p.year,p.month,p.day);
+  const relativeDayLabel:'Bugün'|'Yarın'|'Dün'=remoteDay>localDay?'Yarın':remoteDay<localDay?'Dün':'Bugün';
+  const diffMinutes=getTimeZoneOffsetMinutesAt(date,zone)+date.getTimezoneOffset();
+  const absDiff=Math.abs(diffMinutes);
+  const diffHour=Math.floor(absDiff/60),diffRest=absDiff%60;
+  const hourDiffFromLocal=diffMinutes===0?'Yerel saat ile aynı':
+    `${diffMinutes>0?'+':'-'}${diffHour} saat${diffRest?' '+diffRest+' dk':''}`;
+  const h12=p.hour%12===0?12:p.hour%12;
   return {
-    hours24,
-    hours12,
-    minutes,
-    seconds,
-    milliseconds,
-    ampm,
-    formattedTime24,
-    formattedTime12,
-    dayName,
-    fullDateText,
-    relativeDayLabel,
-    isDaytime,
-    hourDiffFromLocal
+    hours24:p.hour,hours12:h12,minutes:p.minute,seconds:p.second,
+    milliseconds:date.getMilliseconds(),ampm:p.hour<12?'ÖÖ':'ÖS',
+    formattedTime24:`${pad(p.hour)}:${pad(p.minute)}`,
+    formattedTime12:`${pad(h12)}:${pad(p.minute)}`,
+    dayName:new Intl.DateTimeFormat('tr-TR',{timeZone:zone,weekday:'long'}).format(date),
+    fullDateText:new Intl.DateTimeFormat('tr-TR',{timeZone:zone,year:'numeric',month:'long',day:'numeric'}).format(date),
+    relativeDayLabel,isDaytime:p.hour>=6&&p.hour<20,hourDiffFromLocal
   };
 }

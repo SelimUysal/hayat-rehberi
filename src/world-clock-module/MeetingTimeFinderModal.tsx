@@ -19,6 +19,8 @@ import { ModuleThemeMode, WorldClockCardConfig, WorldLocationData } from './type
 import {
   WORLD_LOCATIONS_DATA,
   getTimePartsInTimezone,
+  getWorldDateParts,
+  getZonedHourInstant,
   searchWorldLocations
 } from './worldCitiesData';
 
@@ -41,6 +43,8 @@ export interface CityHourCell {
   endFormattedTime: string;
   relativeDay: 'Bugün' | 'Yarın' | 'Dün';
   status: SlotStatus;
+  unavailable?: boolean;
+  startTimeMs?: number;
 }
 
 export interface ColumnOverlapSummary {
@@ -55,13 +59,14 @@ export interface ColumnOverlapSummary {
   nightCount: number;
   score: number; // 0..100
   quality: 'perfect' | 'good' | 'poor';
+  unavailable?: boolean;
 }
 
 function getSingleHourStatus(hour: number, workStart: number, workEnd: number): SlotStatus {
   const isWork =
     workStart <= workEnd
-      ? hour >= workStart && hour <= workEnd
-      : hour >= workStart || hour <= workEnd;
+      ? hour >= workStart && hour < workEnd
+      : hour >= workStart || hour < workEnd;
 
   if (isWork) return 'work';
 
@@ -119,6 +124,12 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
   // Çalışma saat aralığı (Varsayılan: Standart 09:00 - 18:00)
   const [workStartHour, setWorkStartHour] = useState<number>(9);
   const [workEndHour, setWorkEndHour] = useState<number>(18);
+  const [meetingDate, setMeetingDate] = useState<string>(() => {
+    const base = cards.find(c=>c.isPinned) || cards[0];
+    const parts = getWorldDateParts(new Date(),base?.location.timezone || 'UTC');
+    const pad = (value:number) => String(value).padStart(2,'0');
+    return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+  });
 
   // Toplantı Süresi (Saat cinsinden: 1, 2, 3 veya 4 saat)
   const [meetingDuration, setMeetingDuration] = useState<number>(1);
@@ -136,6 +147,7 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
   // Kullanıcının tabloda üzerine tıkladığı / seçtiği başlangıç saati sütunu (0..23)
   const [selectedRefHour, setSelectedRefHour] = useState<number | null>(null);
   const [copiedSlotHour, setCopiedSlotHour] = useState<number | null>(null);
+  const [copyError, setCopyError] = useState(false);
 
   // Eğer referans kart silindiyse ilk karta düş
   const activeRefCard = useMemo(() => {
@@ -152,10 +164,38 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
     return WORLD_LOCATIONS_DATA[0];
   }, [activeRefCard]);
 
-  // Referans şehrin şu anki saati
-  const refNowParts = useMemo(() => {
-    return getTimePartsInTimezone(baseNow, refLocation.timezone, 0);
-  }, [baseNow, refLocation]);
+  // Toplantı tablosu saniyelik değil, takvim tarihi ve dakika bazında hesaplanır.
+  const nowMinute = Math.floor(baseNow.getTime() / 60000);
+  const referenceNow = useMemo(() => new Date(nowMinute * 60000), [nowMinute]);
+  const refNowParts = useMemo(
+    () => getTimePartsInTimezone(referenceNow, refLocation.timezone, 0),
+    [referenceNow, refLocation.timezone]
+  );
+  const parsedMeetingDay = useMemo(() => {
+    const parts = meetingDate.split('-').map(Number);
+    return parts.length === 3 && parts.every(Number.isInteger) &&
+      parts[0] >= 1900 && parts[0] <= 2100 && parts[1] >= 1 && parts[1] <= 12 &&
+      parts[2] >= 1 && parts[2] <= 31 ? parts : null;
+  }, [meetingDate]);
+  const hourInstants = useMemo(
+    () => Array.from({length:24},(_,hour) =>
+      parsedMeetingDay ? getZonedHourInstant(
+        parsedMeetingDay[0],parsedMeetingDay[1],parsedMeetingDay[2],hour,refLocation.timezone
+      ) : null
+    ),
+    [parsedMeetingDay,refLocation.timezone]
+  );
+  const getActualWindowStatus = (startMs:number|undefined,zone:string):SlotStatus => {
+    if (startMs === undefined) return 'night';
+    let result:SlotStatus='work';
+    for(let step=0;step<meetingDuration;step++){
+      const local = getWorldDateParts(new Date(startMs + step*3600000),zone);
+      const status=getSingleHourStatus(local.hour,workStartHour,workEndHour);
+      if(status==='night')return 'night';
+      if(status==='partial')result='partial';
+    }
+    return result;
+  };
 
   // 24 saatlik matris verisi ve sütun bazlı kesişim (overlap) hesaplaması
   const { matrixRows, columnSummaries, bestSlots } = useMemo(() => {
@@ -163,24 +203,19 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
 
     const rows = cards.map((card) => {
       const cells: CityHourCell[] = hours.map((refHour) => {
-        const offsetMinutes =
-          (refHour - refNowParts.hours24) * 60 - refNowParts.minutes;
+        const instant = hourInstants[refHour];
+        if(!instant){
+          return {hour24:0,minutes:0,formattedTime:'—',
+            endFormattedTime:'—',relativeDay:'Bugün' as const,
+            status:'night' as const,unavailable:true};
+        }
         const targetParts = getTimePartsInTimezone(
-          baseNow,
-          card.location.timezone,
-          offsetMinutes
+          instant,card.location.timezone,0
         );
         const endParts = getTimePartsInTimezone(
-          baseNow,
-          card.location.timezone,
-          offsetMinutes + meetingDuration * 60
+          new Date(instant.getTime()+meetingDuration*3600000),card.location.timezone,0
         );
-
-        const status = getSingleHourStatus(
-          targetParts.hours24,
-          workStartHour,
-          workEndHour
-        );
+        const status = getActualWindowStatus(instant.getTime(),card.location.timezone);
 
         return {
           hour24: targetParts.hours24,
@@ -192,6 +227,7 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
             endParts.minutes
           ).padStart(2, '0')}`,
           relativeDay: targetParts.relativeDayLabel,
+          startTimeMs: instant.getTime(),
           status
         };
       });
@@ -218,12 +254,8 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
 
       rows.forEach((row) => {
         const startCell = row.cells[refHour];
-        // Toplantı süresi boyunca (1..4 saat) o şehrin genel durumu
-        const windowStatus = getDurationWindowStatus(
-          startCell.hour24,
-          meetingDuration,
-          workStartHour,
-          workEndHour
+        const windowStatus = getActualWindowStatus(
+          startCell.startTimeMs,row.location.timezone
         );
         if (windowStatus === 'work') workCount++;
         else if (windowStatus === 'partial') partialCount++;
@@ -260,12 +292,13 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
         partialCount,
         nightCount,
         score,
-        quality
+        quality,
+        unavailable: !hourInstants[refHour]
       };
     });
 
     // En verimli toplantı saatlerini sırala
-    const sortedBest = [...summaries]
+    const sortedBest = [...summaries].filter(slot => !slot.unavailable)
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
         const aMid = Math.abs(a.refHour - 13);
@@ -279,15 +312,15 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
       columnSummaries: summaries,
       bestSlots: sortedBest
     };
-  }, [cards, refNowParts, baseNow, workStartHour, workEndHour, meetingDuration]);
+  }, [cards, referenceNow, workStartHour, workEndHour, meetingDuration, hourInstants]);
 
   // Seçili saat yoksa varsayılan olarak en iyi kesişim saatini seç
   const activeSelectedHour = useMemo(() => {
     if (selectedRefHour !== null && selectedRefHour >= 0 && selectedRefHour <= 23) {
-      return selectedRefHour;
+      if (!columnSummaries[selectedRefHour]?.unavailable) return selectedRefHour;
     }
-    return bestSlots[0]?.refHour ?? refNowParts.hours24;
-  }, [selectedRefHour, bestSlots, refNowParts.hours24]);
+    return bestSlots[0]?.refHour ?? Math.max(0,hourInstants.findIndex(Boolean));
+  }, [selectedRefHour, bestSlots, hourInstants, columnSummaries]);
 
   // Seçili toplantı başlangıç saatinden itibaren kapsanan sütun indeksleri (Toplantı Süresi kadar)
   const selectedHourSet = useMemo(() => {
@@ -307,32 +340,27 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
 
   const isLight = themeMode === 'light';
 
-  const handleCopyMeetingSlot = (refHour: number) => {
-    const colSummary = columnSummaries[refHour];
-    const lines = matrixRows.map((r) => {
-      const c = r.cells[refHour];
-      const windowStatus = getDurationWindowStatus(
-        c.hour24,
-        meetingDuration,
-        workStartHour,
-        workEndHour
-      );
-      const statusText =
-        windowStatus === 'work'
-          ? 'Mesai İçi (Uygun)'
-          : windowStatus === 'partial'
-          ? 'Mesai Dışı / Akşamüstü (Kısmen Uygun)'
-          : 'Gece / Uyku (Uygun Değil)';
-      return `${r.location.flag} ${r.location.city} (${r.location.country}): ${c.formattedTime} – ${c.endFormattedTime} [${statusText}]`;
+  const handleCopyMeetingSlot = async (refHour:number) => {
+    const instant=hourInstants[refHour];
+    if(!instant)return;
+    const summary=columnSummaries[refHour];
+    const lines=matrixRows.map(row=>{
+      const c=row.cells[refHour];
+      const status=getActualWindowStatus(c.startTimeMs,row.location.timezone);
+      const label=status==='work'?'Mesai İçi':status==='partial'?'Kısmen Uygun':'Gece / Uygun Değil';
+      return `${row.location.flag} ${row.location.city}: ${c.formattedTime} – ${c.endFormattedTime} (${label})`;
     });
-    const summaryText = `📅 Ortak Toplantı Zamanı (${refLocation.city} Baz Saatiyle ${
-      colSummary?.refIntervalFormatted || ''
-    } · ${meetingDuration} Saat)\n${lines.join('\n')}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(summaryText).catch(() => {});
+    const textValue=`📅 ${meetingDate} | ${refLocation.city} ${summary.refIntervalFormatted} | ${meetingDuration} saat\nUTC: ${instant.toISOString()}\n${lines.join('\n')}`;
+    try{
+      if(!navigator.clipboard?.writeText)throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(textValue);
+      setCopyError(false);
+      setCopiedSlotHour(refHour);
+      window.setTimeout(()=>setCopiedSlotHour(null),2000);
+    }catch{
+      setCopiedSlotHour(null);
+      setCopyError(true);
     }
-    setCopiedSlotHour(refHour);
-    setTimeout(() => setCopiedSlotHour(null), 2000);
   };
 
   return (
@@ -405,6 +433,16 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
             : 'bg-[#181f2e] border-[#2e3a52] text-[#f8fafc]'
         }`}
       >
+        <div className="flex flex-wrap items-center gap-3">
+          <label htmlFor="wc-meeting-date" className="text-xs font-bold">Toplantı günü (referans şehir):</label>
+          <input id="wc-meeting-date" type="date" value={meetingDate}
+            onChange={event=>{setMeetingDate(event.target.value);setSelectedRefHour(null);}}
+            min="1900-01-01" max="2100-12-31"
+            className={`min-h-[44px] px-3 py-2 rounded-xl border text-sm ${isLight?'bg-white text-slate-900 border-slate-300':'bg-[#232d42] text-white border-[#3d4d6e]'}`}/>
+          <p className="text-[11px] opacity-80">
+            Yaz/kış saati geçişinde olmayan saatler seçilemez; tekrarlanan saatte ilk gerçekleşme kullanılır.
+          </p>
+        </div>
         {/* Üst Satır: Mesai Saatleri Hazır Seçenekler (Standart / Erken / Geç) & Toplantı Süresi */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
           {/* A) Mesai Saatleri Seçimi (Erken 08-17 / Standart 09-18 / Geç 10-19) */}
@@ -821,7 +859,11 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
                   return (
                     <th
                       key={col.refHour}
-                      onClick={() => setSelectedRefHour(col.refHour)}
+                      role="button" tabIndex={col.unavailable ? -1 : 0}
+                      aria-disabled={Boolean(col.unavailable)}
+                      aria-label={`${meetingDate} ${String(col.refHour).padStart(2,'0')}:00 ${col.unavailable?'– saat mevcut değil':'– toplantı başlangıcı'}`}
+                      onKeyDown={event => {if (!col.unavailable && (event.key==='Enter'||event.key===' ')){event.preventDefault();setSelectedRefHour(col.refHour);}}}
+                      onClick={() => { if (!col.unavailable) setSelectedRefHour(col.refHour); }}
                       className={`min-w-[46px] px-1 py-2.5 text-center cursor-pointer transition-colors border-r last:border-r-0 ${
                         isStartCol
                           ? 'bg-emerald-600 text-white'
@@ -852,7 +894,7 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
                               : 'opacity-50'
                           }`}
                         >
-                          {col.allWork
+                          {col.unavailable ? 'YOK' : col.allWork
                             ? '★ TAM'
                             : col.noNight
                             ? 'İYİ'
@@ -1021,7 +1063,10 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
                       return (
                         <td
                           key={colIdx}
-                          onClick={() => setSelectedRefHour(colIdx)}
+                          role="button" tabIndex={columnSummaries[colIdx]?.unavailable ? -1 : 0}
+                          aria-disabled={Boolean(columnSummaries[colIdx]?.unavailable)}
+                          onKeyDown={event => { if (!columnSummaries[colIdx]?.unavailable && (event.key==='Enter'||event.key===' ')){event.preventDefault();setSelectedRefHour(colIdx);}}}
+                          onClick={() => { if (!columnSummaries[colIdx]?.unavailable) setSelectedRefHour(colIdx); }}
                           className={`p-1 text-center cursor-pointer transition-all border-r last:border-r-0 ${
                             isLight ? 'border-slate-300/70' : 'border-[#222a3a]'
                           } ${
@@ -1033,10 +1078,10 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
                         >
                           <div className="flex flex-col items-center justify-center py-1.5">
                             <span className="font-mono text-xs tabular-nums leading-none">
-                              {String(cell.hour24).padStart(2, '0')}
+                              {cell.unavailable ? '—' : String(cell.hour24).padStart(2, '0')}
                             </span>
                             <span className="text-[9px] opacity-90 leading-none mt-0.5">
-                              {cell.minutes > 0
+                              {cell.unavailable ? '' : cell.minutes > 0
                                 ? `:${String(cell.minutes).padStart(2, '0')}`
                                 : ':00'}
                             </span>
@@ -1118,16 +1163,13 @@ export const MeetingTimeFinderModal: React.FC<MeetingTimeFinderModalProps> = ({
           </button>
         </div>
 
+        {copyError && <p role="alert" className="text-xs text-rose-500">Panoya kopyalama başarısız oldu. Tarayıcı izinlerini kontrol edin.</p>}
+        {!hourInstants[activeSelectedHour] && <p role="alert" className="text-xs text-amber-500">Seçilen tarihte geçerli toplantı saati bulunamadı.</p>}
         {/* Ülkelerin Seçili Saatteki Kartları (Net Kontrast, Temiz Font ve Arka Plan) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {matrixRows.map((r) => {
             const c = r.cells[activeSelectedHour];
-            const windowStatus = getDurationWindowStatus(
-              c.hour24,
-              meetingDuration,
-              workStartHour,
-              workEndHour
-            );
+            const windowStatus = getActualWindowStatus(c.startTimeMs,r.location.timezone);
 
             let cardStyle = '';
             let badgeStyle = '';

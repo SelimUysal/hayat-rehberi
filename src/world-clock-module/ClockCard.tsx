@@ -30,7 +30,7 @@ import {
   WorldClockCardConfig
 } from './types';
 import { AnalogClockFace, getDialPalette } from './AnalogClockFace';
-import { getTimePartsInTimezone } from './worldCitiesData';
+import { getTimePartsInTimezone, getUTCOffsetLabelAt } from './worldCitiesData';
 
 interface ClockCardProps {
   card: WorldClockCardConfig;
@@ -580,7 +580,7 @@ export const ClockCard: React.FC<ClockCardProps> = ({
         {/* SAĞ ALT KÖŞE: Şık Bayrak + Başkent/Ülke & Saat Dilimi İmzası */}
         <div className="w-full flex items-center justify-between gap-2 mt-2 pt-1 px-1 text-[11px] opacity-80">
           <span className="font-mono tabular-nums opacity-75">
-            {card.location.utcOffsetLabel}
+            {getUTCOffsetLabelAt(new Date(baseNow.getTime() + timeTravelMinutes * 60000),card.location.timezone)}
           </span>
           <div className="flex items-center gap-1.5 truncate font-semibold">
             <span className="text-sm leading-none">{card.location.flag}</span>
@@ -645,7 +645,7 @@ export const ClockCard: React.FC<ClockCardProps> = ({
                       <span className="opacity-85 truncate">{tzItem.label}</span>
                       <div className="flex items-center gap-1.5 font-mono tabular-nums shrink-0">
                         <span className="text-[10.5px] opacity-65">
-                          {tzItem.utcOffsetLabel}
+                          {getUTCOffsetLabelAt(new Date(baseNow.getTime() + timeTravelMinutes * 60000),tzItem.timezone)}
                         </span>
                         <span className="font-bold">
                           {subTime.formattedTime24}

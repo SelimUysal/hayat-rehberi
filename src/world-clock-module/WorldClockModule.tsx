@@ -31,6 +31,8 @@ import {
 import {
   WORLD_LOCATIONS_DATA,
   detectUserLocationByIP,
+  getBrowserTimezoneLocation,
+  isValidWorldTimeZone,
   getTimePartsInTimezone,
   searchWorldLocations
 } from './worldCitiesData';
@@ -132,7 +134,13 @@ function loadInitialPersistedState(): PersistedWorldClockState {
       const parsed = JSON.parse(rawV2) as Partial<PersistedWorldClockState>;
       if (parsed && Array.isArray(parsed.cards) && parsed.cards.length > 0) {
         const state: PersistedWorldClockState = {
-          cards: parsed.cards.map((c) => {
+          cards: parsed.cards
+            .filter(c => c && typeof c.id === 'string' && c.location &&
+              typeof c.location.city === 'string' &&
+              typeof c.location.timezone === 'string' &&
+              isValidWorldTimeZone(c.location.timezone))
+            .slice(0,80)
+            .map((c) => {
             const rawTheme = c.uiTheme as string;
             const normalizedTheme: CardUITheme =
               rawTheme === 'ottoman-payitaht' ? 'ottoman-iznik' : c.uiTheme;
@@ -144,9 +152,9 @@ function loadInitialPersistedState(): PersistedWorldClockState {
                   ? '#142952'
                   : c.numeralColor,
               clockScalePercent:
-                typeof c.clockScalePercent === 'number' ? c.clockScalePercent : 100,
+                Number.isFinite(c.clockScalePercent) ? Math.max(60,Math.min(180,c.clockScalePercent)) : 100,
               centerPhotoScale:
-                typeof c.centerPhotoScale === 'number' ? c.centerPhotoScale : 0.55,
+                Number.isFinite(c.centerPhotoScale) ? Math.max(0.02,Math.min(1,c.centerPhotoScale)) : 0.55,
               showDialDate:
                 typeof c.showDialDate === 'boolean' ? c.showDialDate : true,
               dialDatePosition: c.dialDatePosition || 'right',
@@ -167,13 +175,21 @@ function loadInitialPersistedState(): PersistedWorldClockState {
               ? parsed.focusShowDigitalSubClock
               : true,
           timeTravelMinutes:
-            typeof parsed.timeTravelMinutes === 'number'
-              ? parsed.timeTravelMinutes
+            Number.isFinite(parsed.timeTravelMinutes) && Number.isInteger(parsed.timeTravelMinutes)
+              ? Math.max(-720, Math.min(720, parsed.timeTravelMinutes))
               : 0,
-          scrollY: typeof parsed.scrollY === 'number' ? parsed.scrollY : 0
+          scrollY: Number.isFinite(parsed.scrollY) ? Math.max(0,parsed.scrollY) : 0
         };
-        inMemoryWorldClockState = state;
-        return state;
+        if (state.cards.length > 0) {
+          const seen = new Set<string>();
+          state.cards = state.cards.filter(c => {
+            if (seen.has(c.id)) return false;
+            seen.add(c.id); return true;
+          });
+          if (!state.cards.some(c=>c.isPinned)) state.cards[0].isPinned = true;
+          inMemoryWorldClockState = state;
+          return state;
+        }
       }
     }
 
@@ -215,19 +231,22 @@ function loadInitialPersistedState(): PersistedWorldClockState {
   return fallback;
 }
 
-function savePersistedState(state: PersistedWorldClockState) {
+function savePersistedState(state: PersistedWorldClockState): boolean {
   inMemoryWorldClockState = state;
   try {
     localStorage.setItem(STORAGE_KEY_FULL_STATE, JSON.stringify(state));
+    return true;
   } catch {
-    // Eğer fotoğraf boyutları yüzünden localStorage kotası dolarsa fotoğrafları bellekte tutup geri kalan durumu kaydet
+    // Fotoğraflar kotayı doldurabilir. Fotoğrafları silmeden önce yalnızca
+    // kaydedilecek kopyadan çıkarıp tüm diğer saat tercihlerini koru.
     try {
       const lightState: PersistedWorldClockState = {
         ...state,
-        cards: state.cards.map((c) => ({ ...c }))
+        cards: state.cards.map(card=>({...card,centerPhotoDataUrl:null}))
       };
       localStorage.setItem(STORAGE_KEY_FULL_STATE, JSON.stringify(lightState));
-    } catch {}
+      return false;
+    } catch { return false; }
   }
 }
 
@@ -275,7 +294,10 @@ export const WorldClockModule: React.FC = () => {
 
   // IP Otomatik Konum Durumu
   const [ipDetecting, setIpDetecting] = useState(false);
-  const [ipStatusText, setIpStatusText] = useState<string | null>(null);
+  const [ipStatusText, setIpStatusText] = useState<string | null>(
+    'Konum IP ile otomatik sorgulanmaz; yalnızca düğmeye basarsanız tespit edilir.'
+  );
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
   // Akıllı Arama Çubuğu Durumu
   const [searchQuery, setSearchQuery] = useState('');
@@ -294,7 +316,7 @@ export const WorldClockModule: React.FC = () => {
 
   // Her değişiklikte tüm modül durumunu kalıcı olarak kaydet
   useEffect(() => {
-    savePersistedState({
+    const fullySaved = savePersistedState({
       cards,
       themeMode,
       viewportMode,
@@ -304,6 +326,9 @@ export const WorldClockModule: React.FC = () => {
       timeTravelMinutes,
       scrollY: scrollYRef.current
     });
+    if (!fullySaved && cards.some(c => Boolean(c.centerPhotoDataUrl))) {
+      setStorageWarning('Saat fotoğrafları depolama sınırına takıldı. Diğer saat ayarları fotoğrafsız kaydedildi.');
+    } else if (fullySaved) setStorageWarning(null);
   }, [
     cards,
     themeMode,
@@ -359,12 +384,11 @@ export const WorldClockModule: React.FC = () => {
 
       setCards((prevCards) => {
         const existingIndex = prevCards.findIndex(
-          (c) =>
-            c.location.city.toLowerCase() === detectedLoc.city.toLowerCase() ||
-            c.isAutoDetected
+          c => c.location.timezone === detectedLoc.timezone &&
+            c.location.city.toLocaleLowerCase('tr-TR') === detectedLoc.city.toLocaleLowerCase('tr-TR')
         );
 
-        if (existingIndex !== -1 && !forceAdd) {
+        if (existingIndex !== -1) {
           const updated = [...prevCards];
           updated[existingIndex] = {
             ...updated[existingIndex],
@@ -399,22 +423,15 @@ export const WorldClockModule: React.FC = () => {
     }
   };
 
+  // İlk girişte IP adresi üçüncü taraf hizmetlere gönderilmez.
+  // Cihazın IANA saat dilimi sadece yerel olarak öğrenilebilir.
   useEffect(() => {
-    let alreadyDetected = false;
-    try {
-      alreadyDetected = localStorage.getItem(STORAGE_KEY_IP_DETECTED) === 'true';
-    } catch {}
-
-    if (!alreadyDetected) {
-      runIpAutoDetection(false);
-    } else {
-      const autoCard = cards.find((c) => c.isAutoDetected) || cards[0];
-      if (autoCard) {
-        setIpStatusText(
-          `${autoCard.location.flag} ${autoCard.location.city}, ${autoCard.location.country}`
-        );
-      }
-    }
+    const local = getBrowserTimezoneLocation();
+    const autoCard = cards.find(c => c.isAutoDetected && c.location.id !== 'tr-istanbul');
+    if (autoCard) setIpStatusText(
+      `${autoCard.location.flag} ${autoCard.location.city}, ${autoCard.location.country} · IP bilgisi önceki oturumdan`
+    );
+    else setIpStatusText(`Cihaz saat dilimi: ${local.timezone} · IP konumu yalnızca isteğinizle`);
   }, []);
 
   // Arama kutusu dışına tıklanınca kapat
@@ -547,6 +564,10 @@ export const WorldClockModule: React.FC = () => {
 
   // Yeni Şehir/Ülke Kartı Ekleme
   const handleAddLocation = (loc: WorldLocationData, pinImmediately = false) => {
+    if (!isValidWorldTimeZone(loc.timezone)) {
+      setIpStatusText('Bu şehrin saat dilimi tarayıcınızda desteklenmiyor.');
+      return;
+    }
     const themes: CardUITheme[] = [
       'crystal-glass',
       'royal-obsidian',
@@ -568,12 +589,15 @@ export const WorldClockModule: React.FC = () => {
       numeralColor: pickedColor
     });
 
-    setCards((prev) => {
-      if (pinImmediately) {
-        const unpinned = prev.map((c) => ({ ...c, isPinned: false }));
-        return [newCard, ...unpinned];
+    setCards(prev => {
+      const already = prev.find(c => c.location.id === loc.id ||
+        (c.location.city === loc.city && c.location.timezone === loc.timezone));
+      if (already) {
+        if (!pinImmediately) return prev;
+        return [{...already,isPinned:true},...prev.filter(c=>c.id!==already.id).map(c=>({...c,isPinned:false}))];
       }
-      return [...prev, newCard];
+      if (pinImmediately) return [newCard,...prev.map(c=>({...c,isPinned:false}))];
+      return [...prev,newCard];
     });
 
     setSearchQuery('');
@@ -581,8 +605,15 @@ export const WorldClockModule: React.FC = () => {
   };
 
   // Kart Silme
-  const handleRemoveCard = (id: string) => {
-    setCards((prev) => prev.filter((c) => c.id !== id));
+  const handleRemoveCard = (id:string) => {
+    setCards(prev => {
+      if (prev.length <= 1) return prev;
+      return prev.filter(c=>c.id!==id);
+    });
+    if (focusedCardId === id) {
+      setIsFocusModeOpen(false);
+      setFocusedCardId(null);
+    }
   };
 
   // Yukarı / Aşağı Butonla Sıralama
@@ -665,6 +696,7 @@ export const WorldClockModule: React.FC = () => {
         themeMode === 'light' ? 'wc-theme-light' : 'wc-theme-dark'
       } min-h-[calc(100dvh-4rem)] w-full py-5 px-3 sm:px-6 lg:px-8 flex flex-col justify-between gap-6`}
     >
+      {storageWarning && <div role="alert" className="max-w-[1400px] w-full mx-auto rounded-xl border border-amber-500 px-4 py-2 text-xs text-amber-500">{storageWarning}</div>}
       {/* ÜST KONTEYNER: SAYFA İÇİ ÖZEL HEADER VE AKILLI ARAMA ÇUBUĞU */}
       <div className="max-w-[1400px] w-full mx-auto space-y-5">
         {/* 1. Sayfa İçi Özel Üst Bar (Header) ve Modlar */}

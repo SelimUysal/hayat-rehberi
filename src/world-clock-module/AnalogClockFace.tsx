@@ -189,21 +189,20 @@ export const AnalogClockFace: React.FC<AnalogClockFaceProps> = ({
   const [now, setNow] = useState<Date>(() => new Date());
 
   useEffect(() => {
-    if (secondMotion === 'sweep') {
-      let frameId: number;
-      const animate = () => {
-        setNow(new Date());
-        frameId = requestAnimationFrame(animate);
-      };
-      frameId = requestAnimationFrame(animate);
-      return () => cancelAnimationFrame(frameId);
-    } else {
-      setNow(new Date());
-      const interval = setInterval(() => {
-        setNow(new Date());
-      }, 250);
-      return () => clearInterval(interval);
-    }
+    // Çok sayıda saatte 60 FPS React render yerine 10 FPS yeterli:
+    // akıcı saniye kolu kalır, gizli sekmede CPU kullanımı düşer.
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const tick = () => {
+      if (!document.hidden) setNow(new Date());
+    };
+    tick();
+    timer = setInterval(tick, secondMotion === 'sweep' ? 100 : 1000);
+    const handleVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
   }, [secondMotion]);
 
   const timeParts = getTimePartsInTimezone(now, timezone, timeTravelMinutes);
