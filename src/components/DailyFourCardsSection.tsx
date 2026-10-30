@@ -406,7 +406,7 @@ export const DailyFourCardsSection: React.FC<DailyFourCardsSectionProps> = ({
     const isLast = vIdx === visibleCards.length - 1;
 
     return (
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5 self-end sm:self-auto">
         {extraRightContent}
 
         <div className="flex items-center gap-1 ml-1">
@@ -493,8 +493,8 @@ export const DailyFourCardsSection: React.FC<DailyFourCardsSectionProps> = ({
         key="card-hadis"
         className={`p-3.5 sm:p-4 rounded-2xl border text-xs leading-relaxed transition-all ${styles.container}`}
       >
-        <div className={`flex items-center justify-between gap-2 mb-3 pb-2 border-b ${styles.header}`}>
-          <div className="flex items-center gap-1.5 uppercase tracking-wide text-[10px] sm:text-[11px]">
+        <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 pb-2 border-b ${styles.header}`}>
+          <div className="flex items-center gap-1.5 min-w-0 uppercase tracking-wide text-[10px] sm:text-[11px]">
             <Sparkles className={`w-3.5 h-3.5 shrink-0 ${styles.icon}`} />
             <span className={styles.title}>{CARD_META.hadis.label}</span>
             {item.kategori && (
@@ -506,7 +506,7 @@ export const DailyFourCardsSection: React.FC<DailyFourCardsSectionProps> = ({
 
           {renderCardHeaderControls(
             'hadis',
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-end gap-1 min-w-0">
               <button
                 type="button"
                 onClick={cycleArabicFont}

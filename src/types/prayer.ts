@@ -2,6 +2,7 @@ export interface Coordinates {
   lat: number;
   lng: number;
   timezone: number;
+  timezoneId?: string;
   city: string;
   country: string;
   state?: string;

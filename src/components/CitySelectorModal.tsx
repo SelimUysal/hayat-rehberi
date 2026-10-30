@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { resolveLocationTimezone } from '../utils/locationTimezone';
 import { Coordinates } from '../types/prayer';
 import { CITIES_DATA } from '../data/cities';
 import { reverseGeocode, searchLocations, getApproximateLocationByIP, GeocodedAddress } from '../utils/geocoding';
@@ -33,6 +34,9 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
   const [isDetectingAddress, setIsDetectingAddress] = useState(false);
 
   // Canlı konum ve online arama state'leri
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [onlineSearchResults, setOnlineSearchResults] = useState<GeocodedAddress[]>([]);
@@ -105,6 +109,26 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
     return () => clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const buttons = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!buttons.length) return;
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      restoreFocusRef.current?.focus();
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   // Koordinattan adresi otomatik çöz
@@ -136,7 +160,8 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
 
     const lat = parseFloat(cleanLatStr);
     const lng = parseFloat(cleanLngStr);
-    const timezone = parseFloat(cleanTzStr) || 3;
+    const timezone = cleanTzStr === '' ? currentCity.timezone : Number(cleanTzStr);
+    if (!Number.isFinite(timezone) || timezone < -12 || timezone > 14) { alert('Geçerli bir UTC saat dilimi girin (-12 ile +14).'); return; }
 
     if (isNaN(lat) || isNaN(lng)) {
       alert('Lütfen geçerli sayısal koordinat değerleri giriniz (örn: 41.008238, 28.978359).');
@@ -215,7 +240,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
         // Tam 6 basamak hassasiyet
         const lat = Number(pos.coords.latitude.toFixed(6));
         const lng = Number(pos.coords.longitude.toFixed(6));
-        const timezone = -new Date().getTimezoneOffset() / 60;
+        const timezone = -new Date().getTimezoneOffset() / 60; // Temporary device offset; resolved for the GPS coordinates by PrayerApp.
 
         setGeoLoading(false);
 
@@ -273,7 +298,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-4 pt-5 sm:pt-12 bg-slate-950/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[84vh]" onClick={e => e.stopPropagation()}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="city-selector-title" className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[84vh]" onClick={e => e.stopPropagation()}>
         
         {/* Modal Başlık */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -282,11 +307,14 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
               <MapPin className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Konum ve Şehir Seçimi</h3>
-              <p className="text-xs text-slate-500">6 haneli (0.000001°) Google Maps hassasiyetinde noktasal namaz vakti</p>
+              <h3 id="city-selector-title" className="text-lg font-bold text-slate-900">Konum ve Şehir Seçimi</h3>
+              <p className="text-xs text-slate-500">Koordinata göre vakitler · konum doğruluğu cihazınıza bağlıdır</p>
             </div>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
+            aria-label="Konum penceresini kapat"
             onClick={onClose}
             className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
           >
@@ -345,7 +373,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
                           Şu an yapay zeka önizleme çerçevesi içinde çalıştığınız için tarayıcı güvenlik politikası gereği doğrudan GPS çipine erişim kısıtlanmaktadır.
                         </p>
                         <p className="text-[11px] text-emerald-900 font-semibold bg-emerald-100/70 p-2 rounded-lg border border-emerald-200">
-                          📱 <strong>Telefonunuzda ve Gerçek Yayında:</strong> Uygulamayı telefonunuzda veya yeni sekmede açtığınızda GPS ve 6 haneli mahalle tespiti <strong>%100 sorunsuz çalışır</strong> (izin onay penceresi çıkar).
+                          📱 <strong>Telefon ve gerçek yayın:</strong> GPS kullanılabilirliği cihaz desteğine, konum iznine ve bağlantıya bağlıdır. Koordinatın altı basamakla gösterilmesi GPS ölçümünün bu hassasiyette kesin olduğu anlamına gelmez.
                         </p>
                       </div>
                     </div>
@@ -414,7 +442,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
                           detailedAddress: addr.displayName,
                           lat: Number(addr.lat.toFixed(6)),
                           lng: Number(addr.lng.toFixed(6)),
-                          timezone: 3
+                          timezone: currentCity.timezone
                         });
                         onClose();
                       }}

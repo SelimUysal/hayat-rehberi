@@ -43,11 +43,12 @@ export const Header: React.FC<HeaderProps> = ({
 
   const liveTime = React.useMemo(() => {
     return now.toLocaleTimeString('tr-TR', {
+      ...(currentLocation.timezoneId ? { timeZone: currentLocation.timezoneId } : {}),
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     });
-  }, [now]);
+  }, [now, currentLocation.timezoneId]);
 
   // Özel Hedefler (Yerel Hafıza & 5 Gün Otomatik Temizleme Senkronizasyonu)
   const [goals, setGoals] = React.useState<SpecialGoalItem[]>(() =>

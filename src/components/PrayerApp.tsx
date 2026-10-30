@@ -7,6 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Coordinates, TemkinSettings, AsrMethod } from '../types/prayer';
 import { DEFAULT_CITY } from '../data/cities';
 import { DEFAULT_TEMKIN, calculatePrayerTimesForDate } from '../utils/astronomy';
+import { resolveLocationTimezone, zoneNowDate } from '../utils/locationTimezone';
 import { Header, TakvimSubTab } from './Header';
 import { makeTakvimHash, parseTakvimHash } from '../utils/takvimDeepLinks';
 import { navigateToAppHash } from '../utils/appNavigation';
@@ -49,6 +50,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
   const [temkin] = useState<TemkinSettings>(DEFAULT_TEMKIN);
   const [asrMethod] = useState<AsrMethod>(1);
   const [selectedDate, setSelectedDate] = useState<Date>(() => initialDate || new Date());
+  const lastAutoDateRef = React.useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<TakvimSubTab>(() => initialSubTab || (typeof window !== 'undefined' ? parseTakvimHash(window.location.hash) : null) || 'daily');
 
   const selectTakvimTab = (tab: TakvimSubTab) => {
@@ -68,6 +70,17 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
 
   // Ortak Canlı Sistem Saati ("Canlı Saat Rozeti" ve Özel Hedefler Geri Sayımı için tam senkronize)
   const [systemNow, setSystemNow] = useState<Date>(() => new Date());
+  // Migrate older saved international locations without changing Turkey presets.
+  useEffect(() => {
+    if (currentLocation.timezoneId || currentLocation.country === 'Türkiye' || currentLocation.country === 'Turkey') return;
+    let cancelled = false;
+    resolveLocationTimezone(currentLocation).then(resolved => {
+      if (cancelled || !resolved.timezoneId) return;
+      setCurrentLocation(resolved);
+      try { localStorage.setItem('namaz_current_location', JSON.stringify(resolved)); } catch {}
+    });
+    return () => { cancelled = true; };
+  }, [currentLocation.lat, currentLocation.lng, currentLocation.country, currentLocation.timezoneId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -109,20 +122,42 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     }
   }, [initialDate, initialSubTab, initialCity, initialAction, targetTimestamp]);
 
+  // Advance the daily date at location midnight only if the user is viewing today;
+  // preserve a manually selected historical/future date.
+  useEffect(() => {
+    const nowAtLocation = zoneNowDate(currentLocation.timezoneId);
+    const key = `${nowAtLocation.getFullYear()}-${nowAtLocation.getMonth()}-${nowAtLocation.getDate()}`;
+    const previous = lastAutoDateRef.current;
+    if (previous && previous !== key) {
+      setSelectedDate(prev => {
+        const previousDay = new Date(nowAtLocation); previousDay.setDate(previousDay.getDate() - 1);
+        return prev.toDateString() === previousDay.toDateString() ? nowAtLocation : prev;
+      });
+    }
+    lastAutoDateRef.current = key;
+  }, [systemNow, currentLocation.timezoneId]);
+
   // Modallar
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
 
   // Konum değiştiğinde yeni nesne oluşturup anında vakitleri tetikle ve kaydet
-  const handleSelectCity = (newCity: Coordinates) => {
+  const selectionId = React.useRef(0);
+  const handleSelectCity = async (newCity: Coordinates) => {
+    const requestId = ++selectionId.current;
     const updatedLocation: Coordinates = {
       ...newCity,
       lat: Number(Number(newCity.lat).toFixed(6)),
       lng: Number(Number(newCity.lng).toFixed(6)),
       timezone: Number(newCity.timezone)
     };
+    // Resolve timezone including DST without modifying the existing temkin model.
+    // Show selection immediately; async timezone lookup must not overwrite newer choices.
     setCurrentLocation(updatedLocation);
+    const resolvedLocation = await resolveLocationTimezone(updatedLocation);
+    if (requestId !== selectionId.current) return;
+    setCurrentLocation(resolvedLocation);
     try {
-      localStorage.setItem('namaz_current_location', JSON.stringify(updatedLocation));
+      localStorage.setItem('namaz_current_location', JSON.stringify(resolvedLocation));
     } catch {}
   };
 
@@ -136,6 +171,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     currentLocation.lat,
     currentLocation.lng,
     currentLocation.timezone,
+    currentLocation.timezoneId,
     temkin,
     asrMethod
   ]);
@@ -152,6 +188,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     currentLocation.lat,
     currentLocation.lng,
     currentLocation.timezone,
+    currentLocation.timezoneId,
     temkin,
     asrMethod
   ]);
@@ -174,17 +211,17 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
   };
 
   const handleToday = () => {
-    setSelectedDate(new Date());
+    setSelectedDate(zoneNowDate(currentLocation.timezoneId));
   };
 
   const isSelectedToday = useMemo(() => {
-    const now = new Date();
+    const now = zoneNowDate(currentLocation.timezoneId);
     return (
       selectedDate.getDate() === now.getDate() &&
       selectedDate.getMonth() === now.getMonth() &&
       selectedDate.getFullYear() === now.getFullYear()
     );
-  }, [selectedDate]);
+  }, [selectedDate, systemNow, currentLocation.timezoneId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/70 text-slate-800 font-sans">
@@ -237,6 +274,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
             <PrayerCards 
               key={`cards-${currentLocation.lat}-${currentLocation.lng}-${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`}
               todayData={todayData} 
+              timezoneId={currentLocation.timezoneId}
               asrMethod={asrMethod} 
               isSelectedToday={isSelectedToday} 
             />

@@ -6,6 +6,7 @@
 
 import { Coordinates, TemkinSettings, AsrMethod, PrayerTimes, RawPrayerFloats, CalculatedDay } from '../types/prayer';
 import { getBayramInfoForDate } from './holyDays';
+import { offsetForDate } from './locationTimezone';
 
 export const OSMANLI_FAZILET_TEMKIN: TemkinSettings = {
   fajr: -17,     // Klasik Temkinli Usûl (Fazilet / Türkiye / Osmanlı): İmsak (-17 dk sahur emniyeti)
@@ -448,7 +449,7 @@ export function calculatePrayerTimesForDate(
 ): CalculatedDay {
   const lat = coords.lat;
   const lng = coords.lng;
-  const timezone = coords.timezone;
+  const timezone = coords.timezoneId ? offsetForDate(date, coords.timezoneId, coords.timezone) : coords.timezone;
 
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
@@ -461,39 +462,42 @@ export function calculatePrayerTimesForDate(
   const dhuhrRaw = 12 + timezone - (lng / 15.0) - sun.equationOfTime;
 
   // 2. Güneş Doğuş & Batış (-0.833 derece kırılma açısı)
-  const H_sun = computeHourAngle(-0.833, lat, sun.declination) || 6.0;
-  const sunriseRaw = dhuhrRaw - H_sun;
-  const maghribRaw = dhuhrRaw + H_sun;
+  const H_sun = computeHourAngle(-0.833, lat, sun.declination);
+  const sunriseRaw = dhuhrRaw - (H_sun ?? 6.0);
+  const maghribRaw = dhuhrRaw + (H_sun ?? 6.0);
 
   // 3. İmsak (18 derece) & Yatsı (17 derece)
-  const H_fajr = computeHourAngle(-18.0, lat, sun.declination) || 8.0;
-  const H_isha = computeHourAngle(-17.0, lat, sun.declination) || 8.0;
-  const fajrRaw = dhuhrRaw - H_fajr;
-  const ishaRaw = dhuhrRaw + H_isha;
+  const H_fajr = computeHourAngle(-18.0, lat, sun.declination);
+  const H_isha = computeHourAngle(-17.0, lat, sun.declination);
+  // High-latitude fallback: night-seventh twilight, not an arbitrary fixed hour angle.
+  // This branch never runs where the classical astronomical angles exist (including Turkey).
+  const nightDuration = H_sun === null ? null : 24 - 2 * H_sun;
+  const fajrRaw = H_fajr !== null ? dhuhrRaw - H_fajr : nightDuration !== null ? dhuhrRaw - (H_sun! + nightDuration / 7) : NaN;
+  const ishaRaw = H_isha !== null ? dhuhrRaw + H_isha : nightDuration !== null ? dhuhrRaw + (H_sun! + nightDuration / 7) : NaN;
 
   // 4. İkindi Vakti Hesabı (1: Asr-ı Evvel, 2: Asr-ı Sani)
   const phi_d = Math.abs(lat - sun.declination);
   const altAsr = deg(Math.atan(1.0 / (asrMethod + Math.tan(rad(phi_d)))));
-  const H_asr = computeHourAngle(altAsr, lat, sun.declination) || 3.5;
-  const asrRaw = dhuhrRaw + H_asr;
+  const H_asr = computeHourAngle(altAsr, lat, sun.declination);
+  const asrRaw = H_asr === null ? NaN : dhuhrRaw + H_asr;
 
   // Temkinli ve İhtiyatlı Güvenlik Paylı Zaman Değerleri
   // Diyanet İşleri Başkanlığı takvimleriyle 100% eşitlenmiş; oruç, iftar ve namaz sıhhati için emniyetli hesaplama
   const imsakVal = fajrRaw + (temkin.fajr / 60.0);
   const sabahVal = imsakVal + (23.0 / 60.0); // İmsak + 23 Dakika (Sabah namazı tavsiye edilen başlama / isfar)
-  const gunesVal = sunriseRaw + (temkin.sunrise / 60.0);
+  const gunesVal = H_sun === null ? NaN : sunriseRaw + (temkin.sunrise / 60.0);
   const camiSabahVal = gunesVal - (30.0 / 60.0); // Türkiye Camilerinde Cemaatle Sabah Namazı Kılınış Vakti (Güneşe 30 dk kala / İsfar Sünneti)
   const israkVal = gunesVal + (45.0 / 60.0); // Güneş doğuşundan ~45 dk sonra (Kerahat çıkışı)
   const ogleVal = dhuhrRaw + (temkin.dhuhr / 60.0);
   const dahveVal = ogleVal - (45.0 / 60.0); // Dahve-i Kübra / İstiva öncesi
   const ikindiVal = asrRaw + (temkin.asr / 60.0);
-  const aksamVal = maghribRaw + (temkin.maghrib / 60.0); // İftar ve Akşam namazı vakti
+  const aksamVal = H_sun === null ? NaN : maghribRaw + (temkin.maghrib / 60.0); // İftar ve Akşam namazı vakti
   const yatsiVal = ishaRaw + (temkin.isha / 60.0);
 
   // Gece Yarısı / Teheccüd vakti hesabı (Kullanıcı fıkhi talebi doğrultusunda gece yarısına +1.5 saat / 1 sa 30 dk eklenmiştir)
   // Ortalama gece uzunluğu: (24 - aksamVal + imsakVal)
-  const nightLength = fixHour(24 - aksamVal + imsakVal);
-  const geceyarisiVal = fixHour(aksamVal + (nightLength / 2) + 1.5);
+  const nightLength = Number.isFinite(aksamVal) && Number.isFinite(imsakVal) ? fixHour(24 - aksamVal + imsakVal) : NaN;
+  const geceyarisiVal = Number.isFinite(aksamVal) && Number.isFinite(imsakVal) ? fixHour(aksamVal + (nightLength / 2) + 1.5) : NaN;
 
   // Kıble Açısı & Kıble Saati
   const qiblaAngle = calculateQiblaAngle(lat, lng);

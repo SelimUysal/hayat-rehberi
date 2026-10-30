@@ -5,12 +5,14 @@ import {
   Sparkles, HelpCircle, BookOpen
 } from 'lucide-react';
 import { timeStrToMinutes } from '../utils/astronomy';
+import { zoneNowDate } from '../utils/locationTimezone';
 import { BayramPrayerModal } from './BayramPrayerModal';
 
 interface PrayerCardsProps {
   todayData: CalculatedDay;
   asrMethod: AsrMethod;
   isSelectedToday?: boolean;
+  timezoneId?: string;
 }
 
 interface CardItem {
@@ -29,7 +31,7 @@ interface CardItem {
   isBayramCard?: boolean; // Bayram namazı kartı mı
 }
 
-export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, isSelectedToday = true }) => {
+export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, isSelectedToday = true, timezoneId }) => {
   const [viewMode, setViewMode] = useState<'all' | 'five'>('all');
   const [isBayramModalOpen, setIsBayramModalOpen] = useState(false);
   
@@ -43,7 +45,8 @@ export const PrayerCards: React.FC<PrayerCardsProps> = ({ todayData, asrMethod, 
     return () => clearInterval(timer);
   }, []);
 
-  const currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const locationNow = timezoneId ? zoneNowDate(timezoneId) : now;
+  const currentMinutes = locationNow.getHours() * 60 + locationNow.getMinutes() + locationNow.getSeconds() / 60;
 
   // Tüm Vakitler Listesi (Her vakit için özel ve birbirinden farklı uygun ikonlar)
   const allCards: CardItem[] = [
