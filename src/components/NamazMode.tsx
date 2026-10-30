@@ -82,6 +82,10 @@ const getInitialNamazId = (propTargetId?: string): string => {
 export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp }) => {
   const [selectedId, setSelectedId] = useState<string>(() => getInitialNamazId(targetId));
   const [linkCopied, setLinkCopied] = useState<string | null>(null);
+  const [contentSearch, setContentSearch] = useState('');
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [useDeviceVoice, setUseDeviceVoice] = useState(false);
+  const playbackVersionRef = useRef(0);
   const getFullNamazLink = (hash: string) =>
     `${window.location.origin}${window.location.pathname}${hash}`;
   const copyNamazLink = async (hash: string, label: string, event?: React.MouseEvent) => {
@@ -368,14 +372,19 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
   // Ezberlenenleri LocalStorage'da tutma
   const [memorizedIds, setMemorizedIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('namaz_memorized_ids');
-      return saved ? JSON.parse(saved) : [];
+      const saved: unknown = JSON.parse(localStorage.getItem('namaz_memorized_ids') || '[]');
+      const valid = new Set(NAMAZ_ITEMS.map(item => item.id));
+      return Array.isArray(saved) ? [...new Set(saved.filter((id): id is string => typeof id === 'string' && valid.has(id)))] : [];
     } catch {
       return [];
     }
   });
 
-  const audioRef = useRef<HTMLAudioElement>(new Audio());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const getAudio = () => {
+    if (!audioRef.current) audioRef.current = new Audio();
+    return audioRef.current;
+  };
   const sentenceCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const activeItem = allItems.find((item) => item.id === selectedId) || allItems[0];
 
@@ -388,11 +397,13 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
   }, [memorizedIds]);
 
   const stopAudio = useCallback(() => {
+    playbackVersionRef.current += 1;
     setIsPlaying(false);
     setIsPlayingAll(false);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current.onloadedmetadata = null;
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
     }
@@ -436,161 +447,113 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
     );
   };
 
-  const speakArabic = (text: string, onEnd?: () => void) => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'ar-SA';
-      utterance.rate = playbackSpeedRef.current * 0.9;
-      utterance.onend = () => {
-        if (onEnd) onEnd();
-      };
-      utterance.onerror = () => {
-        if (onEnd) onEnd();
-      };
-      window.speechSynthesis.speak(utterance);
-    } else {
-      if (onEnd) onEnd();
-    }
+  // Recorded recitations are preferred; synthesized Arabic is an explicit user choice.
+  const audioFailure = (version: number, message: string) => {
+    if (version !== playbackVersionRef.current) return;
+    stopAudio();
+    setAudioError(message);
   };
-
-  // Play a single sentence by index
-  const playSentenceAudio = (
-    item: NamazItem,
-    sentenceIdx: number,
-    onFinish: () => void
-  ) => {
-    const sentence = item.sentences?.[sentenceIdx];
-    if (!sentence) {
-      onFinish();
+  const speakArabic = (text: string, onEnd: () => void, version: number) => {
+    if (version !== playbackVersionRef.current) return;
+    if (!useDeviceVoice || typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      audioFailure(version, 'Ses kaydı yüklenemedi. Bağlantıyı kontrol edin. Cihaz sesi ayrı bir tercihtir.');
       return;
     }
-
-    const player = audioRef.current;
-
-    // Use sentence.audioUrl or fallback
-    const audioSource = sentence.audioUrl || (item.sentences?.length === 1 ? item.audioUrl : null);
-
-    if (audioSource) {
-      player.pause();
-      player.src = audioSource;
-      player.playbackRate = playbackSpeedRef.current;
-
-      player.onloadedmetadata = () => {
-        player.playbackRate = playbackSpeedRef.current;
-      };
-
-      player.onended = () => {
-        onFinish();
-      };
-
-      player.onerror = () => {
-        speakArabic(sentence.arabic, onFinish);
-      };
-
-      player.play().catch(() => {
-        speakArabic(sentence.arabic, onFinish);
-      });
-    } else {
-      speakArabic(sentence.arabic, onFinish);
-    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ar-SA';
+    utterance.rate = playbackSpeedRef.current * 0.9;
+    let completed = false;
+    utterance.onend = () => {
+      if (completed || version !== playbackVersionRef.current) return;
+      completed = true; onEnd();
+    };
+    utterance.onerror = () => {
+      if (completed || version !== playbackVersionRef.current) return;
+      completed = true; audioFailure(version, 'Cihazın Arapça seslendirmesi çalışmadı.');
+    };
+    try { window.speechSynthesis.speak(utterance); }
+    catch { audioFailure(version, 'Cihaz sesi kullanılamıyor.'); }
   };
-
-  // "Tümünü Dinle" with verse-by-verse synchronization
+  const playSentenceAudio = (item: NamazItem, sentenceIdx: number, onFinish: () => void, version: number) => {
+    if (version !== playbackVersionRef.current) return;
+    const sentence = item.sentences?.[sentenceIdx];
+    if (!sentence) { onFinish(); return; }
+    const source = sentence.audioUrl || (item.sentences?.length === 1 ? item.audioUrl : null);
+    if (!source) { speakArabic(sentence.arabic, onFinish, version); return; }
+    const player = getAudio();
+    let completed = false;
+    const finish = () => {
+      if (completed || version !== playbackVersionRef.current) return;
+      completed = true; onFinish();
+    };
+    const failed = () => {
+      if (completed || version !== playbackVersionRef.current) return;
+      completed = true;
+      player.onended = null; player.onerror = null; player.pause();
+      speakArabic(sentence.arabic, onFinish, version);
+    };
+    player.pause(); player.src = source; player.playbackRate = playbackSpeedRef.current;
+    player.onloadedmetadata = () => { if (version === playbackVersionRef.current) player.playbackRate = playbackSpeedRef.current; };
+    player.onended = finish; player.onerror = failed;
+    player.play().catch(failed);
+  };
   const playFullItem = () => {
     stopAudio();
-    setIsPlaying(true);
-    setIsPlayingAll(true);
-
+    if (VIRTUAL_NEW_ITEMS.some(item => item.id === activeItem.id)) return;
+    const version = playbackVersionRef.current;
+    setAudioError(null); setIsPlaying(true); setIsPlayingAll(true);
     const sentences = activeItem.sentences;
-    if (!sentences || sentences.length === 0) {
-      // Fallback: whole item
-      let loopCount = 1;
-      setCurrentLoop(1);
+    let count = 1; setCurrentLoop(count);
+    const finishLoop = (restart: () => void) => {
+      if (version !== playbackVersionRef.current) return;
+      if (targetLoopRef.current === 'infinite' || count < targetLoopRef.current) {
+        count++; setCurrentLoop(count); restart();
+      } else stopAudio();
+    };
+    if (!sentences?.length) {
       const playOnce = () => {
-        if (!activeItem.audioUrl) {
-          speakArabic(activeItem.arabic, handleLoopEnd);
-          return;
-        }
-        const player = audioRef.current;
-        player.src = activeItem.audioUrl;
-        player.playbackRate = playbackSpeedRef.current;
-        player.onended = handleLoopEnd;
-        player.onerror = () => speakArabic(activeItem.arabic, handleLoopEnd);
-        player.play().catch(() => speakArabic(activeItem.arabic, handleLoopEnd));
+        if (version !== playbackVersionRef.current) return;
+        const finish = () => finishLoop(playOnce);
+        if (!activeItem.audioUrl) { speakArabic(activeItem.arabic, finish, version); return; }
+        const player = getAudio(); let completed = false;
+        const ended = () => { if (completed || version !== playbackVersionRef.current) return; completed = true; finish(); };
+        const failed = () => {
+          if (completed || version !== playbackVersionRef.current) return;
+          completed = true; player.onended = null; player.onerror = null; player.pause();
+          speakArabic(activeItem.arabic, finish, version);
+        };
+        player.pause(); player.src = activeItem.audioUrl; player.playbackRate = playbackSpeedRef.current;
+        player.onended = ended; player.onerror = failed; player.play().catch(failed);
       };
-      const handleLoopEnd = () => {
-        loopCount++;
-        setCurrentLoop(loopCount);
-        if (targetLoopRef.current === 'infinite' || loopCount <= targetLoopRef.current) {
-          playOnce();
-        } else {
-          stopAudio();
-        }
-      };
-      playOnce();
-      return;
+      playOnce(); return;
     }
-
-    // Play sentence-by-sentence with visual synchronization!
-    let loopCount = 1;
-    setCurrentLoop(1);
-
-    const playSentenceSequence = (idx: number) => {
-      if (idx >= sentences.length) {
-        // One complete loop finished
-        loopCount++;
-        setCurrentLoop(loopCount);
-        if (targetLoopRef.current === 'infinite' || loopCount <= targetLoopRef.current) {
-          playSentenceSequence(0);
-        } else {
-          stopAudio();
-        }
-        return;
-      }
-
+    const playNext = (idx: number) => {
+      if (version !== playbackVersionRef.current) return;
+      if (idx >= sentences.length) { finishLoop(() => playNext(0)); return; }
       setActiveSentenceIdx(idx);
-      playSentenceAudio(activeItem, idx, () => {
-        playSentenceSequence(idx + 1);
-      });
+      playSentenceAudio(activeItem, idx, () => playNext(idx + 1), version);
     };
-
-    playSentenceSequence(0);
+    playNext(0);
   };
-
-  // Play individual sentence loop
   const playSentence = (idx: number, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-
-    // If currently playing this specific sentence, toggle stop
-    if (isPlaying && activeSentenceIdx === idx && !isPlayingAll) {
-      stopAudio();
-      return;
-    }
-
+    e?.stopPropagation();
+    if (isPlaying && activeSentenceIdx === idx && !isPlayingAll) { stopAudio(); return; }
     stopAudio();
-    setActiveSentenceIdx(idx);
-    setIsPlaying(true);
-    setIsPlayingAll(false);
-
-    let loopCount = 1;
-    setCurrentLoop(1);
-
+    const version = playbackVersionRef.current;
+    setAudioError(null); setActiveSentenceIdx(idx); setIsPlaying(true); setIsPlayingAll(false);
+    let count = 1; setCurrentLoop(count);
     const playOnce = () => {
+      if (version !== playbackVersionRef.current) return;
       playSentenceAudio(activeItem, idx, () => {
-        loopCount++;
-        setCurrentLoop(loopCount);
-        if (targetLoopRef.current === 'infinite' || loopCount <= targetLoopRef.current) {
-          playOnce();
-        } else {
-          stopAudio();
-        }
-      });
+        if (version !== playbackVersionRef.current) return;
+        if (targetLoopRef.current === 'infinite' || count < targetLoopRef.current) {
+          count++; setCurrentLoop(count); playOnce();
+        } else stopAudio();
+      }, version);
     };
-
     playOnce();
   };
-
   const changeSpeed = (speed: number) => {
     setPlaybackSpeed(speed);
     playbackSpeedRef.current = speed;
@@ -5504,7 +5467,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
 
   const isVirtualItem = VIRTUAL_NEW_ITEMS.some(v => v.id === activeItem.id);
 
-  const progressPercent = Math.round((memorizedIds.length / NAMAZ_ITEMS.length) * 100);
+  const progressPercent = Math.min(100, Math.round((memorizedIds.filter(id => NAMAZ_ITEMS.some(item => item.id === id)).length / NAMAZ_ITEMS.length) * 100));
 
   return (
     <div
@@ -5517,6 +5480,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
         .namaz-container .font-amiri,
         .namaz-container .font-quran {
           zoom: var(--namaz-scale, 1);
+          max-width: 100%;
+          overflow-wrap: anywhere;
         }
       `}</style>
       {/* 1. ÜST BİLGİ & TEMA SEÇİCİ KONTROL ÇUBUĞU (ElifBa ile Birebir Aynı) */}
@@ -5528,7 +5493,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
         }`}
       >
         <div className={`${viewMode === 'desktop' ? 'max-w-[1440px] md:flex-row md:items-center' : 'max-w-[640px] flex-col'} mx-auto flex flex-col justify-between gap-3.5`}>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <h1 className={`text-base sm:text-lg lg:text-xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>
               Namaz Sureleri, Duaları ve Özel Gece Namazları
             </h1>
@@ -5542,10 +5507,10 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
           </div>
 
           {/* Sağ dan Orta Bölüm: İlerleme Çubuğu + Tema/Görünüm Kontrolleri (Mobil cihazlarda alt alta binmeden tek satırda yan yana durur) */}
-          <div className={`flex items-center justify-between gap-4 w-full ${viewMode === 'desktop' ? 'md:w-auto md:flex-1 md:justify-end' : ''}`}>
+          <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 min-w-0 w-full ${viewMode === 'desktop' ? 'md:w-auto md:flex-1 md:justify-end' : ''}`}>
             
             {/* İlerleme Çubuğu */}
-            <div className={`flex items-center gap-2 flex-1 ${viewMode === 'desktop' ? 'md:max-w-sm md:mr-4' : ''}`}>
+            <div className={`flex items-center gap-2 min-w-0 flex-1 ${viewMode === 'desktop' ? 'md:max-w-sm md:mr-4' : ''}`}>
               <span className={`text-xs font-bold whitespace-nowrap ${isDark ? 'text-[#3fb996]' : 'text-emerald-700'}`}>
                 İlerleme: %{progressPercent}
               </span>
@@ -5558,7 +5523,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
             </div>
 
             {/* Tema ve Görünüm Kontrolleri */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
               
               {/* Arapça Yazı Boyutu Ayar İmleci (Slider) */}
               <div
@@ -5657,11 +5622,13 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
         </div>
       </div>
 
-      <div className={`${viewMode === 'desktop' ? 'max-w-[1300px]' : 'max-w-[640px]'} mx-auto w-full p-4 md:p-6 font-sans`}>
+      <div className={`${viewMode === 'desktop' ? 'max-w-[1300px]' : 'max-w-[640px]'} mx-auto w-full min-w-0 p-3 sm:p-4 md:p-6 font-sans`}>
+        {audioError && <p role="alert" className="mb-3 rounded-xl border border-amber-500/40 p-3 text-sm text-amber-500">{audioError}</p>}
+        <label className="mb-3 flex flex-wrap items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={useDeviceVoice} onChange={e => setUseDeviceVoice(e.target.checked)} /> Cihaz sesiyle yedek okuma (isteğe bağlı, tecvid garantisi yok)</label>
         
         {/* 1. MOBİL MOD GÖRÜNÜMÜ */}
         {isMobileView ? (
-          <div className="space-y-4 pb-28">
+          <div className="space-y-4 pb-72 sm:pb-56">
             
             {/* Mobil Kategori Seçici: Sureler vs Dualar vs Maneviyat */}
             <div
@@ -5730,9 +5697,10 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
               </button>
             </div>
 
-            {/* Yatay Kaydırılabilir Sure/Dua Seçim Listesi */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-none">
-              {allItems.filter(i => i.category === mobileCategory).map(item => {
+            <label htmlFor="namaz-mobile-search" className="sr-only">Sure, dua veya rehber ara</label>
+            <input id="namaz-mobile-search" type="search" value={contentSearch} onChange={e => setContentSearch(e.target.value)} placeholder="Sure, dua veya rehber ara…" className={`w-full rounded-xl border p-3 text-sm ${isDark ? 'bg-[#211d16] border-[#3a3226] text-white' : 'bg-white border-slate-200'}`} />
+            <div className="flex items-center gap-2 max-w-full overflow-x-auto pb-2 pt-1 scrollbar-none">
+              {allItems.filter(i => i.category === mobileCategory && i.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map(item => {
                 const isCur = item.id === selectedId;
                 const isMem = memorizedIds.includes(item.id);
                 const isSual = item.id === 'musluman-sualleri';
@@ -6041,7 +6009,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
 
             {/* Mobil Sabit Alt Kontrol Paneli */}
             <div
-              className={`fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t shadow-2xl p-3 ${
+              className={`fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 z-40 max-w-[100vw] min-w-0 backdrop-blur-md border-t shadow-2xl px-2 py-2 sm:px-3 ${
                 isDark
                   ? 'bg-[#211d16]/95 border-[#3a3226] text-[#f1ecdd]'
                   : 'bg-white/95 border-slate-200 text-slate-800'
@@ -6070,12 +6038,12 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   </div>
                 )}
 
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2 min-w-0">
                   {/* Tümünü Dinle / Durdur */}
                   {isPlaying ? (
                     <button
                       onClick={stopAudio}
-                      className="flex-1 py-2.5 px-4 bg-rose-600 active:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                      className="w-full py-2.5 px-4 bg-rose-600 active:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer"
                     >
                       <Square className="w-4 h-4 fill-current" />
                       <span>Durdur</span>
@@ -6083,7 +6051,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   ) : (
                     <button
                       onClick={playFullItem}
-                      className={`flex-1 py-2.5 px-4 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all active:scale-95 ${
+                      className={`w-full py-2.5 px-4 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all active:scale-95 ${
                         isDark ? 'bg-[#1c3630] hover:bg-[#25453e] text-[#3fb996] border border-[#3fb996]/50' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                       }`}
                     >
@@ -6092,6 +6060,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                     </button>
                   )}
 
+                  <div className="flex flex-wrap items-center justify-center gap-2 min-w-0">
                   {/* Hız Ayarı Slider (İmleçli) */}
                   <div
                     className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
@@ -6144,6 +6113,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                       );
                     })}
                   </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -6156,6 +6126,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
             
             {/* Sol Liste (Sureler ve Dualar) */}
             <div className="lg:col-span-4 xl:col-span-4 space-y-4">
+              <label htmlFor="namaz-desktop-search" className="sr-only">Sure, dua veya rehber ara</label>
+              <input id="namaz-desktop-search" type="search" value={contentSearch} onChange={e => setContentSearch(e.target.value)} placeholder="Sure, dua veya rehber ara…" className={`w-full rounded-xl border p-3 text-sm ${isDark ? 'bg-[#211d16] border-[#3a3226] text-white' : 'bg-white border-slate-200'}`} />
               
               {/* Sureler Grubu */}
               <div
@@ -6169,7 +6141,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   }`}
                 >
                   <BookOpen className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
-                  <span>Namaz Sureleri (Fatiha + Son 10)</span>
+                  <span>Namaz Sureleri (Fâtiha, Asr ve Son 10)</span>
                   <button type="button" onClick={() => copyNamazLink(makeNamazSectionHash('sureler'), 'Namaz Sureleri (Fatiha + Son 10)')}
                     title="Bu bölümün bağlantısını kopyala" aria-label="Namaz Sureleri (Fatiha + Son 10) bağlantısını kopyala"
                     className="ml-auto p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 cursor-pointer">
@@ -6177,7 +6149,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[340px] overflow-y-auto custom-scrollbar pr-1">
-                  {NAMAZ_ITEMS.filter((item) => item.category === 'sure').map((item) => {
+                  {NAMAZ_ITEMS.filter((item) => item.category === 'sure' && item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map((item) => {
                     const isCur = item.id === selectedId;
                     const isMem = memorizedIds.includes(item.id);
                     return (
@@ -6185,6 +6157,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                         key={item.id}
                         id={`namaz-item-${item.id}`}
                         onClick={() => selectNamazItem(item.id)}
+                        onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectNamazItem(item.id); } }}
+                        role="button" tabIndex={0} aria-current={isCur ? 'page' : undefined}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isCur
                             ? isDark
@@ -6240,7 +6214,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
-                  {NAMAZ_ITEMS.filter((item) => item.category === 'dua').map((item) => {
+                  {NAMAZ_ITEMS.filter((item) => item.category === 'dua' && item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map((item) => {
                     const isCur = item.id === selectedId;
                     const isMem = memorizedIds.includes(item.id);
                     return (
@@ -6248,6 +6222,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                         key={item.id}
                         id={`namaz-item-${item.id}`}
                         onClick={() => selectNamazItem(item.id)}
+                        onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectNamazItem(item.id); } }}
+                        role="button" tabIndex={0} aria-current={isCur ? 'page' : undefined}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isCur
                             ? isDark
@@ -6300,7 +6276,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
-                  {VIRTUAL_NEW_ITEMS.map((item) => {
+                  {VIRTUAL_NEW_ITEMS.filter(item => item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map((item) => {
                     const isCur = item.id === selectedId;
                     const isSual = item.id === 'musluman-sualleri';
                     const isSpecial = item.id === 'ibadetlerin-sihati-icin';
@@ -6310,6 +6286,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                         key={item.id}
                         id={`namaz-guide-item-${item.id}`}
                         onClick={() => selectNamazItem(item.id)}
+                        onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectNamazItem(item.id); } }}
+                        role="button" tabIndex={0} aria-current={isCur ? 'page' : undefined}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isSual && !isCur
                             ? isDark
