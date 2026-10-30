@@ -39,6 +39,7 @@ import {
 import { NAMAZ_ITEMS, VIRTUAL_NEW_ITEMS, ALL_NAMAZ_ITEMS } from '../data/namazData';
 import { MUSLUMAN_SUALLERI_DATA } from '../data/muslumanSualleriData';
 import { NamazItem } from '../types';
+import { getNamazTargetFromUrl, getNamazSectionForId, getDefaultNamazItemId, makeNamazItemHash, makeNamazSectionHash, parseNamazHash, NamazSection } from '../utils/namazDeepLinks';
 
 export type NamazTheme = 'dark' | 'emerald';
 export type NamazViewMode = 'desktop' | 'mobile';
@@ -57,26 +58,9 @@ const getInitialNamazId = (propTargetId?: string): string => {
     return propTargetId.trim();
   }
 
-  // b) URL Query String ve Hash Kontrolü
-  if (typeof window !== 'undefined') {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlItem = urlParams.get('item') || urlParams.get('namaz') || urlParams.get('dua') || urlParams.get('sure') || urlParams.get('id');
-      if (urlItem && urlItem.trim() !== '') {
-        return urlItem.trim();
-      }
-
-      const hash = window.location.hash.replace(/^#/, '').trim();
-      if (hash) {
-        const cleanHash = hash.replace(/^namaz\//, '').replace(/^item\//, '').trim();
-        if (cleanHash) {
-          return cleanHash;
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
+  // b) Önce doğrulanmış Namaz deep link'ini çöz.
+  const urlId = getNamazTargetFromUrl();
+  if (urlId) return urlId;
 
   // 2. ÖNCELİK: Kaldığı Yerden Devam Etme (Özel URL yoksa)
   if (typeof localStorage !== 'undefined') {
@@ -96,6 +80,43 @@ const getInitialNamazId = (propTargetId?: string): string => {
 
 export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp }) => {
   const [selectedId, setSelectedId] = useState<string>(() => getInitialNamazId(targetId));
+  const [linkCopied, setLinkCopied] = useState<string | null>(null);
+  const getFullNamazLink = (hash: string) =>
+    `${window.location.origin}${window.location.pathname}${hash}`;
+  const copyNamazLink = async (hash: string, label: string, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    const url = getFullNamazLink(hash);
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(label);
+      window.setTimeout(() => setLinkCopied(null), 2400);
+    } catch {
+      // Panoya erişimi engelleyen tarayıcılar için bağlantıyı seçilebilir yap.
+      window.prompt('Paylaşılabilir bağlantıyı kopyalayın:', url);
+    }
+  };
+  const selectNamazItem = (id: string) => {
+    if (!getNamazSectionForId(id)) return;
+    setSelectedId(id);
+    window.history.pushState(null, '', `${window.location.pathname}${makeNamazItemHash(id)}`);
+  };
+  const selectNamazSection = (section: NamazSection) => {
+    const id = getDefaultNamazItemId(section);
+    setSelectedId(id);
+    window.history.pushState(null, '', `${window.location.pathname}${makeNamazSectionHash(section)}`);
+  };
+  useEffect(() => {
+    const onRouteChange = () => {
+      const parsed = parseNamazHash(window.location.hash);
+      if (parsed) setSelectedId(parsed.itemId);
+    };
+    window.addEventListener('popstate', onRouteChange);
+    window.addEventListener('hashchange', onRouteChange);
+    return () => {
+      window.removeEventListener('popstate', onRouteChange);
+      window.removeEventListener('hashchange', onRouteChange);
+    };
+  }, []);
 
   // Yazı Boyutu Ölçeği (%100 - %250 Slider ve Kademeli Ayar)
   const [fontSizePercent, setFontSizePercent] = useState<number>(() => {
@@ -2087,7 +2108,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
               </h5>
               <button
                 type="button"
-                onClick={() => setSelectedId('ibadetlerin-sihati-icin')}
+                onClick={() => selectNamazItem('ibadetlerin-sihati-icin')}
                 className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-teal-700 hover:bg-teal-800 text-white cursor-pointer transition-all shadow-xs flex items-center gap-1"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -5510,6 +5531,13 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
             <h1 className={`text-base sm:text-lg lg:text-xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>
               Namaz Sureleri, Duaları ve Özel Gece Namazları
             </h1>
+            <button type="button" onClick={() => copyNamazLink(makeNamazItemHash(activeItem.id), activeItem.title)}
+              title="Açık içeriğin paylaşılabilir bağlantısını kopyala"
+              aria-label="Açık içeriğin bağlantısını kopyala"
+              className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10 cursor-pointer">
+              <Copy className="w-3.5 h-3.5" /> Bağlantıyı kopyala
+            </button>
+            {linkCopied && <span role="status" className="text-xs text-emerald-500">“{linkCopied}” bağlantısı kopyalandı.</span>}
           </div>
 
           {/* Sağ dan Orta Bölüm: İlerleme Çubuğu + Tema/Görünüm Kontrolleri (Mobil cihazlarda alt alta binmeden tek satırda yan yana durur) */}
@@ -5644,8 +5672,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 type="button"
                 onClick={() => {
                   setMobileCategory('sure');
-                  const firstSure = NAMAZ_ITEMS.find(i => i.category === 'sure');
-                  if (firstSure && activeItem.category !== 'sure') setSelectedId(firstSure.id);
+                  selectNamazSection('sureler');
                 }}
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'sure'
@@ -5665,8 +5692,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 type="button"
                 onClick={() => {
                   setMobileCategory('dua');
-                  const firstDua = NAMAZ_ITEMS.find(i => i.category === 'dua');
-                  if (firstDua && activeItem.category !== 'dua') setSelectedId(firstDua.id);
+                  selectNamazSection('dualar');
                 }}
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'dua'
@@ -5686,7 +5712,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 type="button"
                 onClick={() => {
                   setMobileCategory('yeni');
-                  setSelectedId('musluman-sualleri');
+                  selectNamazSection('rehber');
                 }}
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'yeni'
@@ -5714,7 +5740,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setSelectedId(item.id)}
+                    onClick={() => selectNamazItem(item.id)}
                     className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
                       isSual && !isCur
                         ? isDark
@@ -6143,6 +6169,11 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 >
                   <BookOpen className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
                   <span>Namaz Sureleri (Fatiha + Son 10)</span>
+                  <button type="button" onClick={() => copyNamazLink(makeNamazSectionHash('sureler'), 'Namaz Sureleri (Fatiha + Son 10)')}
+                    title="Bu bölümün bağlantısını kopyala" aria-label="Namaz Sureleri (Fatiha + Son 10) bağlantısını kopyala"
+                    className="ml-auto p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 cursor-pointer">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[340px] overflow-y-auto custom-scrollbar pr-1">
                   {NAMAZ_ITEMS.filter((item) => item.category === 'sure').map((item) => {
@@ -6152,7 +6183,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                       <div
                         key={item.id}
                         id={`namaz-item-${item.id}`}
-                        onClick={() => setSelectedId(item.id)}
+                        onClick={() => selectNamazItem(item.id)}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isCur
                             ? isDark
@@ -6201,6 +6232,11 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 >
                   <BookOpen className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-teal-600'}`} />
                   <span>Namaz Duaları</span>
+                  <button type="button" onClick={() => copyNamazLink(makeNamazSectionHash('dualar'), 'Namaz Duaları')}
+                    title="Bu bölümün bağlantısını kopyala" aria-label="Namaz Duaları bağlantısını kopyala"
+                    className="ml-auto p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 cursor-pointer">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
                   {NAMAZ_ITEMS.filter((item) => item.category === 'dua').map((item) => {
@@ -6210,7 +6246,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                       <div
                         key={item.id}
                         id={`namaz-item-${item.id}`}
-                        onClick={() => setSelectedId(item.id)}
+                        onClick={() => selectNamazItem(item.id)}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isCur
                             ? isDark
@@ -6256,6 +6292,11 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 >
                   <BookOpen className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-teal-600'}`} />
                   <span>Namaz Rehberi & Tüyolar</span>
+                  <button type="button" onClick={() => copyNamazLink(makeNamazSectionHash('rehber'), 'Namaz Rehberi & Tüyolar')}
+                    title="Bu bölümün bağlantısını kopyala" aria-label="Namaz Rehberi & Tüyolar bağlantısını kopyala"
+                    className="ml-auto p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 cursor-pointer">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
                   {VIRTUAL_NEW_ITEMS.map((item) => {
@@ -6267,7 +6308,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                       <div
                         key={item.id}
                         id={`namaz-guide-item-${item.id}`}
-                        onClick={() => setSelectedId(item.id)}
+                        onClick={() => selectNamazItem(item.id)}
                         className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isSual && !isCur
                             ? isDark
