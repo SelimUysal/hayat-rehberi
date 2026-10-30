@@ -3,11 +3,14 @@ import type { Coordinates, PrayerTimes } from '../types/prayer';
 import { DEFAULT_CITY } from '../data/cities';
 import { calculatePrayerTimesForDate, DEFAULT_TEMKIN } from '../utils/astronomy';
 
-// Wikimedia Commons: Aishatu98, "Adhan.ogg" (42 seconds, CC0).
-// No playback or third-party audio request occurs while the feature is off.
-// https://commons.wikimedia.org/wiki/File:Adhan.ogg
+// Kaynak: Atcovi, "The Adhan - Muslim Call to Prayer - Aaqib Azeez.mp3"
+// Wikimedia Commons, CC BY-SA 4.0. 87 saniye, MP3 134 kbps.
+// https://commons.wikimedia.org/wiki/File:The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3
+// Kayıt değiştirilmedi; tarayıcıda 1,5× hızda oynatılır.
+// Kullanıcı ayarı kapalıyken üçüncü taraf dosyaya istek gönderilmez.
 export const ADHAN_RECORDING_URL =
-  'https://commons.wikimedia.org/wiki/Special:Redirect/file/Adhan.ogg';
+  'https://upload.wikimedia.org/wikipedia/commons/7/7d/The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3';
+export const ADHAN_PLAYBACK_RATE = 1.5;
 
 const SETTING_KEY = 'namaz_adhan_sound_enabled_v1';
 const LAST_EVENT_KEY = 'namaz_adhan_last_event_v1';
@@ -131,7 +134,11 @@ export function usePrayerAdhanSound() {
       const audio = new Audio();
       audio.src = ADHAN_RECORDING_URL;
       audio.preload = 'none';
-      audio.volume = 0.65;
+      audio.volume = 0.7;
+      // Ezanın yaklaşık 58 saniyede tamamlanması için 1,5× oynat.
+      // Modern tarayıcılar varsayılan olarak ses perdesini korur.
+      audio.defaultPlaybackRate = ADHAN_PLAYBACK_RATE;
+      audio.playbackRate = ADHAN_PLAYBACK_RATE;
       audio.onplay = () => setPlaying(true);
       audio.onpause = () => setPlaying(false);
       audio.onended = () => {
@@ -160,6 +167,8 @@ export function usePrayerAdhanSound() {
     const audio = ensureAudio();
     audio.pause();
     try { audio.currentTime = 0; } catch { /* metadata not loaded yet */ }
+    // Test ve vakit geldiğinde aynı hız kullanılır.
+    audio.playbackRate = ADHAN_PLAYBACK_RATE;
     try {
       await audio.play();
       setStatus(label ? `${label} · kısa ezan çalıyor.` : 'Ses denemesi oynatılıyor.');
