@@ -18,13 +18,17 @@ import { ScrollToTopButton } from './components/ScrollToTopButton';
 import { Coordinates } from './types/prayer';
 import { X, ExternalLink } from 'lucide-react';
 import { broadcastThemeChange, useThemeSync, applyGlobalTheme } from './utils/themeSync';
+import { getNamazTargetFromUrl, makeNamazItemHash, parseNamazHash } from './utils/namazDeepLinks';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
       if (typeof window !== 'undefined') {
+        // Namaz bağlantıları önce çözülür; kaydedilmiş sekme veya başka bir query parametresi bunları bastırmaz.
+        if (parseNamazHash(window.location.hash)) return 'namaz';
         const urlParams = new URLSearchParams(window.location.search);
         const urlTab = urlParams.get('mode') || urlParams.get('tab') || urlParams.get('page');
+        if (urlTab === 'namaz') return 'namaz';
         if (urlTab === 'elifba' || urlTab === 'elif-ba' || urlTab === 'tecvid') {
           return 'elifba';
         }
@@ -84,22 +88,33 @@ export function App() {
   const [listenTargetSurahId, setListenTargetSurahId] = useState<number | undefined>(undefined);
   const [listenTargetReciterId, setListenTargetReciterId] = useState<string | undefined>(undefined);
   const [listenTimestamp, setListenTimestamp] = useState<number | undefined>(undefined);
-  const [namazTargetId, setNamazTargetId] = useState<string | undefined>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlItem = urlParams.get('item') || urlParams.get('namaz') || urlParams.get('dua') || urlParams.get('sure') || urlParams.get('id');
-        if (urlItem && urlItem.trim() !== '') return urlItem.trim();
-        const hash = window.location.hash.replace(/^#/, '').trim();
-        if (hash) {
-          const cleanHash = hash.replace(/^namaz\//, '').replace(/^item\//, '').trim();
-          if (cleanHash) return cleanHash;
-        }
-      } catch {}
-    }
-    return undefined;
-  });
+  const [namazTargetId, setNamazTargetId] = useState<string | undefined>(() => getNamazTargetFromUrl());
   const [namazTimestamp, setNamazTimestamp] = useState<number | undefined>(undefined);
+
+  // Paylaşılan adresler ve tarayıcının geri/ileri tuşları sayfayı yeniden yüklemeden çalışır.
+  useEffect(() => {
+    const onLocationChange = () => {
+      const route = parseNamazHash(window.location.hash);
+      if (route) {
+        setActiveTab('namaz');
+        setNamazTargetId(route.itemId);
+        setNamazTimestamp(Date.now());
+        try { localStorage.setItem('quran_active_tab', 'namaz'); } catch {}
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        return;
+      }
+      // Elifba'nın eski bağlantıları korunur.
+      if (/^#(?:elifba|elif-ba|tecvid)(?:\/|$)/i.test(window.location.hash)) {
+        setActiveTab('elifba');
+      }
+    };
+    window.addEventListener('hashchange', onLocationChange);
+    window.addEventListener('popstate', onLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', onLocationChange);
+      window.removeEventListener('popstate', onLocationChange);
+    };
+  }, []);
   const [esmaTargetNumber, setEsmaTargetNumber] = useState<number | undefined>(undefined);
   const [esmaTargetCategory, setEsmaTargetCategory] = useState<'all' | 'rahmet' | 'kudret' | 'ilim' | 'adalet' | 'learned' | undefined>(undefined);
   const [esmaTargetAutoPlay, setEsmaTargetAutoPlay] = useState<boolean | undefined>(undefined);
@@ -209,6 +224,16 @@ export function App() {
       // ignore
     }
     if (typeof window !== 'undefined') {
+      const currentHash = window.location.hash;
+      if (tab === 'namaz' && !parseNamazHash(currentHash)) {
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#namaz`);
+      } else if (
+        tab !== 'namaz' &&
+        (parseNamazHash(currentHash) || /^#(?:elifba|elif-ba|tecvid)(?:\/|$)/i.test(currentHash))
+      ) {
+        // Diğer ekranlarda önceki Namaz/Elifba bağlantısı yanlışlıkla paylaşılmasın.
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -252,6 +277,9 @@ export function App() {
     if (params?.namazItemId) {
       setNamazTargetId(params.namazItemId);
       setNamazTimestamp(nowTs);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${makeNamazItemHash(params.namazItemId)}`);
+      }
       try {
         localStorage.setItem('namaz_last_selected_id', params.namazItemId);
         localStorage.setItem('namaz_selected_id', params.namazItemId);
@@ -274,6 +302,9 @@ export function App() {
       const mapped = surahMap[params.surahId] || 'fatiha';
       setNamazTargetId(mapped);
       setNamazTimestamp(nowTs);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${makeNamazItemHash(mapped)}`);
+      }
       try {
         localStorage.setItem('namaz_last_selected_id', mapped);
         localStorage.setItem('namaz_selected_id', mapped);
