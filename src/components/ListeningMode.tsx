@@ -321,6 +321,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   // Uyku Zamanlayıcısı (Sleep Timer)
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
   const [customSleepMinutes, setCustomSleepMinutes] = useState<number>(45);
+  const [sleepMenuOpen, setSleepMenuOpen] = useState(false);
+  const sleepMenuRef = useRef<HTMLDivElement>(null);
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -943,6 +945,25 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       playAyahAt(currentAyahIndex - 1, 0);
     }
   };
+
+  // Uyku zamanlayıcısı menüsü açıkken dışarıya dokunmak veya ESC ile kapat.
+  useEffect(() => {
+    if (!sleepMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (sleepMenuRef.current && !sleepMenuRef.current.contains(event.target as Node)) {
+        setSleepMenuOpen(false);
+      }
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSleepMenuOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [sleepMenuOpen]);
 
   // Uyku Zamanlayıcısı Ayarla (Kesin Duvar Saati Bazlı)
   const handleSetTimer = (minutes: number) => {
@@ -1641,50 +1662,110 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   />
                 </div>
 
-                {/* Uyku Zamanlayıcısı */}
-                <div className="col-span-2 flex w-full min-w-0 flex-wrap items-center justify-center gap-2 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:justify-start lg:px-2.5">
-                  <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  {sleepSecondsLeft !== null ? (
-                    <div className="flex items-center gap-1 sm:gap-1.5">
-                      <span className="px-1.5 py-0.5 bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 rounded-lg text-[10px] sm:text-xs font-mono font-bold">
-                        {formatTimerSeconds(sleepSecondsLeft)}
+                {/* Kompakt uyku modu: sade düğme, ayrıntılar yalnızca açıldığında görünür. */}
+                <div ref={sleepMenuRef} className="relative col-span-2 min-w-0 w-full lg:w-auto">
+                  <div className={`flex w-full lg:w-auto items-center gap-1.5 rounded-xl border px-2 py-1.5 transition-colors ${
+                    sleepSecondsLeft !== null
+                      ? 'bg-emerald-950/70 border-emerald-500/40'
+                      : 'bg-white/10 border-white/10'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={() => setSleepMenuOpen((open) => !open)}
+                      aria-expanded={sleepMenuOpen}
+                      aria-controls="listening-sleep-timer-menu"
+                      title="Uyku zamanlayıcısını ayarla"
+                      className="flex flex-1 min-w-0 items-center justify-between gap-3 rounded-lg px-1.5 py-1 hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 whitespace-nowrap">
+                        <Moon className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>Uyku modu</span>
                       </span>
+                      <span className={`text-[11px] font-bold font-mono whitespace-nowrap ${
+                        sleepSecondsLeft !== null ? 'text-emerald-300' : 'text-slate-400'
+                      }`}>
+                        {sleepSecondsLeft !== null ? formatTimerSeconds(sleepSecondsLeft) : 'Sınırsız'}
+                      </span>
+                    </button>
+                    {sleepSecondsLeft !== null && (
                       <button
-                        onClick={handleCancelTimer}
-                        className="text-[10px] sm:text-[11px] text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                        type="button"
+                        onClick={() => { handleCancelTimer(); setSleepMenuOpen(false); }}
+                        title="Uyku zamanlayıcısını kapat, dinlemeye devam et"
+                        className="shrink-0 rounded-lg border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/20 cursor-pointer"
                       >
                         İptal
                       </button>
-                    </div>
-                  ) : (
-                    <div className="flex min-w-0 flex-wrap items-center justify-center gap-1 sm:gap-1.5">
-                      {[15, 30, 60].map((mins) => (
+                    )}
+                  </div>
+
+                  {sleepMenuOpen && (
+                    <div
+                      id="listening-sleep-timer-menu"
+                      role="group"
+                      aria-label="Uyku zamanlayıcısı seçenekleri"
+                      className="absolute bottom-full right-0 z-50 mb-2 w-[calc(100vw-1rem)] max-w-[340px] rounded-2xl border border-white/15 bg-[#20252b] p-3.5 text-white shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-lg bg-amber-400/10 p-2">
+                            <Moon className="h-4 w-4 text-amber-300" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-bold text-white">Uyku zamanlayıcısı</p>
+                            <p className="text-[11px] text-slate-400">Süre dolduğunda dinleme durur.</p>
+                          </div>
+                        </div>
                         <button
-                          key={mins}
-                          onClick={() => handleSetTimer(mins)}
-                          className="px-1.5 sm:px-2 py-0.5 bg-white/10 hover:bg-emerald-600 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
-                          title={`${mins} dakika sonra kapat`}
-                        >
-                          {mins}d
-                        </button>
-                      ))}
-                      <label className="sr-only" htmlFor="customSleepMinutes">Özel uyku süresi (dakika)</label>
-                      <input
-                        id="customSleepMinutes"
-                        type="number"
-                        min="1"
-                        max="720"
-                        value={customSleepMinutes}
-                        onChange={(e) => setCustomSleepMinutes(Number(e.target.value))}
-                        className="w-14 shrink-0 rounded-md bg-slate-900 border border-white/30 px-1 py-1 text-[11px] text-white text-center"
-                        title="Özel süre (1-720 dakika)"
-                      />
-                      <button
-                        onClick={() => handleSetTimer(customSleepMinutes)}
-                        disabled={!Number.isInteger(customSleepMinutes) || customSleepMinutes < 1 || customSleepMinutes > 720}
-                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 rounded-md text-[11px] text-white"
-                        title="Girilen dakika sonunda durdur"
-                      >Kur</button>
+                          type="button"
+                          onClick={() => setSleepMenuOpen(false)}
+                          className="rounded-lg px-1.5 py-1 text-[11px] text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer"
+                          aria-label="Uyku modu seçeneklerini kapat"
+                        >Kapat</button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[15, 30, 60].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            onClick={() => { handleSetTimer(mins); setSleepMenuOpen(false); }}
+                            className={`rounded-xl border px-2 py-2.5 text-xs font-bold transition-colors cursor-pointer ${
+                              sleepTimerMinutes === mins
+                                ? 'border-emerald-400 bg-emerald-700 text-white'
+                                : 'border-white/15 bg-white/5 text-slate-200 hover:border-emerald-400/60 hover:bg-white/10'
+                            }`}
+                            title={`${mins} dakika sonra durdur`}
+                          >{mins} dk</button>
+                        ))}
+                      </div>
+                      <div className="mt-3 border-t border-white/10 pt-3">
+                        <label htmlFor="customSleepMinutes" className="mb-1.5 block text-[11px] font-semibold text-slate-300">
+                          Özel süre (dakika)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="customSleepMinutes"
+                            type="number"
+                            min="1"
+                            max="720"
+                            value={customSleepMinutes}
+                            onChange={(e) => setCustomSleepMinutes(Number(e.target.value))}
+                            className="w-0 flex-1 min-w-0 rounded-xl border border-white/20 bg-[#14181d] px-3 py-2 text-sm font-semibold text-white outline-none focus:border-emerald-400"
+                            title="1 ile 720 dakika arasında bir süre girin"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { handleSetTimer(customSleepMinutes); setSleepMenuOpen(false); }}
+                            disabled={!Number.isInteger(customSleepMinutes) || customSleepMinutes < 1 || customSleepMinutes > 720}
+                            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                          >Başlat</button>
+                        </div>
+                      </div>
+                      {sleepSecondsLeft !== null && (
+                        <p className="mt-3 text-center text-[11px] font-semibold text-emerald-300" role="status">
+                          Etkin: {formatTimerSeconds(sleepSecondsLeft)} kaldı
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
