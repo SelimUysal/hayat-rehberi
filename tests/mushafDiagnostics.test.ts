@@ -14,6 +14,13 @@ test('Mushaf HTML reader and diagnostics JS are syntactically valid', () => {
   new vm.Script(diagnostics, { filename: 'mushaf-diagnostics.js' });
 });
 
+test('Mushaf mode initialization cannot call the removed page validator', () => {
+  // Regression: a previous cleanup removed this function but left one call
+  // in setAppMode, causing READER_RUNTIME_ERROR/ReferenceError on every open.
+  assert.ok(!script?.[1].includes('ensureValidLocalPageForSource('));
+  assert.ok(script?.[1].includes('window.setAppMode = function(mode, isInit)'));
+});
+
 test('reader includes local diagnostics before the Quran data and reader script', () => {
   assert.ok(html.indexOf('mushaf-diagnostics.js') < html.indexOf('quran-data.js'));
   assert.ok(html.includes('window.MushafDiagnostics.log("MUSHAF_IMAGE_FAILED"'));
@@ -37,6 +44,17 @@ test('diagnostic history bounds logs, redacts sensitive values and can be cleare
   assert.equal(d.read().at(-1)?.details.secret,undefined);
   assert.equal(d.read().at(-1)?.details.name,undefined);
   assert.ok(!d.report().includes('secret.example'));
+  d.log('READER_RUNTIME_ERROR','error',{
+    name:'ReferenceError',stage:'script',line:1831,column:7,
+    url:'https://private.example',message:'PRIVATE',secret:'SECRET'
+  });
+  const last = d.read().at(-1);
+  assert.equal(last?.details.line,1831);
+  assert.equal(last?.details.column,7);
+  assert.equal(last?.details.url,undefined);
+  assert.equal(last?.details.message,undefined);
+  assert.ok(!d.report().includes('private.example'));
+  assert.ok(!d.report().includes('SECRET'));
   d.clear();
   assert.equal(d.read().length,0);
   dom.window.close();

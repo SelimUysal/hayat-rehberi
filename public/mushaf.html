@@ -1828,7 +1828,8 @@
         mPage = sMeta.page;
         settings.currentPage = mPage;
       }
-      ensureValidLocalPageForSource(mSource);
+      // Her Mushaf baskısı 604 sayfayı içerir; kaldırılan eski
+      // yerel-sayfa doğrulayıcısının çağrısı bu noktada ReferenceError oluşturuyordu.
       saveSettings();
 
       updateBottomBarForMushaf();

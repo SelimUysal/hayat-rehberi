@@ -17,6 +17,7 @@
   var ALLOWED = {
     page: true, surah: true, source: true, mode: true, stage: true,
     status: true, count: true, attempt: true, name: true, online: true,
+    line: true, column: true,
   };
   var listeners = [];
   function valid(row) {
@@ -106,6 +107,8 @@
     }
     log('READER_RUNTIME_ERROR', 'error', {
       name: safeName(event.error), stage: 'script',
+      line: Number.isInteger(event.lineno) && event.lineno > 0 ? event.lineno : 0,
+      column: Number.isInteger(event.colno) && event.colno > 0 ? event.colno : 0,
     });
   }, true);
   window.addEventListener('unhandledrejection', function (event) {
