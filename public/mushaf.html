@@ -975,6 +975,205 @@
       height: 5px;
     }
   }
+
+  /* Mushaf baskı seçimi artık iframe içinde: masaüstü ve mobil için tek kaynak. */
+  .mushaf-source-selector { flex: 0 0 auto; }
+  .mushaf-surah-picker, .mushaf-bookmark-controls { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .mushaf-page-label, .mobile-appearance-label { display: none; }
+
+  /* Dar ekranda kontroller, rastgele satır atlamak yerine anlamlı gruplar oluşturur. */
+  @media (max-width: 640px) {
+    .mushaf-navbar {
+      padding: 7px 9px 8px;
+      max-height: 340px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    .navbar-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 7px;
+      width: 100%;
+    }
+    .nav-primary, .nav-secondary {
+      width: 100%;
+      min-width: 0;
+      gap: 7px;
+    }
+    .nav-primary { display: flex; flex-direction: column; align-items: stretch; }
+    .mushaf-mode-switch {
+      width: 100%;
+      max-width: 340px;
+      align-self: center;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      border-radius: 12px;
+    }
+    .mushaf-mode-switch button {
+      justify-content: center;
+      min-width: 0;
+      min-height: 36px;
+      padding: 7px 3px;
+      font-size: 11.5px;
+      white-space: nowrap;
+    }
+    .mushaf-nav-controls {
+      display: grid !important;
+      width: 100%;
+      min-width: 0;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+    }
+    .mushaf-source-selector {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 2px;
+      min-width: 0;
+      width: 100%;
+      border-radius: 12px;
+    }
+    .mushaf-source-selector button {
+      min-width: 0;
+      min-height: 36px;
+      padding: 7px 1px;
+      justify-content: center;
+      white-space: nowrap;
+      font-size: 10.5px;
+      border-radius: 9px;
+    }
+    .mushaf-surah-picker { width: 100%; min-width: 0; }
+    .mushaf-surah-picker #mushafSurahDropdown {
+      flex: 1 1 auto;
+      width: 100%;
+      min-width: 0;
+      max-width: none !important;
+      min-height: 36px;
+    }
+    .mushaf-surah-picker .btn-chip {
+      min-width: 34px;
+      min-height: 36px;
+      justify-content: center;
+    }
+    .mushaf-nav-controls #mushafJuzDropdown {
+      min-width: 0;
+      width: 100%;
+      max-width: none !important;
+      min-height: 36px;
+    }
+    .mushaf-page-jump {
+      grid-column: 1 / -1;
+      width: 100%;
+      display: flex !important;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .mushaf-page-label {
+      display: inline;
+      margin-right: auto;
+      align-self: center;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+    .mushaf-page-jump #pageJumpInput {
+      min-height: 36px;
+      width: 66px !important;
+      max-width: 66px !important;
+      text-align: center;
+    }
+    .mushaf-page-jump .btn-chip {
+      min-height: 36px;
+      padding-inline: 14px;
+    }
+    .computer-nav-controls {
+      width: 100%;
+      min-width: 0;
+      display: grid !important;
+      grid-template-columns: minmax(0, 1.25fr) auto minmax(0, 1fr);
+      gap: 5px;
+    }
+    .computer-nav-controls select {
+      width: 100%;
+      max-width: none !important;
+      min-width: 0;
+      min-height: 36px;
+    }
+    .computer-nav-controls .btn-chip { min-height: 36px; }
+    .nav-secondary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 6px;
+      padding-top: 7px;
+      border-top: 1px solid var(--line);
+    }
+    .mushaf-toolbar {
+      grid-column: 1 / -1;
+      width: 100%;
+      min-width: 0;
+      display: grid !important;
+      grid-template-columns: auto auto auto;
+      justify-content: space-between;
+      align-items: center;
+      gap: 5px;
+    }
+    .mushaf-view-buttons button {
+      min-width: 30px;
+      min-height: 35px;
+      padding: 5px 7px;
+      justify-content: center;
+    }
+    .mushaf-zoom-controls { min-height: 35px; flex-wrap: nowrap; }
+    .mushaf-zoom-controls .btn-icon {
+      width: 30px !important;
+      height: 32px !important;
+      border: 0 !important;
+      flex: 0 0 auto;
+    }
+    .mushaf-zoom-controls #mushafZoomLabel { min-width: 33px !important; padding: 0 2px !important; }
+    .mushaf-bookmark-controls { flex-wrap: nowrap; gap: 4px; }
+    .mushaf-bookmark-controls button {
+      min-width: 34px;
+      min-height: 35px;
+      justify-content: center;
+    }
+    .computer-toolbar {
+      grid-column: 1 / -1;
+      width: 100%;
+      display: flex !important;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+    }
+    .mobile-appearance-label {
+      display: inline;
+      grid-column: 1;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+    .nav-secondary > #themeBtn, .nav-secondary > button:last-child {
+      min-width: 35px;
+      min-height: 35px;
+    }
+    .nav-secondary > #themeBtn { grid-column: 2; }
+    .nav-secondary > button:last-child { grid-column: 3; }
+  }
+  @media (max-width: 350px) {
+    .mushaf-toolbar {
+      grid-template-columns: auto auto;
+    }
+    .mushaf-bookmark-controls {
+      grid-column: 1 / -1;
+      justify-content: flex-end;
+    }
+    .mushaf-source-selector button { font-size: 9.5px; }
+  }
 </style>
 </head>
 <body class="mode-computer">
@@ -984,8 +1183,8 @@
   <div class="navbar-inner">
     
     <!-- Sol Bölüm: Mod Seçimi ve Açılır Menüler -->
-    <div class="nav-group">
-      <div class="segmented-control">
+    <div class="nav-group nav-primary">
+      <div class="segmented-control mushaf-mode-switch">
         <button id="btnAppModeComputer" class="active" onclick="setAppMode('computer')">
           <i class="fa-solid fa-font"></i>
           <span>Bilgisayar Hatlı</span>
@@ -997,7 +1196,7 @@
       </div>
 
       <!-- Bilgisayar Hatlı Açılır Menü -->
-      <div class="computer-only flex items-center gap-1">
+      <div class="computer-only flex items-center gap-1 computer-nav-controls">
         <select id="compSurahSelect" class="pill-select" style="max-width:180px;" title="Sure Seçin"></select>
         <button class="btn-chip" onclick="toggleSurahFihristModal()" title="114 Surenin Tam Listesi">
           <i class="fa-solid fa-list-ul"></i>
@@ -1007,20 +1206,23 @@
       </div>
 
       <!-- Gerçek Mushaf Açılır Menüler -->
-      <div class="mushaf-only flex items-center gap-1">
-        <div class="segmented-control hidden" id="mushafSourceSelector" style="display:none !important;" title="Mushaf Seçimi">
+      <div class="mushaf-only flex items-center gap-1 mushaf-nav-controls">
+        <div class="segmented-control mushaf-source-selector" id="mushafSourceSelector" role="group" aria-label="Mushaf baskısı seçimi" title="Mushaf Seçimi">
           <button id="btnMushafSrcDefault" class="active" onclick="setMushafSource('default')">Varsayılan</button>
           <button id="btnMushafSrc1" onclick="setMushafSource('mushaf-1')">Mushaf-1</button>
           <button id="btnMushafSrc2" onclick="setMushafSource('mushaf-2')">Mushaf-2</button>
           <button id="btnMushafSrc3" onclick="setMushafSource('mushaf-3')">Mushaf-3</button>
         </div>
-        <select id="mushafSurahDropdown" class="pill-select" style="max-width:160px;" onchange="onMushafSurahChange(this.value)" title="Sure Seçin"></select>
-        <button class="btn-chip" onclick="toggleSurahFihristModal()" title="114 Surenin ve 30 Cüzün Tam Fihristi">
-          <i class="fa-solid fa-list-ul"></i>
-          <span class="hide-mobile">Fihrist</span>
-        </button>
-        <select id="mushafJuzDropdown" class="pill-select" style="max-width:115px;" onchange="onMushafJuzChange(this.value)" title="Cüz Seçin"></select>
-        <div class="flex items-center gap-1">
+        <div class="mushaf-surah-picker">
+          <select id="mushafSurahDropdown" class="pill-select" style="max-width:160px;" onchange="onMushafSurahChange(this.value)" title="Sure Seçin" aria-label="Sure seçin"></select>
+          <button class="btn-chip" onclick="toggleSurahFihristModal()" title="114 Surenin ve 30 Cüzün Tam Fihristi" aria-label="Sure ve cüz fihristi">
+            <i class="fa-solid fa-list-ul"></i>
+            <span class="hide-mobile">Fihrist</span>
+          </button>
+        </div>
+        <select id="mushafJuzDropdown" class="pill-select" style="max-width:115px;" onchange="onMushafJuzChange(this.value)" title="Cüz Seçin" aria-label="Cüz seçin"></select>
+        <div class="flex items-center gap-1 mushaf-page-jump">
+          <label for="pageJumpInput" class="mushaf-page-label">Sayfa</label>
           <input type="number" id="pageJumpInput" class="pill-select" style="width:58px; text-align:center;" min="1" max="604" value="1" onkeydown="if(event.key==='Enter') jumpToPageInput()">
           <button class="btn-chip" onclick="jumpToPageInput()">Git</button>
         </div>
@@ -1028,9 +1230,9 @@
     </div>
 
     <!-- Sağ Bölüm: Araçlar -->
-    <div class="nav-group">
+    <div class="nav-group nav-secondary">
       <!-- Bilgisayar Hatlı Araçları -->
-      <div class="computer-only flex items-center gap-1">
+      <div class="computer-only flex items-center gap-1 computer-toolbar">
         <div class="segmented-control">
           <button id="btnCompSingle" class="active" onclick="setCompView('single')" title="Tek Sûre"><i class="fa-solid fa-file-lines"></i></button>
           <button id="btnCompScroll" onclick="setCompView('scroll')" title="Kesintisiz Kaydırma"><i class="fa-solid fa-arrows-up-down"></i></button>
@@ -1045,14 +1247,14 @@
       </div>
 
       <!-- Gerçek Mushaf Araçları -->
-      <div class="mushaf-only flex items-center gap-1">
-        <div class="segmented-control">
+      <div class="mushaf-only flex items-center gap-1 mushaf-toolbar">
+        <div class="segmented-control mushaf-view-buttons">
           <button id="btnViewSingle" class="active" onclick="setMushafView('single')" title="Tek Sayfa"><i class="fa-solid fa-file"></i></button>
           <button id="btnViewDouble" onclick="setMushafView('double')" title="Çift Sayfa"><i class="fa-solid fa-book-open"></i></button>
           <button id="btnViewScroll" onclick="setMushafView('scroll')" title="Kaydırma"><i class="fa-solid fa-arrows-up-down"></i></button>
         </div>
         <!-- Sayfa Büyütme / Küçültme (Sadece Sayfa Görseli) -->
-        <div class="flex items-center gap-0.5" style="border:1px solid var(--line); border-radius:8px; padding:2px; background:var(--card);" title="Sayfa Boyutu (Büyüt / Küçült)">
+        <div class="flex items-center gap-0.5 mushaf-zoom-controls" style="border:1px solid var(--line); border-radius:8px; padding:2px; background:var(--card);" title="Sayfa Boyutu (Büyüt / Küçült)">
           <button class="btn-icon" style="width:28px; height:28px; border:none; background:transparent;" onclick="changeMushafZoom(-0.1)" title="Sayfayı Küçült">
             <i class="fa-solid fa-magnifying-glass-minus" style="font-size:12px;"></i>
           </button>
@@ -1061,14 +1263,17 @@
             <i class="fa-solid fa-magnifying-glass-plus" style="font-size:12px;"></i>
           </button>
         </div>
-        <button class="btn-chip" onclick="toggleBookmarkModal()" title="Kayıtlı Sayfalarım">
-          <i class="fa-solid fa-bookmark"></i>
-          <span class="hide-mobile">Yer İmleri</span>
-        </button>
-        <button class="btn-icon btn-bookmark-toggle" onclick="toggleCurrentBookmark()" title="Yer İmlerine Ekle/Kaldır" style="font-size: 16px; font-weight: bold;">+</button>
+        <div class="mushaf-bookmark-controls">
+          <button class="btn-chip" onclick="toggleBookmarkModal()" title="Kayıtlı Sayfalarım" aria-label="Kayıtlı sayfalarım">
+            <i class="fa-solid fa-bookmark"></i>
+            <span class="hide-mobile">Yer İmleri</span>
+          </button>
+          <button class="btn-icon btn-bookmark-toggle" onclick="toggleCurrentBookmark()" title="Yer İmlerine Ekle/Kaldır" aria-label="Sayfayı yer imlerine ekle veya kaldır" style="font-size: 16px; font-weight: bold;">+</button>
+        </div>
       </div>
 
       <!-- Genel Araçlar -->
+      <span class="mobile-appearance-label">Ekran görünümü</span>
       <button class="btn-icon" id="themeBtn" onclick="cycleTheme()" title="Karanlık/Aydınlık Tema"><i class="fa-solid fa-moon"></i></button>
       <button class="btn-icon" onclick="toggleFocusMode()" title="Odak Modu">⛶</button>
     </div>
