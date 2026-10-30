@@ -100,7 +100,8 @@ function useSynchronizedWordTracking(
   cleanedAyahText: string,
   isPlaying: boolean,
   currentSurahId: number,
-  currentAyahIndex: number
+  currentAyahIndex: number,
+  audioEpoch: number
 ) {
   const [isWordTrackingEnabled, setIsWordTrackingEnabled] = useState<boolean>(() => {
     try {
@@ -236,7 +237,7 @@ function useSynchronizedWordTracking(
       }
       if (timer) clearInterval(timer);
     };
-  }, [audioRef, isWordTrackingEnabled, isPlaying, wordTimeline]);
+  }, [audioRef, audioEpoch, isWordTrackingEnabled, isPlaying, wordTimeline]);
 
   return {
     isWordTrackingEnabled,
@@ -270,7 +271,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Durumlar
   const [currentSurahId, setCurrentSurahId] = useState<number>(targetSurahId || initialBookmark.surahId || 1);
-  const [currentAyahIndex, setCurrentAyahIndex] = useState<number>(initialBookmark.ayahIndex || 0);
+  const [currentAyahIndex, setCurrentAyahIndex] = useState<number>(targetSurahId && targetSurahId !== initialBookmark.surahId ? 0 : (initialBookmark.ayahIndex || 0));
   const [selectedReciter, setSelectedReciter] = useState<string>(() => {
     try {
       const savedReciter = localStorage.getItem('quran_listening_reciter_mahir_default');
@@ -319,7 +320,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Uyku Zamanlayıcısı (Sleep Timer)
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
+  const [customSleepMinutes, setCustomSleepMinutes] = useState<number>(45);
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioEpoch, setAudioEpoch] = useState(0);
 
   // Referanslar
   const audioRef = useRef<HTMLAudioElement>(new Audio());
@@ -327,6 +331,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const preloadAfterNextAudioRef = useRef<HTMLAudioElement>(new Audio());
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
+  const volumeRef = useRef<number>(volume);
+  const mutedRef = useRef<boolean>(isMuted);
+  volumeRef.current = volume;
+  mutedRef.current = isMuted;
+  const playRequestRef = useRef(0);
 
   const currentSurahIdRef = useRef<number>(currentSurahId);
   currentSurahIdRef.current = currentSurahId;
@@ -444,6 +453,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     setSleepSecondsLeft(null);
 
     const player = audioRef.current;
+    playRequestRef.current++;
     if (!player) {
       isSleepStoppingRef.current = false;
       return;
@@ -458,27 +468,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     setIsPlaying(false);
     isPlayingRef.current = false;
 
-    // Sesi yumuşakça (400ms) kısıp kesin olarak duraklat
-    const originalVol = isMuted ? 0 : volume;
-    let currentVol = player.volume;
-    const fadeSteps = 5;
-    const stepDiff = currentVol / fadeSteps;
-    let step = 0;
-
-    const fadeInterval = setInterval(() => {
-      step++;
-      currentVol = Math.max(0, currentVol - stepDiff);
-      player.volume = currentVol;
-
-      if (step >= fadeSteps || currentVol <= 0.02) {
-        clearInterval(fadeInterval);
-        player.pause();
-        player.volume = originalVol;
-        isSleepStoppingRef.current = false;
-        persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, stopTime);
-      }
-    }, 80);
-  }, [isMuted, volume, persistBookmark]);
+    // Kullanıcının seçtiği dakika dolduğu anda sesi durdur, tekrar başlamasını engelle.
+    player.pause();
+    player.volume = mutedRef.current ? 0 : volumeRef.current;
+    isSleepStoppingRef.current = false;
+  }, [persistBookmark]);
 
   // Ayeti Çal (Merkezi Çalma Fonksiyonu)
   const playAyahAt = useCallback((idx: number, startTime = 0, ayahList?: Ayah[]) => {
@@ -499,15 +493,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     // Eğer son ayet bittiyse bir sonraki sureye geç (Örn: Fatiha 7. ayet -> Bakara 1. ayet)
     // 114. sure (Nâs) bitince başa (1. Fatiha) dönüp kesintisiz devam eder
     if (idx >= list.length) {
-      setCurrentSurahId((prevId) => {
-        const nextId = prevId < 114 ? prevId + 1 : 1;
-        currentSurahIdRef.current = nextId;
-        shouldAutoPlayNextSurahRef.current = true;
-        setCurrentAyahIndex(0);
-        currentAyahIndexRef.current = 0;
-        persistBookmark(nextId, 0, 0);
-        return nextId;
-      });
+      const nextId = currentSurahIdRef.current < 114 ? currentSurahIdRef.current + 1 : 1;
+      ++playRequestRef.current;
+      currentSurahIdRef.current = nextId;
+      currentAyahIndexRef.current = 0;
+      shouldAutoPlayNextSurahRef.current = true;
+      setCurrentAyahIndex(0);
+      persistBookmark(nextId, 0, 0);
+      setCurrentSurahId(nextId);
       return;
     }
 
@@ -520,6 +513,26 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       console.warn(`Ayet ${idx + 1} ses kaynağı bulunamadı.`);
       stopPlayback(true);
       return;
+    }
+
+    // Ön yüklemesi tamamlanan ses öğesini yeniden src yüklemesi yapmadan kullan.
+    const previousPlayer = audioRef.current;
+    const ready = [preloadNextAudioRef.current, preloadAfterNextAudioRef.current].find(
+      (candidate) => candidate.src === ayah.audio && candidate.readyState >= 2
+    );
+    const player = ready || previousPlayer;
+    if (ready && ready !== previousPlayer) {
+      previousPlayer.pause();
+      previousPlayer.ontimeupdate = null;
+      previousPlayer.onended = null;
+      previousPlayer.onloadedmetadata = null;
+      previousPlayer.onerror = null;
+      audioRef.current = ready;
+      if (ready === preloadNextAudioRef.current) preloadNextAudioRef.current = previousPlayer;
+      else preloadAfterNextAudioRef.current = previousPlayer;
+      setAudioEpoch((n) => n + 1);
+    } else if (player.src !== ayah.audio) {
+      player.src = ayah.audio;
     }
 
     // Kesintisiz (Gapless) geçiş için sıradaki 1. ve 2. ayetin ses dosyalarını arka planda önceden belleğe yükle (Preload)
@@ -550,17 +563,17 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         .catch(() => {});
     }
 
-    const player = audioRef.current;
+    const requestId = ++playRequestRef.current;
+    setAudioError(null);
     player.preload = 'auto';
-    player.src = ayah.audio;
-    player.volume = isMuted ? 0 : volume;
+    player.volume = mutedRef.current ? 0 : volumeRef.current;
     player.playbackRate = playbackSpeedRef.current;
 
     let lastSavedSecond = -1;
     let hasAdvancedToNext = false;
 
     const advanceToNextAyah = () => {
-      if (hasAdvancedToNext || isSleepStoppingRef.current) return;
+      if (hasAdvancedToNext || requestId !== playRequestRef.current || isSleepStoppingRef.current || !isPlayingRef.current) return;
       if (sleepTargetEndTimeRef.current && Date.now() >= sleepTargetEndTimeRef.current) {
         triggerSleepStop();
         return;
@@ -570,6 +583,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     };
 
     player.ontimeupdate = () => {
+      if (requestId !== playRequestRef.current) return;
       // Uyku Zamanlayıcısı Kontrolü (Arka planda ve ekran kilitliyken dahi ses frame'inde tetiklenir)
       if (sleepTargetEndTimeRef.current && Date.now() >= sleepTargetEndTimeRef.current) {
         triggerSleepStop();
@@ -593,17 +607,28 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       }
     };
 
-    player.onloadedmetadata = () => {
+    const startPlayer = () => {
+      if (requestId !== playRequestRef.current || isSleepStoppingRef.current) return;
+      if (sleepTargetEndTimeRef.current && Date.now() >= sleepTargetEndTimeRef.current) {
+        triggerSleepStop();
+        return;
+      }
       player.playbackRate = playbackSpeedRef.current;
       if (startTime > 0 && (!player.duration || startTime < player.duration)) {
-        player.currentTime = startTime;
+        try { player.currentTime = startTime; } catch {}
+      } else if (startTime === 0 && player.currentTime > 0) {
+        try { player.currentTime = 0; } catch {}
       }
       player.play().catch((err) => {
-        console.warn('Otomatik oynatma engellendi:', err);
+        if (requestId !== playRequestRef.current) return;
+        console.warn('Ses oynatma hatası:', err);
+        setAudioError('Ses çalınamadı. Tekrar oynatmayı deneyin.');
         setIsPlaying(false);
         isPlayingRef.current = false;
       });
     };
+    player.onloadedmetadata = startPlayer;
+    if (player.readyState >= 1) startPlayer();
 
     player.onended = () => {
       advanceToNextAyah();
@@ -611,12 +636,15 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     player.onerror = (e) => {
       console.warn(`Ayet ${idx + 1} ses yüklenemedi:`, e);
-      stopPlayback(true);
+      player.pause();
+      setAudioError('Ses kaynağı yüklenemedi. Yeniden oynatmayı deneyin.');
+      setIsPlaying(false);
+      isPlayingRef.current = false;
     };
 
     setIsPlaying(true);
     isPlayingRef.current = true;
-  }, [isMuted, volume, persistBookmark, triggerSleepStop]);
+  }, [persistBookmark, triggerSleepStop]);
 
   // Sure Verisini Yükle
   useEffect(() => {
@@ -633,14 +661,20 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           // Eğer önceki surenin bitişiyle otomatik geçiş tetiklendiyse yeni surenin ilk ayetini HEMEN başlat!
           if (shouldAutoPlayNextSurahRef.current) {
             shouldAutoPlayNextSurahRef.current = false;
-            playAyahAt(0, 0, res.ayahs);
+            playAyahAt(currentAyahIndexRef.current, savedCurrentTimeRef.current || 0, res.ayahs);
           } else if (isPlayingRef.current) {
             // Hafız değiştirildiğinde veya yükleme sırasında Oynat'a basıldığında kaldığı saniyeden devam et
             playAyahAt(currentAyahIndexRef.current, savedCurrentTimeRef.current || 0, res.ayahs);
           }
         }
       } catch (err) {
-        console.error('Dinleme modu veri hatası:', err);
+        if (!isCancelled) {
+          console.error('Dinleme modu veri hatası:', err);
+          shouldAutoPlayNextSurahRef.current = false;
+          setAudioError('Sure verisi alınamadı. İnternet bağlantısını kontrol edip başka bir sure seçerek yeniden deneyin.');
+          setIsPlaying(false);
+          isPlayingRef.current = false;
+        }
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -742,26 +776,18 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         audioRef.current && audioRef.current.currentTime > 0
           ? audioRef.current.currentTime
           : savedCurrentTimeRef.current || 0;
+      ++playRequestRef.current;
       audioRef.current.pause();
       setIsPlaying(false);
       isPlayingRef.current = false;
       persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, pausedTime);
     } else {
       const curAyah = ayahs[currentAyahIndex];
-      if (
-        audioRef.current.src &&
-        curAyah?.audio &&
-        audioRef.current.src === curAyah.audio &&
-        audioRef.current.currentTime > 0
-      ) {
-        audioRef.current.play().catch((err) => console.warn('Oynatma hatası:', err));
-        setIsPlaying(true);
-        isPlayingRef.current = true;
-      } else {
-        // Sayfa yeni açıldığında veya süre bitip durduğunda doğrudan kaldığı ayet ve saniyeden devam et
-        const resumeTime = savedCurrentTimeRef.current > 0 ? savedCurrentTimeRef.current : 0;
-        playAyahAt(currentAyahIndex, resumeTime);
-      }
+      // Duraklatmanın geçersiz kıldığı eski handler yerine güncel handler kurulmalı.
+      const resumeTime = audioRef.current.currentTime > 0
+        ? audioRef.current.currentTime
+        : (savedCurrentTimeRef.current > 0 ? savedCurrentTimeRef.current : 0);
+      playAyahAt(currentAyahIndex, resumeTime);
     }
   };
 
@@ -769,6 +795,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     if (preserveBookmarkTime && audioRef.current && audioRef.current.currentTime > 0) {
       persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, audioRef.current.currentTime);
     }
+    ++playRequestRef.current;
     setIsPlaying(false);
     isPlayingRef.current = false;
     shouldAutoPlayNextSurahRef.current = false;
@@ -796,6 +823,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Uyku Zamanlayıcısı Ayarla (Kesin Duvar Saati Bazlı)
   const handleSetTimer = (minutes: number) => {
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 720) return;
     const targetTime = Date.now() + minutes * 60 * 1000;
     sleepTargetEndTimeRef.current = targetTime;
     isSleepStoppingRef.current = false;
@@ -820,6 +848,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     if (b) {
       savedCurrentTimeRef.current = b.currentTime || 0;
       if (b.surahId !== currentSurahId) {
+        currentAyahIndexRef.current = b.ayahIndex;
+        setCurrentAyahIndex(b.ayahIndex);
         shouldAutoPlayNextSurahRef.current = true;
         currentSurahIdRef.current = b.surahId;
         setCurrentSurahId(b.surahId);
@@ -871,7 +901,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     cleanedCurrentAyahText,
     isPlaying,
     currentSurahId,
-    currentAyahIndex
+    currentAyahIndex,
+    audioEpoch
   );
 
   // Zaman Formatı
@@ -1116,6 +1147,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 {showTranslation ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 <span>{showTranslation ? 'Meali Gizle' : 'Meali Göster'}</span>
               </button>
+            </div>
+          )}
+
+          {audioError && !isFocusMode && (
+            <div role="alert" className="mb-3 rounded-lg border border-amber-500/40 bg-amber-950/70 px-3 py-2 text-sm text-amber-200">
+              {audioError}
             </div>
           )}
 
@@ -1508,6 +1545,23 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                           {mins}d
                         </button>
                       ))}
+                      <label className="sr-only" htmlFor="customSleepMinutes">Özel uyku süresi (dakika)</label>
+                      <input
+                        id="customSleepMinutes"
+                        type="number"
+                        min="1"
+                        max="720"
+                        value={customSleepMinutes}
+                        onChange={(e) => setCustomSleepMinutes(Number(e.target.value))}
+                        className="w-12 sm:w-14 rounded-md bg-slate-900 border border-white/30 px-1 py-0.5 text-[11px] text-white text-center"
+                        title="Özel süre (1-720 dakika)"
+                      />
+                      <button
+                        onClick={() => handleSetTimer(customSleepMinutes)}
+                        disabled={!Number.isInteger(customSleepMinutes) || customSleepMinutes < 1 || customSleepMinutes > 720}
+                        className="px-1.5 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 rounded-md text-[11px] text-white"
+                        title="Girilen dakika sonunda durdur"
+                      >Kur</button>
                     </div>
                   )}
                 </div>
