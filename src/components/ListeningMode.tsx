@@ -324,6 +324,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [surahFetchAttempt, setSurahFetchAttempt] = useState(0);
   const [audioEpoch, setAudioEpoch] = useState(0);
 
   // Referanslar
@@ -752,7 +753,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
             setIsRecovering(true);
             // API tekrar denemesi; sonraki sureye geçiş niyeti korunur.
             setTimeout(() => {
-              if (!isCancelled && isPlayingRef.current) setCurrentSurahId((id) => id);
+              if (!isCancelled && isPlayingRef.current) setSurahFetchAttempt((n) => n + 1);
             }, 5000);
           }
         }
@@ -764,7 +765,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return () => {
       isCancelled = true;
     };
-  }, [currentSurahId, selectedReciter, playAyahAt]);
+  }, [currentSurahId, selectedReciter, surahFetchAttempt, playAyahAt]);
 
   // Sayfa Kapatıldığında, Gizlendiğinde veya Sekme Değiştirildiğinde Kaldığı Yeri Anında Kaydet
   useEffect(() => {
