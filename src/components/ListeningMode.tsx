@@ -723,6 +723,36 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     isPlayingRef.current = true;
   }, [persistBookmark, triggerSleepStop, cancelReconnect, scheduleReconnect]);
 
+  // Mobil arka planda ve masaüstünde takılı kalan medya akışını takip et.
+  useEffect(() => {
+    const checkPlayback = () => {
+      if (!isPlayingRef.current || isSleepStoppingRef.current) return;
+      if (sleepTargetEndTimeRef.current !== null && Date.now() >= sleepTargetEndTimeRef.current) {
+        triggerSleepStop();
+        return;
+      }
+      const player = audioRef.current;
+      if (!player || !player.src || reconnectTimerRef.current !== null) return;
+      const pos = player.currentTime || 0;
+      if (pos > lastAudioProgressRef.current.seconds + 0.06) {
+        lastAudioProgressRef.current = { at: Date.now(), seconds: pos };
+      } else if (Date.now() - lastAudioProgressRef.current.at > 12000) {
+        // Bilerek duraklatılmışsa oynatma niyeti false olacağından buraya girmez.
+        // Donan ses kaynağı aynı ayet/saniyeden tekrar yüklenir.
+        scheduleReconnect(playRequestRef.current);
+      }
+    };
+    const watchdog = setInterval(checkPlayback, 3000);
+    const onWake = () => checkPlayback();
+    window.addEventListener('pageshow', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      clearInterval(watchdog);
+      window.removeEventListener('pageshow', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
+  }, [scheduleReconnect, triggerSleepStop]);
+
   // Sure Verisini Yükle
   useEffect(() => {
     let isCancelled = false;
