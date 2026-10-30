@@ -459,6 +459,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     const player = audioRef.current;
     playRequestRef.current++;
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    retryAttemptsRef.current = 0;
+    setIsRecovering(false);
     if (!player) {
       isSleepStoppingRef.current = false;
       return;
@@ -605,6 +611,16 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
 
     const requestId = ++playRequestRef.current;
+    reconnectPlaybackRef.current = () => {
+      if (!isPlayingRef.current || requestId !== playRequestRef.current) return;
+      const position = Number.isFinite(player.currentTime) && player.currentTime > 0
+        ? player.currentTime : savedCurrentTimeRef.current;
+      // Yükleme başarısız olsa bile aynı ayette kaldığı yerden yeniden dene.
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+      playAyahAt(idx, Math.max(0, position || 0), list);
+    };
     lastAudioProgressRef.current = { at: Date.now(), seconds: Math.max(0, startTime) };
     setAudioError(null);
     player.preload = 'auto';
@@ -731,9 +747,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         if (!isCancelled) {
           console.error('Dinleme modu veri hatası:', err);
           shouldAutoPlayNextSurahRef.current = false;
-          setAudioError('Sure verisi alınamadı. İnternet bağlantısını kontrol edip başka bir sure seçerek yeniden deneyin.');
-          setIsPlaying(false);
-          isPlayingRef.current = false;
+          setAudioError('Sure verisi alınamadı. Bağlantı geri geldiğinde yeniden denenecek.');
+          if (isPlayingRef.current) {
+            setIsRecovering(true);
+            // API tekrar denemesi; sonraki sureye geçiş niyeti korunur.
+            setTimeout(() => {
+              if (!isCancelled && isPlayingRef.current) setCurrentSurahId((id) => id);
+            }, 5000);
+          }
         }
       } finally {
         if (!isCancelled) setLoading(false);
@@ -766,6 +787,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       }
     };
 
+    const onOnline = () => {
+      if (isPlayingRef.current && reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+        reconnectPlaybackRef.current();
+      }
+    };
+    window.addEventListener('online', onOnline);
     window.addEventListener('beforeunload', saveCurrentProgress);
     window.addEventListener('pagehide', saveCurrentProgress);
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -778,6 +807,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     return () => {
       saveCurrentProgress();
+      window.removeEventListener('online', onOnline);
       window.removeEventListener('beforeunload', saveCurrentProgress);
       window.removeEventListener('pagehide', saveCurrentProgress);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -837,6 +867,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           ? audioRef.current.currentTime
           : savedCurrentTimeRef.current || 0;
       ++playRequestRef.current;
+      cancelReconnect();
       audioRef.current.pause();
       setIsPlaying(false);
       isPlayingRef.current = false;
@@ -856,6 +887,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, audioRef.current.currentTime);
     }
     ++playRequestRef.current;
+    cancelReconnect();
     setIsPlaying(false);
     isPlayingRef.current = false;
     shouldAutoPlayNextSurahRef.current = false;
