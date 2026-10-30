@@ -363,7 +363,6 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
 
   // Sadece Zırh Duası İçin Özel Ses Oynatıcı Durumu
   const zirhAudioRef = useRef<HTMLAudioElement | null>(null);
-  const zirhFileInputRef = useRef<HTMLInputElement | null>(null);
   const [zirhIsPlaying, setZirhIsPlaying] = useState<boolean>(false);
   const [zirhIsPaused, setZirhIsPaused] = useState<boolean>(false);
   const [zirhCurrentTime, setZirhCurrentTime] = useState<number>(0);
@@ -409,43 +408,6 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       // ignore
     }
   }, []);
-
-  const handleZirhFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size === 0 || file.size > 30 * 1024 * 1024 ||
-        (file.type && !['audio/mpeg', 'audio/mp3'].includes(file.type))) {
-      setZirhAudioError('Geçerli ve 30 MB altında bir MP3 dosyası seçin.');
-      return;
-    }
-    handleZirhStop();
-    const objUrl = URL.createObjectURL(file);
-    if (zirhObjectUrlRef.current) URL.revokeObjectURL(zirhObjectUrlRef.current);
-    zirhObjectUrlRef.current = objUrl;
-    setZirhCustomAudioUrl(objUrl);
-    setZirhCustomFileName(file.name);
-    setZirhUseCustomAudio(true);
-    setZirhAudioError(null);
-
-    if (typeof window !== 'undefined' && 'indexedDB' in window) {
-      try {
-        const req = window.indexedDB.open('hayat_rehberi_zirh_audio_db', 1);
-        req.onupgradeneeded = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains('audioFiles')) {
-            db.createObjectStore('audioFiles');
-          }
-        };
-        req.onsuccess = () => {
-          const db = req.result;
-          const tx = db.transaction('audioFiles', 'readwrite');
-          tx.objectStore('audioFiles').put({ blob: file, name: file.name }, 'zirh_duasi_blob');
-        };
-      } catch {
-        // ignore
-      }
-    }
-  };
 
   const handleZirhPlayPause = (defaultAudioUrl?: string) => {
     if (zirhIsPlaying) {
@@ -2214,19 +2176,6 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                                   ))}
                                 </div>
 
-                                <input
-                                  ref={zirhFileInputRef}
-                                  type="file"
-                                  accept=".mp3,audio/mpeg"
-                                  onChange={handleZirhFileUpload}
-                                  className="hidden"
-                                  aria-label="Kendi Zırh Duası MP3 dosyanızı seçin"
-                                />
-                                <button type="button"
-                                  onClick={() => zirhFileInputRef.current?.click()}
-                                  className="min-h-[44px] px-3 rounded-xl border border-emerald-500/40 text-xs font-semibold">
-                                  Özel MP3 Seç
-                                </button>
                                 {zirhCustomAudioUrl && (
                                   <button type="button"
                                     onClick={() => {
