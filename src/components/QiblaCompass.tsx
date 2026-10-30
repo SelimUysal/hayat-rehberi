@@ -84,6 +84,7 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
   const [showManualSlider, setShowManualSlider] = useState<boolean>(false);
   const [manualHeadingVal, setManualHeadingVal] = useState<number>(0);
   const [sensorWarning, setSensorWarning] = useState<string | null>(null);
+  const sensorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isLocatingGps, setIsLocatingGps] = useState<boolean>(false);
   const [gpsStatusMsg, setGpsStatusMsg] = useState<string | null>(null);
@@ -226,7 +227,8 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
         hasReceivedAnySensorRef.current = true;
         const screenAngle = getScreenOrientationAngle();
         const heading = computeTiltCompensatedHeading(e.alpha, e.beta, e.gamma, screenAngle);
-        updateSmoothedHeading(heading, null, 'standard');
+        // Bağıl orientation açısı manyetik kuzeyi garanti etmez; yanlış kıble göstermeyelim.
+        setSensorWarning('Tarayıcı yalnızca bağıl yön sensörü gönderiyor. Gerçek kuzeye göre güvenilir kıble ölçümü için mutlak pusula sensörü gereklidir.');
       }
     },
     [updateSmoothedHeading, checkPhoneTilt]
@@ -294,6 +296,8 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
 
     if (!hasOrientationEvent && !hasGenericSensor) {
       setIsSupported(false);
+      setSensorWarning('Bu tarayıcı canlı pusula verisi sağlamıyor. Kıble açısını kullanabilir veya pusula destekleyen başka bir tarayıcı deneyebilirsiniz.');
+      setShowManualSlider(true);
       return;
     }
 
@@ -305,9 +309,16 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
     if (!hasRequestPermission) {
       setPermissionState('granted');
       attachSensorListeners();
+      sensorTimeoutRef.current = setTimeout(() => {
+        if (!hasReceivedAnySensorRef.current) {
+          setSensorWarning('Telefon sensöründen yön verisi alınamıyor. Tarayıcı izinlerini kontrol edin veya manuel açı görünümünü kullanın.');
+          setShowManualSlider(true);
+        }
+      }, 4500);
     }
 
     return () => {
+      if (sensorTimeoutRef.current) clearTimeout(sensorTimeoutRef.current);
       window.removeEventListener('deviceorientationabsolute', handleAbsoluteOrientation, true);
       window.removeEventListener('deviceorientation', handleStandardOrientation, true);
       if (absSensorInstanceRef.current?.stop) {
@@ -358,7 +369,7 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
         attachSensorListeners();
       }
 
-      // 2.5 saniye içinde telefondan hiçbir sensör verisi gelmezse kullanıcıyı bilgilendir ve manuel aracı aç
+      // Sensör yanıt vermezse kullanıcıyı bilgilendir ve manuel aracı aç
       setTimeout(() => {
         if (!hasReceivedAnySensorRef.current) {
           setSensorWarning(
@@ -366,7 +377,7 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
           );
           setShowManualSlider(true);
         }
-      }, 2500);
+      }, 4500);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setPermissionError(
@@ -450,7 +461,7 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
   const angleDiff = isSensorActive
     ? Math.min(Math.abs(remainingClockwise), Math.abs(360 - remainingClockwise))
     : null;
-  const isAligned = angleDiff !== null && angleDiff <= 5;
+  const isAligned = sensorSource !== 'manual' && angleDiff !== null && angleDiff <= 5;
 
   // Kıbleye tam hizalanınca mobilde hafif titreşim (Haptic Feedback) ver
   useEffect(() => {
@@ -829,7 +840,7 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
 
           {/* ŞAŞMAZ KIBLE SAATİ KARTI */}
           <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4.5">
-            <div className="flex items-center justify-between text-amber-950 font-extrabold text-sm mb-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-amber-950 font-extrabold text-sm mb-1">
               <span className="flex items-center gap-2">
                 <CompassIcon className="w-4 h-4 text-amber-700" />
                 <span>Güneş ile Şaşmaz Kıble Saati</span>
@@ -842,7 +853,7 @@ export const QiblaCompass: React.FC<QiblaCompassProps> = ({
               Pusula veya telefon kalibrasyonuna gerek kalmaksızın; saat tam{' '}
               <strong className="text-amber-950 font-black font-mono">{todayData.times.kibleSaati}</strong> olduğunda
               yüzünü doğrudan güneşe dönen kimse, tam olarak Kâbe istikametine dönmüş olur. Bu, İslam fıkhında ve
-              astronomide en kesin kıble tayin yöntemidir.
+              güneşin gerçekten göründüğü ve belirtilen saat bulunduğunuz konum için geçerli olduğu koşullarda yardımcı bir kıble tayin yöntemidir.
             </p>
           </div>
 
