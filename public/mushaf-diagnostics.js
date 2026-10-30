@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var KEY = 'mushaf_diagnostics_v1';
-  var READER_BUILD = 'mushaf-20261030-r2';
+  var READER_BUILD = 'mushaf-20261030-r3';
   var LIMIT = 80;
   var RETAIN_MS = 7 * 86400000;
   var storeFallback = [];

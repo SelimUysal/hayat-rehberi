@@ -14,6 +14,31 @@ test('Mushaf HTML reader and diagnostics JS are syntactically valid', () => {
   new vm.Script(diagnostics, { filename: 'mushaf-diagnostics.js' });
 });
 
+test('default Mushaf image paths are bundled and complete for all 604 pages', () => {
+  const match = script?.[1].match(/function getMushafPageUrlList\(p, source\)\{[\s\S]*?\n  \}/);
+  assert.ok(match, 'Image URL selection should be present in reader');
+  const getUrls = vm.runInNewContext(match[0] + '\ngetMushafPageUrlList;', {
+    mSource: 'default',
+    memoryBlobUrls: { 'mushaf-1': {}, 'mushaf-2': {}, 'mushaf-3': {} },
+    detectedLocalPatternIdx: { 'mushaf-1': 0, 'mushaf-2': 0, 'mushaf-3': 0 },
+    isLocalMushafSource: (src: string) => ['mushaf-1', 'mushaf-2', 'mushaf-3'].includes(src),
+  }) as (p: number, src: string) => string[];
+  for (const page of [1, 2, 30, 301, 604]) {
+    assert.deepEqual(Array.from(getUrls(page, 'default')), [`./mushaflar/mushaf-1/${page}.jpg`]);
+  }
+  for (const source of ['mushaf-1', 'mushaf-2', 'mushaf-3']) {
+    for (let page = 1; page <= 604; page++) {
+      assert.ok(fs.existsSync(`public/mushaflar/${source}/${page}.jpg`), `${source} page ${page} missing`);
+    }
+  }
+});
+
+test('mobile IndexedDB stall cannot block bundled image loading indefinitely', () => {
+  assert.ok(script?.[1].includes('var idbWaitTimer = setTimeout(function()'));
+  assert.ok(script?.[1].includes('bundledLoadStarted = true;'));
+  assert.ok(script?.[1].includes('startUrlListLoad();'));
+});
+
 test('Mushaf mode initialization cannot call the removed page validator', () => {
   // Regression: a previous cleanup removed this function but left one call
   // in setAppMode, causing READER_RUNTIME_ERROR/ReferenceError on every open.

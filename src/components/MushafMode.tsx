@@ -33,7 +33,7 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
   const iframeUrl = React.useMemo(() => {
     const params = new URLSearchParams();
     // GitHub Pages / mobile browser cache bust; does not touch user settings.
-    params.set('readerVersion', 'mushaf-20261030-r2');
+    params.set('readerVersion', 'mushaf-20261030-r3');
     if (targetSurah) params.set('surah', String(targetSurah));
     if (targetPage) params.set('page', String(targetPage));
     if (targetMode) params.set('mode', targetMode);

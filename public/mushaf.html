@@ -1534,8 +1534,8 @@
 </div>
 
 <!-- DATA VE LOGIC -->
-<script src="./mushaf-diagnostics.js?v=mushaf-20261030-r2"></script>
-<script src="./quran-data.js?v=mushaf-20261030-r2"></script>
+<script src="./mushaf-diagnostics.js?v=mushaf-20261030-r3"></script>
+<script src="./quran-data.js?v=mushaf-20261030-r3"></script>
 <script>
 (function(){
   "use strict";
@@ -2744,12 +2744,10 @@
       return rawPatterns;
     }
 
-    return [
-      "https://cdn.jsdelivr.net/gh/quran/quran.com-images@main/images/page" + pad3 + ".png",
-      "https://raw.githubusercontent.com/quran/quran.com-images/main/images/page" + pad3 + ".png",
-      "https://android.quran.com/data/width_1024/page" + pad3 + ".png",
-      "https://everyayah.com/data/quranpngs/" + p + ".png"
-    ];
+    // "Varsayılan" daha önce dış CDN adreslerine bağlıydı. Mobilde ilk
+    // açılışta görüntü gelmemesinin nedeni bu başarısız/engellenen isteklerdi.
+    // Depoda 1..604 sayfalarının tamamı bulunduğundan yerel baskıyı kullan.
+    return ["./mushaflar/mushaf-1/" + p + ".jpg"];
   }
 
   function getCdnPageUrl(p, attempt){
@@ -2876,13 +2874,39 @@
         loader.classList.add("opacity-0");
         return;
       }
+      // IndexedDB bazı mobil tarayıcılarda gecikebilir veya bloklanabilir.
+      // Kullanıcının özel kaydını öncelikli tut; ancak belirli süre cevap
+      // gelmezse depoda hazır JPG'yi göster. Veritabanındaki kayıt silinmez.
+      var idbFinished = false;
+      var bundledLoadStarted = false;
+      var idbWaitTimer = setTimeout(function(){
+        if (idbFinished || holder.getAttribute("data-load-token") !== currentToken) return;
+        bundledLoadStarted = true;
+        window.MushafDiagnostics.log("IMAGE_IDB_FAILED", "warning", {
+          page: pageNum, source: activeSrc, stage: "timeout"
+        });
+        startUrlListLoad();
+      }, 900);
       getPageFromIDB(activeSrc, pageNum).then(function(idbUrl){
+        idbFinished = true;
+        clearTimeout(idbWaitTimer);
         if (holder.getAttribute("data-load-token") !== currentToken) return;
         if (idbUrl) {
+          // Geç gelen gerçek kullanıcı kaydı, hazır JPG'ye göre önceliklidir.
+          // Başlatılmış JPG isteğinin daha sonra görseli değiştirmesini engelle.
+          if (bundledLoadStarted) holder.setAttribute("data-load-token", String(++loadTokenCounter));
           img.src = idbUrl;
           loader.classList.add("opacity-0");
           return;
         }
+        if (!bundledLoadStarted) startUrlListLoad();
+      }).catch(function(error){
+        idbFinished = true;
+        clearTimeout(idbWaitTimer);
+        if (holder.getAttribute("data-load-token") !== currentToken || bundledLoadStarted) return;
+        window.MushafDiagnostics.log("IMAGE_IDB_FAILED", "warning", {
+          page: pageNum, source: activeSrc, name: window.MushafDiagnostics.safeName(error)
+        });
         startUrlListLoad();
       });
       return;
