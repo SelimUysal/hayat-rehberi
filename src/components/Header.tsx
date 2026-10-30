@@ -1,6 +1,7 @@
 import React from 'react';
 import { Coordinates, CalculatedDay } from '../types/prayer';
-import { Compass, Calendar as CalendarIcon, Clock, MapPin, Target, Globe, Landmark } from 'lucide-react';
+import { Compass, Calendar as CalendarIcon, Clock, MapPin, Target, Globe, Landmark, Link2, Check } from 'lucide-react';
+import { makeTakvimHash } from '../utils/takvimDeepLinks';
 import {
   SpecialGoalItem,
   loadSpecialGoalsFromStorage,
@@ -32,6 +33,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenOsmanli
 }) => {
   const [internalNow, setInternalNow] = React.useState<Date>(() => systemNow || new Date());
+  const [copiedTabLink, setCopiedTabLink] = React.useState(false);
+  const copyTabLink = async () => {
+    const link = `${window.location.origin}${window.location.pathname}${makeTakvimHash(activeTab)}`;
+    try { await navigator.clipboard.writeText(link); setCopiedTabLink(true); window.setTimeout(() => setCopiedTabLink(false), 1800); }
+    catch { window.prompt('Bağlantıyı kopyalayın:', link); }
+  };
   const now = systemNow || internalNow;
 
   const liveTime = React.useMemo(() => {
@@ -204,7 +211,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Navigasyon Sekmeleri (Mobil ve Masaüstü Uyumlu Yatay Kaydırılabilir Bar) */}
-        <nav className="flex items-center gap-1 sm:gap-2 py-1.5 border-t border-slate-100 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 min-w-0 border-t border-slate-100">
+        <nav className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2 py-1.5 overflow-x-auto scrollbar-none">
           <button
             id="tab-daily"
             onClick={() => onTabChange('daily')}
@@ -308,6 +316,11 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
         </nav>
+        <button type="button" onClick={copyTabLink} aria-label="Açık takvim bölümünün bağlantısını kopyala" title="Bu bölümün bağlantısını kopyala" className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
+          {copiedTabLink ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+          <span className="hidden sm:inline">{copiedTabLink ? 'Kopyalandı' : 'Bağlantı'}</span>
+        </button>
+        </div>
       </div>
     </header>
   );
