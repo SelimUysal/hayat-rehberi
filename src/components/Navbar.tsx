@@ -510,6 +510,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
+                    onClick={onToggleDarkMode}
+                    aria-label={isDarkMode ? 'Aydınlık moda geç' : 'Karanlık moda geç'}
+                    aria-pressed={isDarkMode}
+                    title={isDarkMode ? 'Aydınlık moda geç' : 'Karanlık moda geç'}
+                    className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                      isDarkMode
+                        ? 'bg-white/5 hover:bg-white/10 border-white/10 text-amber-300'
+                        : 'bg-white hover:bg-stone-100 border-stone-200 text-emerald-800'
+                    }`}
+                  >
+                    {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  </button>
+                  <button
                     onClick={() => setHubOpen(false)}
                     className={`p-2 rounded-xl border transition-colors cursor-pointer ${
                       isDarkMode
