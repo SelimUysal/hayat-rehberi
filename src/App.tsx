@@ -436,7 +436,7 @@ export function App() {
         )}
         {activeTab === 'namaz' && <NamazMode targetId={namazTargetId} targetTimestamp={namazTimestamp} />}
         {activeTab === 'kaza' && <KazaMode targetAction={kazaTargetAction} targetTimestamp={kazaTimestamp} />}
-        {activeTab === 'mushaf' && <MushafMode targetSurah={mushafTarget?.surahId} targetPage={mushafTarget?.page} targetMode={mushafTarget?.mode} timestamp={mushafTarget?.timestamp} />}
+        {activeTab === 'mushaf' && <MushafMode targetSurah={mushafTarget?.surahId} targetPage={mushafTarget?.page} targetMode={mushafTarget?.mode} timestamp={mushafTarget?.timestamp} isDark={isDark} />}
         {activeTab === 'ezber' && <EzberAsistani targetSurahId={ezberTargetSurahId} />}
         {activeTab === 'takvim' && (
           <PrayerApp

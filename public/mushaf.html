@@ -654,6 +654,8 @@
   /* Hatim Rozeti */
   .hatim-badge-mini {
     display: flex;
+    cursor: pointer;
+    font-family: inherit;
     align-items: center;
     gap: 6px;
     background: var(--card);
@@ -664,6 +666,8 @@
     font-weight: 700;
     color: var(--emerald);
   }
+  .hatim-badge-mini.active { outline: 2px solid var(--emerald); outline-offset: 1px; }
+  .hatim-badge-mini:disabled { opacity: .82; cursor: default; }
   .hatim-mini-bar {
     width: 45px;
     height: 7px;
@@ -718,6 +722,8 @@
     color: var(--emerald);
   }
   .modal-close-btn {
+    min-width: 42px;
+    min-height: 42px;
     background: transparent;
     border: none;
     font-size: 18px;
@@ -827,6 +833,14 @@
     display: flex;
   }
 
+  button:focus-visible, input:focus-visible, select:focus-visible,
+  [role="button"]:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  @media (pointer: coarse) {
+    .btn-icon, .btn-chip, .nav-btn-mini, .modal-close-btn { min-width: 42px; min-height: 42px; }
+    .mushaf-source-selector button, .mushaf-mode-switch button,
+    .mushaf-view-buttons button { min-height: 42px !important; }
+    .nav-float { min-width: 42px; min-height: 50px; }
+  }
   /* ================== MOBİL TELEFON UYUMLULUĞU ================== */
   @media (max-width: 640px) {
     .hide-mobile { display: none !important; }
@@ -926,7 +940,7 @@
       font-size: 10.5px;
     }
     .ayah-arabic {
-      font-size: 21px !important;
+      font-size: var(--ar-size-mobile, 24px) !important;
       line-height: 2.2 !important;
     }
     .ayah-turkish {
@@ -1361,22 +1375,22 @@
 
   <!-- Sağ: Hatim İlerlemesi -->
   <div class="bottom-bar-right">
-    <div class="hatim-badge-mini" title="Hatim İlerlemeniz">
-      <span>HATİM</span>
+    <button type="button" id="readProgressBtn" class="hatim-badge-mini" onclick="toggleCurrentPageRead()" title="Okunan sayfayı işaretle" aria-label="Okunan sayfayı işaretle">
+      <span>OKUNAN</span>
       <div class="hatim-mini-bar">
         <div class="hatim-mini-fill" id="hatimMiniFill"></div>
       </div>
       <span id="hatimMiniText">%0</span>
-    </div>
+    </button>
   </div>
 </footer>
 
 <!-- SURE VE CÜZ FİHRİSTİ MODALI -->
-<div id="surahFihristModal" class="modal-overlay opacity-0 pointer-events-none">
+<div id="surahFihristModal" class="modal-overlay opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="fihristDialogTitle" tabindex="-1">
   <div class="modal-card">
     <div class="modal-head">
-      <span><i class="fa-solid fa-book-quran"></i> Kur'ân-ı Kerîm Fihristi</span>
-      <button class="modal-close-btn" onclick="toggleSurahFihristModal()">✕</button>
+      <span id="fihristDialogTitle"><i class="fa-solid fa-book-quran"></i> Kur'ân-ı Kerîm Fihristi</span>
+      <button class="modal-close-btn" onclick="toggleSurahFihristModal()" aria-label="Fihristi kapat">✕</button>
     </div>
     
     <!-- Fihrist Sekmeleri (114 Sûre & 30 Cüz) -->
@@ -1409,11 +1423,11 @@
 </div>
 
 <!-- YER İMLERİ MODALI -->
-<div id="bookmarkModal" class="modal-overlay opacity-0 pointer-events-none">
+<div id="bookmarkModal" class="modal-overlay opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="bookmarkDialogTitle" tabindex="-1">
   <div class="modal-card" style="max-width: 480px;">
     <div class="modal-head">
-      <span><i class="fa-solid fa-bookmark" style="color:var(--gold);"></i> Kayıtlı Yer İmlerim & Notlar</span>
-      <button class="modal-close-btn" onclick="toggleBookmarkModal()">✕</button>
+      <span id="bookmarkDialogTitle"><i class="fa-solid fa-bookmark" style="color:var(--gold);"></i> Kayıtlı Yer İmlerim & Notlar</span>
+      <button class="modal-close-btn" onclick="toggleBookmarkModal()" aria-label="Yer imlerini kapat">✕</button>
     </div>
 
     <!-- Yeni Yer İmi ve Açıklama Ekleme Formu -->
@@ -1454,16 +1468,16 @@
 </div>
 
 <!-- MUSHAF KLASÖR YÜKLEME VE KAYIT MODALI -->
-<div id="mushafUploadModal" class="modal-overlay opacity-0 pointer-events-none">
+<div id="mushafUploadModal" class="modal-overlay opacity-0 pointer-events-none" role="dialog" aria-modal="true" aria-labelledby="uploadDialogTitle" tabindex="-1">
   <div class="modal-card" style="max-width: 580px;">
     <div class="modal-head">
-      <span><i class="fa-solid fa-folder-tree" style="color:var(--gold);"></i> Mushaf-1, Mushaf-2 & Mushaf-3 JPG Klasörlerini Kaydet</span>
-      <button class="modal-close-btn" onclick="toggleMushafUploadModal()">✕</button>
+      <span id="uploadDialogTitle"><i class="fa-solid fa-folder-tree" style="color:var(--gold);"></i> Mushafları Bu Tarayıcıya Aktar</span>
+      <button class="modal-close-btn" onclick="toggleMushafUploadModal()" aria-label="Klasör aktarımını kapat">✕</button>
     </div>
 
     <div style="font-size:12px; line-height:1.55; color:var(--ink-soft); background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:12px;">
       <strong style="color:var(--ink); display:block; margin-bottom:3px;">💡 Önemli Bilgi:</strong>
-      Sol taraftaki kod dosya ağacı çok sayıda ikili (binary) <code>.jpg</code> resmini yüklerken bazı sayfaları 0 KB boş dosya olarak bırakabilir. Bilgisayarınızdaki <strong>mushaflar</strong> (veya <strong>mushaf-1</strong> / <strong>mushaf-2</strong> / <strong>mushaf-3</strong>) klasörünü aşağıdaki butonlardan seçerek veya bu pencereye sürükleyerek gerçek görselleriyle anında kaydedebilirsiniz.
+      Mushaf sayfaları uygulamaya önceden eklenmiştir. Bu araç kendi JPG/PNG/WebP dosyalarınızı <strong>yalnızca bu tarayıcıya</strong> aktarmak içindir. Dosyalar GitHub’a veya sunucuya gönderilmez. Tarayıcı verilerini silerseniz yerel kayıtlar da silinebilir.
     </div>
 
     <!-- Mevcut Durum Kartları -->
@@ -1752,7 +1766,7 @@
   /* ================== MOD GEÇİŞİ ================== */
   window.setAppMode = function(mode, isInit){
     if (!isInit && settings.appMode === mode) return;
-
+    var previousMode = settings.appMode;
     settings.appMode = mode;
     saveSettings();
     document.body.classList.toggle("mode-computer", mode === "computer");
@@ -1798,7 +1812,10 @@
       if (bScroll) bScroll.classList.toggle("active", mView === "scroll");
 
       var sMeta = SURAHS.find(function(s){ return s.id === settings.currentSurah; }) || SURAHS[0];
-      if (sMeta && !isInit) {
+      // Aynı sûreye dönüşte okunan sayfayı koru.
+      // Bilgisayar modunda başka sûre seçildiyse yeni sûrenin başına git.
+      if (!isInit && previousMode === "computer" && sMeta &&
+          getSurahFromPage(mPage).id !== sMeta.id) {
         mPage = sMeta.page;
         settings.currentPage = mPage;
       }
@@ -1835,9 +1852,11 @@
   window.changeFontSize = function(delta){
     settings.fontSize = Math.min(Math.max(18, (settings.fontSize || 28) + delta), 44);
     document.documentElement.style.setProperty("--ar-size", settings.fontSize + "px");
+    document.documentElement.style.setProperty("--ar-size-mobile", Math.max(18, Math.min(40, Math.round(settings.fontSize * 0.86))) + "px");
     saveSettings();
   };
   document.documentElement.style.setProperty("--ar-size", (settings.fontSize || 28) + "px");
+  document.documentElement.style.setProperty("--ar-size-mobile", Math.max(18, Math.min(40, Math.round((settings.fontSize || 28) * 0.86))) + "px");
 
   window.toggleMealDisplay = function(){
     settings.meal = !settings.meal;
@@ -2230,6 +2249,53 @@
     document.getElementById("mainScrollContainer").scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // Yalnızca kullanıcı tarafından okunmuş olarak işaretlenen sayfalar sayılır.
+  var READ_PAGES_KEY = "kuran_mushaf_read_pages_v1";
+  var savedReadPages = readJSON(READ_PAGES_KEY, []);
+  var readPages = Array.isArray(savedReadPages)
+    ? Array.from(new Set(savedReadPages.map(Number).filter(function(p){
+        return Number.isInteger(p) && p >= 1 && p <= 604;
+      })))
+    : [];
+
+  function visibleReadPages(){
+    if (mView !== "double") return [mPage];
+    if (mPage === 1) return [1, 2];
+    var first = mPage % 2 === 0 ? mPage : mPage - 1;
+    return first < 604 ? [first, first + 1] : [first];
+  }
+
+  function updateReadProgress(){
+    var pct = Math.round(readPages.length / 604 * 100);
+    var fill = document.getElementById("hatimMiniFill");
+    var text = document.getElementById("hatimMiniText");
+    var btn = document.getElementById("readProgressBtn");
+    if (fill) fill.style.width = pct + "%";
+    if (text) text.innerText = "%" + pct;
+    if (!btn) return;
+    var enabled = settings.appMode === "mushaf";
+    var pages = visibleReadPages();
+    var marked = pages.every(function(p){ return readPages.indexOf(p) !== -1; });
+    btn.disabled = !enabled;
+    btn.classList.toggle("active", enabled && marked);
+    btn.setAttribute("aria-pressed", String(enabled && marked));
+    btn.setAttribute("aria-label", enabled
+      ? (marked ? "Bu sayfanın okundu işaretini kaldır" : "Bu sayfayı okudum olarak işaretle")
+      : "Okunan sayfalar: " + readPages.length + " / 604. İşaretlemek için Gerçek Mushaf modunu açın.");
+    btn.title = readPages.length + " / 604 sayfa okundu olarak işaretlendi." +
+      (enabled ? " Tıklayarak mevcut sayfayı işaretleyin veya işareti kaldırın." : "");
+  }
+
+  window.toggleCurrentPageRead = function(){
+    if (settings.appMode !== "mushaf") return;
+    var pages = visibleReadPages();
+    var marked = pages.every(function(p){ return readPages.indexOf(p) !== -1; });
+    if (marked) readPages = readPages.filter(function(p){ return pages.indexOf(p) === -1; });
+    else pages.forEach(function(p){ if (readPages.indexOf(p) === -1) readPages.push(p); });
+    writeJSON(READ_PAGES_KEY, readPages);
+    updateReadProgress();
+  };
+
   function updateBottomBarForComputer(){
     var meta = SURAHS.find(function(s){ return s.id === settings.currentSurah; }) || SURAHS[0];
     var slider = document.getElementById("globalPageSlider");
@@ -2237,11 +2303,7 @@
       slider.min = 1;
       slider.max = 604;
       slider.value = meta.page;
-      var pct = Math.min(100, Math.round((meta.page / 604) * 100));
-      var fill = document.getElementById("hatimMiniFill");
-      var text = document.getElementById("hatimMiniText");
-      if (fill) fill.style.width = pct + "%";
-      if (text) text.innerText = "%" + pct;
+      updateReadProgress();
       var title = document.getElementById("bottomBarTitle");
       if (title) {
         var juz = getJuzFromPage(meta.page);
@@ -2263,8 +2325,6 @@
   var detectedLocalPatternIdx = { "mushaf-1": 0, "mushaf-2": 0, "mushaf-3": 0 };
   var memoryBlobUrls = { "mushaf-1": {}, "mushaf-2": {}, "mushaf-3": {} };
   var localPageCounts = { "mushaf-1": 0, "mushaf-2": 0, "mushaf-3": 0 };
-  var serverPageCounts = { "mushaf-1": 0, "mushaf-2": 0, "mushaf-3": 0 };
-  var serverAvailablePages = { "mushaf-1": [], "mushaf-2": [], "mushaf-3": [] };
 
   var MUSHAF_SOURCE_LABELS = {
     "default": "Varsayılan Mushaf",
@@ -2310,7 +2370,7 @@
           var req = store.get(source + ":" + pageNum);
           req.onsuccess = function(){
             if (req.result && req.result.blob) {
-              var objUrl = URL.createObjectURL(req.result.blob);
+              var objUrl = memoryBlobUrls[source][pageNum] || URL.createObjectURL(req.result.blob);
               memoryBlobUrls[source][pageNum] = objUrl;
               resolve(objUrl);
             } else {
@@ -2327,184 +2387,43 @@
 
   function savePagesBatchToIDB(entries){
     return openMushafIDB().then(function(db){
-      if (!db || !entries || !entries.length) return;
+      if (!db || !entries || !entries.length) return {success:false,reason:"Yerel depolama kullanılamıyor."};
       return new Promise(function(resolve){
         try {
-          var tx = db.transaction("pages", "readwrite");
+          var tx = db.transaction("pages","readwrite");
           var store = tx.objectStore("pages");
-          for (var i = 0; i < entries.length; i++) {
-            var item = entries[i];
-            store.put({
-              key: item.source + ":" + item.page,
-              source: item.source,
-              page: item.page,
-              blob: item.file
-            });
-          }
-          tx.oncomplete = function(){ resolve(); };
-          tx.onerror = function(){ resolve(); };
-        } catch(e){
-          resolve();
-        }
+          entries.forEach(function(item){
+            store.put({key:item.source + ":" + item.page,source:item.source,page:item.page,blob:item.file});
+          });
+          tx.oncomplete = function(){ resolve({success:true,count:entries.length}); };
+          tx.onerror = function(){ resolve({success:false,reason:"Tarayıcı depolama hatası."}); };
+          tx.onabort = function(){ resolve({success:false,reason:"Depolama sınırı aşıldı veya işlem iptal edildi."}); };
+        } catch(e){ resolve({success:false,reason:"Dosyalar kaydedilemedi."}); }
       });
     });
   }
 
-  var isAutoSyncingToServer = false;
-
-  function autoSyncIDBToServer(){
-    if (isAutoSyncingToServer) return;
-    openMushafIDB().then(function(db){
-      if (!db) return;
-      try {
-        var tx = db.transaction("pages", "readonly");
-        var store = tx.objectStore("pages");
-        var req = store.getAllKeys();
-        req.onsuccess = function(){
-          var keys = req.result || [];
-          var missingKeys = [];
-          for (var i = 0; i < keys.length; i++) {
-            var k = String(keys[i]);
-            var parts = k.split(":");
-            if (parts.length === 2) {
-              var src = parts[0];
-              var pNum = parseInt(parts[1], 10);
-              var srvPages = serverAvailablePages[src] || [];
-              if (isLocalMushafSource(src) && !isNaN(pNum) && srvPages.indexOf(pNum) === -1) {
-                missingKeys.push(k);
-              }
-            }
-          }
-          if (!missingKeys.length) return;
-          isAutoSyncingToServer = true;
-          var idx = 0;
-          function syncNextBatch(){
-            if (idx >= missingKeys.length) {
-              isAutoSyncingToServer = false;
-              fetch("/api/mushaf/status")
-                .then(function(r){ return r.ok ? r.json() : null; })
-                .then(function(data){
-                  if (data) {
-                    ["mushaf-1", "mushaf-2", "mushaf-3"].forEach(function(s){
-                      if (data[s]) {
-                        serverPageCounts[s] = data[s].count || 0;
-                        serverAvailablePages[s] = data[s].pages || [];
-                      }
-                    });
-                    updateMushafStatusBadges();
-                  }
-                }).catch(function(){});
-              return;
-            }
-            var batchKeys = missingKeys.slice(idx, idx + 4);
-            idx += 4;
-            Promise.all(batchKeys.map(function(keyStr){
-              return new Promise(function(resolve){
-                try {
-                  var rTx = db.transaction("pages", "readonly");
-                  var rReq = rTx.objectStore("pages").get(keyStr);
-                  rReq.onsuccess = function(){
-                    var rec = rReq.result;
-                    if (rec && rec.blob) {
-                      fileToBase64(rec.blob).then(function(b64){
-                        resolve(b64 ? { source: rec.source, page: rec.page, base64: b64 } : null);
-                      });
-                    } else {
-                      resolve(null);
-                    }
-                  };
-                  rReq.onerror = function(){ resolve(null); };
-                } catch(e){ resolve(null); }
-              });
-            })).then(function(items){
-              var valid = items.filter(Boolean);
-              if (!valid.length) {
-                syncNextBatch();
-                return;
-              }
-              fetch("/api/mushaf/upload-batch", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ files: valid })
-              }).then(function(r){ return r.ok ? r.json() : null; })
-                .then(function(resp){
-                  if (resp && resp.status) {
-                    ["mushaf-1", "mushaf-2", "mushaf-3"].forEach(function(s){
-                      if (resp.status[s]) {
-                        serverPageCounts[s] = resp.status[s].count || 0;
-                        serverAvailablePages[s] = resp.status[s].pages || [];
-                      }
-                    });
-                    updateMushafStatusBadges();
-                  }
-                  syncNextBatch();
-                }).catch(function(){ syncNextBatch(); });
-            });
-          }
-          syncNextBatch();
-        };
-      } catch(e){}
-    });
-  }
-
   function refreshMushafCounts(){
-    fetch("/api/mushaf/status")
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(data){
-        if (data) {
-          if (data["mushaf-1"]) {
-            serverPageCounts["mushaf-1"] = data["mushaf-1"].count || 0;
-            serverAvailablePages["mushaf-1"] = data["mushaf-1"].pages || [];
-          }
-          if (data["mushaf-2"]) {
-            serverPageCounts["mushaf-2"] = data["mushaf-2"].count || 0;
-            serverAvailablePages["mushaf-2"] = data["mushaf-2"].pages || [];
-          }
-          if (data["mushaf-3"]) {
-            serverPageCounts["mushaf-3"] = data["mushaf-3"].count || 0;
-            serverAvailablePages["mushaf-3"] = data["mushaf-3"].pages || [];
-          }
-        }
-        updateMushafStatusBadges();
-        if (settings.appMode === "mushaf" && isLocalMushafSource(mSource)) {
-          var prevP = mPage;
-          ensureValidLocalPageForSource(mSource);
-          if (mPage !== prevP) {
-            renderMushafPage();
-          }
-        }
-        autoSyncIDBToServer();
-      })
-      .catch(function(){ updateMushafStatusBadges(); });
-
     openMushafIDB().then(function(db){
-      if (!db) return;
+      if (!db) { updateMushafStatusBadges(); return; }
       try {
-        var tx = db.transaction("pages", "readonly");
-        var store = tx.objectStore("pages");
-        var req = store.getAllKeys();
+        var req = db.transaction("pages","readonly").objectStore("pages").getAllKeys();
         req.onsuccess = function(){
           var keys = req.result || [];
-          var c1 = 0, c2 = 0, c3 = 0;
-          for (var i = 0; i < keys.length; i++) {
-            var k = String(keys[i]);
-            if (k.indexOf("mushaf-1:") === 0) c1++;
-            else if (k.indexOf("mushaf-2:") === 0) c2++;
-            else if (k.indexOf("mushaf-3:") === 0) c3++;
-          }
-          localPageCounts["mushaf-1"] = c1;
-          localPageCounts["mushaf-2"] = c2;
-          localPageCounts["mushaf-3"] = c3;
+          ["mushaf-1","mushaf-2","mushaf-3"].forEach(function(source){
+            localPageCounts[source] = keys.filter(function(key){ return String(key).indexOf(source + ":") === 0; }).length;
+          });
           updateMushafStatusBadges();
         };
-      } catch(e){}
+        req.onerror = updateMushafStatusBadges;
+      } catch(e){ updateMushafStatusBadges(); }
     });
   }
 
   function updateMushafStatusBadges(){
-    var c1 = Math.max(serverPageCounts["mushaf-1"] || 0, localPageCounts["mushaf-1"] || 0, Object.keys(memoryBlobUrls["mushaf-1"]).length);
-    var c2 = Math.max(serverPageCounts["mushaf-2"] || 0, localPageCounts["mushaf-2"] || 0, Object.keys(memoryBlobUrls["mushaf-2"]).length);
-    var c3 = Math.max(serverPageCounts["mushaf-3"] || 0, localPageCounts["mushaf-3"] || 0, Object.keys(memoryBlobUrls["mushaf-3"]).length);
+    var c1 = Math.max(localPageCounts["mushaf-1"] || 0, Object.keys(memoryBlobUrls["mushaf-1"]).length);
+    var c2 = Math.max(localPageCounts["mushaf-2"] || 0, Object.keys(memoryBlobUrls["mushaf-2"]).length);
+    var c3 = Math.max(localPageCounts["mushaf-3"] || 0, Object.keys(memoryBlobUrls["mushaf-3"]).length);
     var b1 = document.getElementById("mushaf1CountBadge");
     var b2 = document.getElementById("mushaf2CountBadge");
     var b3 = document.getElementById("mushaf3CountBadge");
@@ -2522,15 +2441,27 @@
     }
   }
 
+  var lastDialogTrigger = null;
+  function openAccessibleDialog(m){
+    lastDialogTrigger = document.activeElement;
+    m.classList.remove("opacity-0", "pointer-events-none");
+    m.focus();
+  }
+  function closeAccessibleDialog(m){
+    m.classList.add("opacity-0", "pointer-events-none");
+    if (lastDialogTrigger && typeof lastDialogTrigger.focus === "function") lastDialogTrigger.focus();
+    lastDialogTrigger = null;
+  }
+
   window.toggleMushafUploadModal = function(){
     var m = document.getElementById("mushafUploadModal");
     if (!m) return;
     var isOpen = !m.classList.contains("opacity-0");
     if (isOpen) {
-      m.classList.add("opacity-0", "pointer-events-none");
+      closeAccessibleDialog(m);
     } else {
       refreshMushafCounts();
-      m.classList.remove("opacity-0", "pointer-events-none");
+      openAccessibleDialog(m);
     }
   };
 
@@ -2606,6 +2537,7 @@
 
       // Anında hafızada ObjectURL oluştur (0 ms bekleme ile anında açılır)
       var blobUrl = URL.createObjectURL(f);
+      if (memoryBlobUrls[src][pageNum]) URL.revokeObjectURL(memoryBlobUrls[src][pageNum]);
       memoryBlobUrls[src][pageNum] = blobUrl;
 
       validEntries.push({
@@ -2640,59 +2572,22 @@
     var statusTxt = document.getElementById("mushafUploadStatusText");
     var pctTxt = document.getElementById("mushafUploadPctText");
     if (progWrap) progWrap.classList.remove("hidden");
+    if (statusTxt) statusTxt.innerText = "Bu tarayıcıya kaydediliyor...";
+    if (pctTxt) pctTxt.innerText = "%0";
+    if (progBar) progBar.style.width = "0%";
 
-    // 1. Tarayıcı IndexedDB'ye kaydet
-    savePagesBatchToIDB(validEntries).then(function(){
+    // GitHub Pages statiktir: yükleme yalnızca IndexedDB'ye yapılır.
+    savePagesBatchToIDB(validEntries).then(function(result){
+      var ok = Boolean(result && result.success);
+      if (progBar) progBar.style.width = ok ? "100%" : "0%";
+      if (pctTxt) pctTxt.innerText = ok ? "%100" : "Kaydedilemedi";
+      if (statusTxt) statusTxt.innerText = ok
+        ? "✓ " + validEntries.length + " sayfa yalnızca bu tarayıcıya kaydedildi."
+        : "⚠ Kalıcı kayıt başarısız. Görseller yalnızca bu sekme açıkken kullanılabilir. " + ((result && result.reason) || "");
       refreshMushafCounts();
-    });
-
-    // 2. Sunucuya (/public/mushaflar/...) küçük paketler halinde (3'erli) yükle
-    var total = validEntries.length;
-    var completed = 0;
-    var batchSize = 3;
-    var batches = [];
-    for (var b = 0; b < total; b += batchSize) {
-      batches.push(validEntries.slice(b, b + batchSize));
-    }
-
-    var batchIdx = 0;
-    function uploadNextWorker(){
-      if (batchIdx >= batches.length) return Promise.resolve();
-      var currentBatch = batches[batchIdx++];
-      return Promise.all(currentBatch.map(function(item){
-        return fileToBase64(item.file).then(function(b64){
-          return b64 ? { source: item.source, page: item.page, base64: b64 } : null;
-        });
-      })).then(function(payloadFiles){
-        var filtered = payloadFiles.filter(Boolean);
-        if (!filtered.length) return uploadNextWorker();
-        return fetch("/api/mushaf/upload-batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ files: filtered })
-        }).catch(function(){}).then(function(){
-          completed += currentBatch.length;
-          var pct = Math.min(100, Math.round((completed / total) * 100));
-          if (progBar) progBar.style.width = pct + "%";
-          if (pctTxt) pctTxt.innerText = "%" + pct;
-          if (statusTxt) statusTxt.innerText = "Kaydediliyor: " + Math.min(completed, total) + " / " + total + " sayfa";
-          return uploadNextWorker();
-        });
-      });
-    }
-
-    // 3 paralel işçi ile hızlı ve güvenli yükleme
-    Promise.all([uploadNextWorker(), uploadNextWorker(), uploadNextWorker()]).then(function(){
-      if (statusTxt) statusTxt.innerText = "✓ " + total + " sayfa başarıyla kaydedildi!";
-      if (progBar) progBar.style.width = "100%";
-      if (pctTxt) pctTxt.innerText = "%100";
-      refreshMushafCounts();
-      setTimeout(function(){
-        var m = document.getElementById("mushafUploadModal");
-        if (m && !m.classList.contains("opacity-0")) {
-          m.classList.add("opacity-0", "pointer-events-none");
-        }
-      }, 1200);
+    }).catch(function(){
+      if (statusTxt) statusTxt.innerText = "⚠ Yerel kayıt başarısız.";
+      if (pctTxt) pctTxt.innerText = "Hata";
     });
   };
 
@@ -2781,24 +2676,8 @@
     } catch(e){}
   }
 
-  function ensureValidLocalPageForSource(src){
-    if (!isLocalMushafSource(src)) return;
-    if (memoryBlobUrls[src] && memoryBlobUrls[src][mPage]) return;
-    var avail = serverAvailablePages[src] || [];
-    if (avail.length > 0 && avail.indexOf(mPage) === -1 && (localPageCounts[src] || 0) === 0) {
-      var bestPage = avail[0];
-      var minDiff = Math.abs(mPage - bestPage);
-      for (var i = 1; i < avail.length; i++) {
-        var d = Math.abs(mPage - avail[i]);
-        if (d < minDiff) {
-          minDiff = d;
-          bestPage = avail[i];
-        }
-      }
-      mPage = bestPage;
-      settings.currentPage = mPage;
-    }
-  }
+  // Sayfa numaraları her baskıda mevcut; kayıt durumu konumu değiştirmez.
+  function ensureValidLocalPageForSource(src){ return; }
 
   window.setMushafSource = function(src){
     if (["default", "mushaf-1", "mushaf-2", "mushaf-3"].indexOf(src) === -1) src = "default";
@@ -2904,6 +2783,7 @@
     updateMushafSourceButtons();
 
     var surah = getSurahFromPage(mPage);
+    settings.currentSurah = surah.id;
     var juz = getJuzFromPage(mPage);
 
     var mSurahSel = document.getElementById("mushafSurahDropdown");
@@ -3025,20 +2905,12 @@
             tryLoad();
           } else {
             if (isLocalMushafSource(activeSrc)) {
-              var availList = serverAvailablePages[activeSrc] || [];
               var firstAvailBtn = "";
-              if (availList.length > 0) {
-                var firstP = availList[0];
-                firstAvailBtn =
-                  '<button class="btn-chip" style="padding:6px 12px; font-size:11.5px; border-color:var(--gold); color:var(--gold);" onclick="jumpToMushafPage(' + firstP + ')">' +
-                    '<i class="fa-solid fa-book-open"></i> <span>Yüklü Sayfayı Göster (Sayfa ' + firstP + ')</span>' +
-                  '</button>';
-              }
               loader.innerHTML =
                 '<div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px; text-align:center; max-width:310px;">' +
                   '<i class="fa-solid fa-folder-open" style="font-size:28px; color:var(--gold);"></i>' +
                   '<div style="color:var(--ink); font-size:12.5px; font-weight:700;">' + (MUSHAF_SOURCE_LABELS[activeSrc] || activeSrc) + ' • Sayfa ' + pageNum + '</div>' +
-                  '<div style="color:var(--ink-soft); font-size:11px; line-height:1.45;">Sol dosya ağacı ikili JPG klasörlerini 0 KB boş dosya olarak oluşturabildiği için klasörünüzü buradan tek tıkla seçip kalıcı olarak kaydedebilirsiniz:</div>' +
+                  '<div style="color:var(--ink-soft); font-size:11px; line-height:1.45;">Sayfa yüklenemedi. Bağlantınızı kontrol edin veya bu baskının JPG klasörünü yalnızca kendi tarayıcınıza aktarın:</div>' +
                   '<button class="btn-chip active" style="padding:7px 14px; font-size:12px;" onclick="triggerMushafFolderInput(\'' + activeSrc + '\')">' +
                     '<i class="fa-solid fa-folder-plus"></i> <span>' + activeSrc + ' Klasörünü Seç ve Kaydet</span>' +
                   '</button>' +
@@ -3114,50 +2986,38 @@
                '<span>' + jNum + '. Cüz • Sayfa ' + p + ' / 604</span>' +
              '</div>' +
              '<div class="scroll-page-img-wrap">' +
-               '<img src="' + url1 + '" data-attempt="0" loading="lazy" class="mushaf-img" alt="Sayfa ' + p + '" onerror="window.__onMushafScrollImgError(this, ' + p + ')">' +
+               '<img data-src="' + url1 + '" data-attempt="0" loading="lazy" decoding="async" class="mushaf-img" alt="Sayfa ' + p + '" onerror="window.__onMushafScrollImgError(this, ' + p + ')">' +
              '</div>' +
            '</div>';
   }
 
   function setupScrollObserver(){
-    if (scrollObserver) {
-      scrollObserver.disconnect();
+    if (scrollObserver) scrollObserver.disconnect();
+    var container = document.getElementById("mainScrollContainer");
+    var images = document.querySelectorAll(".scroll-page-card img[data-src]");
+    if (!("IntersectionObserver" in window)) {
+      images.forEach(function(img){ img.src = img.getAttribute("data-src"); img.removeAttribute("data-src"); });
+      return;
     }
-
-    if (!('IntersectionObserver' in window)) return;
-
     scrollObserver = new IntersectionObserver(function(entries){
-      if (isProgrammaticScroll) return;
       entries.forEach(function(entry){
-        if (entry.isIntersecting) {
-          var p = parseInt(entry.target.getAttribute('data-page'), 10);
-          if (p && p !== mPage) {
-            mPage = p;
-            settings.currentPage = p;
-            saveSettings();
-            updateBottomBarForMushaf();
-            updateBookmarkButtons();
-            
-            var mSurahSel = document.getElementById("mushafSurahDropdown");
-            var mJuzSel = document.getElementById("mushafJuzDropdown");
-            var pInput = document.getElementById("pageJumpInput");
-            if (mSurahSel) mSurahSel.value = getSurahFromPage(p).id;
-            if (mJuzSel) mJuzSel.value = getJuzFromPage(p);
-            if (pInput) pInput.value = p;
-          }
+        if (!entry.isIntersecting) return;
+        var img = entry.target;
+        var url = img.getAttribute("data-src");
+        if (url) {
+          img.src = url;
+          img.removeAttribute("data-src");
         }
+        scrollObserver.unobserve(img);
       });
-    }, { root: document.getElementById("mainScrollContainer"), threshold: 0.25, rootMargin: "-10% 0px -40% 0px" });
-
-    var cards = document.querySelectorAll(".scroll-page-card");
-    cards.forEach(function(card){
-      scrollObserver.observe(card);
-    });
+    }, { root:container, rootMargin:"1000px 0px 1000px 0px", threshold:0.01 });
+    images.forEach(function(img){ scrollObserver.observe(img); });
   }
 
   function updateBottomBarForMushaf(){
     var isDouble = (mView === "double");
     var surah = getSurahFromPage(mPage);
+    settings.currentSurah = surah.id;
     var juz = getJuzFromPage(mPage);
     
     if (isDouble && mPage < 604) {
@@ -3173,9 +3033,7 @@
     slider.max = 604;
     slider.value = mPage;
 
-    var pct = Math.min(100, Math.round((mPage / 604) * 100));
-    document.getElementById("hatimMiniFill").style.width = pct + "%";
-    document.getElementById("hatimMiniText").innerText = "%" + pct;
+    updateReadProgress();
   }
 
   window.mushafPrev = function(){
@@ -3222,7 +3080,7 @@
 
   window.changeMushafZoom = function(delta){
     var newZoom = Math.round((mZoom + delta) * 10) / 10;
-    if (newZoom >= 0.6 && newZoom <= 2.5) {
+    if (newZoom >= 0.6 && newZoom <= 3.0) {
       mZoom = newZoom;
       updateZoomCSS();
     }
@@ -3306,59 +3164,49 @@
 
   /* Dinamik Kaydırma İlerleme Dinleyicisi (Scroll Progress Tracker) */
   var mainScrollContainer = document.getElementById("mainScrollContainer");
+  var scrollUpdateQueued = false;
   if (mainScrollContainer) {
     mainScrollContainer.addEventListener("scroll", function(){
       if (isProgrammaticScroll) return;
       var container = this;
       if (settings.appMode === "mushaf" && mView === "scroll") {
-        var cards = container.querySelectorAll(".scroll-page-card");
-        if (!cards || cards.length === 0) return;
-        var containerTop = container.scrollTop;
-        var containerHeight = container.clientHeight;
-        var centerPos = containerTop + (containerHeight / 2);
-
-        var closestPage = mPage;
-        var minDiff = Infinity;
-
-        cards.forEach(function(card){
-          var top = card.offsetTop;
-          var height = card.offsetHeight;
-          var cardCenter = top + (height / 2);
-          var diff = Math.abs(cardCenter - centerPos);
-          if (diff < minDiff) {
-            minDiff = diff;
-            closestPage = parseInt(card.getAttribute("data-page"), 10) || 1;
+        // 604 kartın tümünü her scroll olayında taramak yerine,
+        // tek animasyon karesinde ikili arama: O(log 604).
+        if (scrollUpdateQueued) return;
+        scrollUpdateQueued = true;
+        requestAnimationFrame(function(){
+          scrollUpdateQueued = false;
+          if (isProgrammaticScroll || settings.appMode !== "mushaf" || mView !== "scroll") return;
+          var cards = document.getElementById("scrollContainer").children;
+          if (!cards.length) return;
+          var center = container.scrollTop + container.clientHeight / 2;
+          var low = 0, high = cards.length - 1;
+          while (low < high) {
+            var mid = (low + high) >> 1;
+            if (cards[mid].offsetTop + cards[mid].offsetHeight / 2 < center) low = mid + 1;
+            else high = mid;
           }
-        });
-
-        if (closestPage && closestPage !== mPage) {
-          mPage = closestPage;
-          settings.currentPage = mPage;
+          var index = low;
+          if (index > 0) {
+            var prev = cards[index - 1], current = cards[index];
+            if (Math.abs(prev.offsetTop + prev.offsetHeight / 2 - center) <
+                Math.abs(current.offsetTop + current.offsetHeight / 2 - center)) index--;
+          }
+          var page = parseInt(cards[index].getAttribute("data-page"), 10);
+          if (!page || page === mPage) return;
+          mPage = page;
+          settings.currentPage = page;
+          settings.currentSurah = getSurahFromPage(page).id;
           saveSettings();
-
-          var slider = document.getElementById("globalPageSlider");
-          if (slider) slider.value = mPage;
-
-          var pct = Math.min(100, Math.round((mPage / 604) * 100));
-          var fill = document.getElementById("hatimMiniFill");
-          var text = document.getElementById("hatimMiniText");
-          if (fill) fill.style.width = pct + "%";
-          if (text) text.innerText = "%" + pct;
-
-          var surah = getSurahFromPage(mPage);
-          var juz = getJuzFromPage(mPage);
-          var title = document.getElementById("bottomBarTitle");
-          if (title && surah) {
-            title.innerText = surah.name + ' Sûresi • ' + juz + '. Cüz • Sayfa ' + mPage + ' / 604';
-          }
-
-          var mSurahSel = document.getElementById("mushafSurahDropdown");
-          var mJuzSel = document.getElementById("mushafJuzDropdown");
-          var pInput = document.getElementById("pageJumpInput");
-          if (mSurahSel && surah) mSurahSel.value = surah.id;
-          if (mJuzSel) mJuzSel.value = juz;
-          if (pInput) pInput.value = mPage;
-        }
+          updateBottomBarForMushaf();
+          updateBookmarkButtons();
+          var surahSel = document.getElementById("mushafSurahDropdown");
+          var juzSel = document.getElementById("mushafJuzDropdown");
+          var pageInput = document.getElementById("pageJumpInput");
+          if (surahSel) surahSel.value = getSurahFromPage(page).id;
+          if (juzSel) juzSel.value = getJuzFromPage(page);
+          if (pageInput) pageInput.value = page;
+        });
       } else if (settings.appMode === "computer" && compView === "scroll") {
         var blocks = container.querySelectorAll(".comp-surah-block");
         if (!blocks || blocks.length === 0) return;
@@ -3387,11 +3235,7 @@
           var slider = document.getElementById("globalPageSlider");
           if (slider) slider.value = meta.page;
 
-          var pct = Math.min(100, Math.round((meta.page / 604) * 100));
-          var fill = document.getElementById("hatimMiniFill");
-          var text = document.getElementById("hatimMiniText");
-          if (fill) fill.style.width = pct + "%";
-          if (text) text.innerText = "%" + pct;
+          updateReadProgress();
 
           var title = document.getElementById("bottomBarTitle");
           var juz = getJuzFromPage(meta.page);
@@ -3437,9 +3281,9 @@
     var m = document.getElementById("surahFihristModal");
     var isOpen = !m.classList.contains("opacity-0");
     if (isOpen) {
-      m.classList.add("opacity-0", "pointer-events-none");
+      closeAccessibleDialog(m);
     } else {
-      m.classList.remove("opacity-0", "pointer-events-none");
+      openAccessibleDialog(m);
       document.getElementById("surahSearchInput").value = "";
       setFihristTab(fihristActiveTab || "surahs");
       setTimeout(function(){ document.getElementById("surahSearchInput").focus(); }, 100);
@@ -3483,7 +3327,7 @@
 
     surahGrid.innerHTML = filteredSurahs.map(function(s){
       var isAct = (activeSurahId === s.id);
-      return '<div class="surah-grid-card ' + (isAct ? 'active' : '') + '" onclick="selectSurahFromModal(' + s.id + ')">' +
+      return '<div class="surah-grid-card ' + (isAct ? 'active' : '') + '" role="button" tabindex="0" onclick="selectSurahFromModal(' + s.id + ')" onkeydown="if(event.keyCode===13||event.keyCode===32){event.preventDefault();selectSurahFromModal(' + s.id + ')}">' +
                '<div style="display:flex; align-items:center;">' +
                  '<div class="sg-num">' + s.id + '</div>' +
                  '<div>' +
@@ -3516,7 +3360,7 @@
 
     juzGrid.innerHTML = filteredJuzs.map(function(item){
       var isAct = (activeJuz === item.juz);
-      return '<div class="surah-grid-card ' + (isAct ? 'active' : '') + '" onclick="selectJuzFromModal(' + item.juz + ')">' +
+      return '<div class="surah-grid-card ' + (isAct ? 'active' : '') + '" role="button" tabindex="0" onclick="selectJuzFromModal(' + item.juz + ')" onkeydown="if(event.keyCode===13||event.keyCode===32){event.preventDefault();selectJuzFromModal(' + item.juz + ')}">' +
                '<div style="display:flex; align-items:center;">' +
                  '<div class="sg-num">' + item.juz + '</div>' +
                  '<div>' +
@@ -3568,9 +3412,9 @@
     var m = document.getElementById("bookmarkModal");
     var isOpen = !m.classList.contains("opacity-0");
     if (isOpen) {
-      m.classList.add("opacity-0", "pointer-events-none");
+      closeAccessibleDialog(m);
     } else {
-      m.classList.remove("opacity-0", "pointer-events-none");
+      openAccessibleDialog(m);
       
       var p = (settings.appMode === "computer") ? (SURAHS.find(function(s){ return s.id === settings.currentSurah; }) || SURAHS[0]).page : mPage;
       var s = getSurahFromPage(p);
@@ -3600,7 +3444,7 @@
     container.innerHTML = bookmarks.map(function(b, idx){
       var noteHtml = b.note ? '<div style="font-size:11.5px; color:var(--ink); font-style:italic; margin-top:4px; background:var(--gold-light); padding:3px 8px; border-radius:5px; border-left:3px solid var(--gold); display:inline-flex; align-items:center; gap:5px; max-width:100%; word-break:break-word;"><i class="fa-regular fa-comment-dots" style="color:var(--gold); font-size:11px;"></i><span>' + escapeHtml(b.note) + '</span></div>' : '';
       return '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:10px 12px; background:var(--paper); border:1px solid var(--line); border-radius:10px; transition:all .15s ease;">' +
-               '<div style="cursor:pointer; flex:1; min-width:0;" onclick="jumpToBookmark(' + b.page + ')">' +
+               '<div style="cursor:pointer; flex:1; min-width:0;" role="button" tabindex="0" onclick="jumpToBookmark(' + b.page + ')" onkeydown="if(event.keyCode===13||event.keyCode===32){event.preventDefault();jumpToBookmark(' + b.page + ')}">' +
                  '<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
                    '<span style="font-weight:700; font-size:13px; color:var(--emerald);">' + b.title + '</span>' +
                    '<span style="font-size:10.5px; color:var(--ink-soft); opacity:.8;">• ' + b.date + '</span>' +
@@ -3651,7 +3495,7 @@
     var m = document.getElementById("bookmarkModal");
     if (m && !m.classList.contains("opacity-0")) {
       setTimeout(function(){
-        m.classList.add("opacity-0", "pointer-events-none");
+        closeAccessibleDialog(m);
       }, 350);
     }
   };
@@ -3679,7 +3523,7 @@
   window.jumpToBookmark = function(p){
     var m = document.getElementById("bookmarkModal");
     if (m && !m.classList.contains("opacity-0")) {
-      m.classList.add("opacity-0", "pointer-events-none");
+      closeAccessibleDialog(m);
     }
     
     mPage = p;
@@ -3756,9 +3600,33 @@
     renderQuickBookmarks();
   };
 
+  // Esc kapatır; Tab odağı açık modal içinde kalır.
+  window.addEventListener("keydown", function(e){
+    var active = ["surahFihristModal","bookmarkModal","mushafUploadModal"]
+      .map(function(id){ return document.getElementById(id); })
+      .find(function(el){ return el && !el.classList.contains("opacity-0"); });
+    if (e.key === "Escape") {
+      if (active) { e.preventDefault(); closeAccessibleDialog(active); }
+      else if (settings.focus) { e.preventDefault(); toggleFocusMode(); }
+      return;
+    }
+    if (!active || e.key !== "Tab") return;
+    var focusable = Array.from(active.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]'))
+      .filter(function(el){ return el.getClientRects().length > 0; });
+    if (!focusable.length) { e.preventDefault(); active.focus(); return; }
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === active)) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && (document.activeElement === last || document.activeElement === active)) {
+      e.preventDefault(); first.focus();
+    }
+  }, true);
+
   /* Klavye Kısayolları */
   window.addEventListener("keydown", function(e){
-    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (document.querySelector(".modal-overlay:not(.opacity-0)")) return;
+    if (["INPUT","SELECT","TEXTAREA"].indexOf(e.target.tagName) !== -1) return;
     if (e.key === "ArrowLeft") {
       stepForward();
     } else if (e.key === "ArrowRight") {
@@ -3833,6 +3701,7 @@
 
   /* PostMessage İle Dışarıdan Yönlendirme Dinleyicisi */
   window.addEventListener("message", function(e){
+    if (e.origin !== window.location.origin || (window.parent !== window && e.source !== window.parent)) return;
     if (!e.data) return;
     if (e.data.type === "GOTO_SURAH") {
       var sId = parseInt(e.data.surahId, 10);
@@ -3846,7 +3715,7 @@
         settings.currentPage = mPage;
       }
       saveSettings();
-      setAppMode(settings.appMode || "computer");
+      setAppMode(settings.appMode || "computer", true);
     } else if (e.data.type === "GOTO_PAGE") {
       var p = parseInt(e.data.page, 10);
       if (e.data.mode === "computer" || e.data.mode === "mushaf") {
@@ -3859,7 +3728,7 @@
         if (s) settings.currentSurah = s.id;
       }
       saveSettings();
-      setAppMode(settings.appMode || "computer");
+      setAppMode(settings.appMode || "computer", true);
     } else if (e.data.type === "SET_MODE") {
       if (e.data.mode === "computer" || e.data.mode === "mushaf") {
         setAppMode(e.data.mode);
@@ -3872,7 +3741,7 @@
       window.toggleMushafUploadModal();
     } else if (e.data.type === "SET_THEME" || e.data.type === "APP_THEME_CHANGED") {
       var nextTheme = e.data.theme || (e.data.isDark ? "dark" : "light");
-      if (settings.theme !== nextTheme) {
+      if ((nextTheme === "dark" || nextTheme === "light") && settings.theme !== nextTheme) {
         settings.theme = nextTheme;
         applyTheme();
         saveSettings();
@@ -4075,6 +3944,7 @@
   refreshMushafCounts();
   setAppMode(settings.appMode || "computer", true);
   renderQuickBookmarks();
+  updateReadProgress();
   resetBottomBarTimer();
 
 })();

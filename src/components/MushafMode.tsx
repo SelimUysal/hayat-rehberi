@@ -1,27 +1,33 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Maximize2, RotateCcw, ExternalLink } from 'lucide-react';
-import { useThemeSync } from '../utils/themeSync';
 
 interface MushafModeProps {
   targetSurah?: number;
   targetPage?: number;
   targetMode?: 'mushaf' | 'computer';
+  isDark: boolean;
   timestamp?: number;
 }
 
-export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage, targetMode, timestamp }) => {
+export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage, targetMode, timestamp, isDark }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Global temayı dinle ve iframe'e ilet
-  useThemeSync(true, (isDark) => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({
-        type: 'SET_THEME',
-        theme: isDark ? 'dark' : 'light'
-      }, '*');
-    }
-  });
+  // İframe ilk yüklendiğinde ve global tema değiştiğinde aynı temayı ilet.
+  const sendTheme = () => {
+    iframeRef.current?.contentWindow?.postMessage({
+      type: 'SET_THEME',
+      theme: isDark ? 'dark' : 'light'
+    }, window.location.origin);
+  };
+
+  useEffect(() => { sendTheme(); }, [isDark]);
+
+  useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === iframeRef.current?.parentElement);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
 
   // URL query string parametreleri
   const iframeUrl = React.useMemo(() => {
@@ -42,18 +48,18 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
           surahId: targetSurah,
           page: targetPage,
           mode: targetMode
-        }, '*');
+        }, window.location.origin);
       } else if (targetPage) {
         iframeRef.current.contentWindow.postMessage({
           type: 'GOTO_PAGE',
           page: targetPage,
           mode: targetMode
-        }, '*');
+        }, window.location.origin);
       } else if (targetMode) {
         iframeRef.current.contentWindow.postMessage({
           type: 'SET_MODE',
           mode: targetMode
-        }, '*');
+        }, window.location.origin);
       }
     }
   };
@@ -65,6 +71,8 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
 
   const handleIframeLoad = () => {
     sendNavigationMessage();
+    sendTheme();
+    setIsNavHidden(false);
   };
 
   const handleReload = () => {
@@ -88,7 +96,7 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
   const [isNavHidden, setIsNavHidden] = useState(false);
   useEffect(() => {
     const onReaderMessage = (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (event.origin !== window.location.origin || event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type === 'MUSHAF_NAV_STATE') {
         setIsNavHidden(Boolean(event.data.hidden));
       }
