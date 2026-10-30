@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Square, Sparkles, Volume2, Type, RefreshCw, Layers, X, Eye, EyeOff, Check } from 'lucide-react';
+import { Play, Square, Volume2, Type, RefreshCw, Layers, X, Eye, EyeOff, Check } from 'lucide-react';
 import { Ayah, VerseWbw, WordData } from '../types';
 import { SURAHS, RECITERS } from '../data/surahs';
 import { fetchSurahData, fetchWbwData } from '../services/quranApi';
@@ -7,6 +7,7 @@ import { AnalysisModal } from './AnalysisModal';
 import { SurahSearchSelect } from './SurahSearchSelect';
 import { QuickSurahBookmarks } from './QuickSurahBookmarks';
 import { EzberVoiceRecorder } from './EzberVoiceRecorder';
+import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
 
 interface DesktopModeProps {
   targetSurahId?: number | null;
@@ -54,7 +55,11 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
   const [isBlindRecording, setIsBlindRecording] = useState<boolean>(false);
 
   // Audio ve Zamanlayıcı Referansları
-  const audioRef = useRef<HTMLAudioElement>(new Audio());
+  // Reuse the same audio element across renders.
+  const audioRef = useRef<HTMLAudioElement>(null!);
+  if (audioRef.current === null) audioRef.current = new Audio();
+  const playRequestRef = useRef(0);
+  const segmentAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
 
@@ -153,6 +158,7 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
     async function load() {
       setLoading(true);
       stopAudio();
+      logEzber('SURAH_LOAD_START','info',{surah:currentSurah,detail:{mode:'desktop'}});
       setSelectedWordKeys([]);
       setLastClickedKey(null);
       try {
@@ -164,8 +170,15 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
           setAyahs(surahRes.ayahs);
           setTranslations(surahRes.translations);
           setWbwList(wbwRes);
+          logEzber('SURAH_LOAD_OK','info',{surah:currentSurah,detail:{mode:'desktop'}});
         }
       } catch (err) {
+        if (!isCancelled) {
+          setAyahs([]);
+          setTranslations([]);
+          setWbwList([]);
+          logEzber('SURAH_LOAD_FAILED','error',{surah:currentSurah,detail:{mode:'desktop',name:ezberErrorName(err),online:navigator.onLine}});
+        }
         console.error('Veri yükleme hatası:', err);
       } finally {
         if (!isCancelled) setLoading(false);
@@ -473,6 +486,11 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
 
   // Segment Çal
   const playSegmentAt = (index: number) => {
+    if (segmentAdvanceTimerRef.current !== null) {
+      clearTimeout(segmentAdvanceTimerRef.current);
+      segmentAdvanceTimerRef.current = null;
+    }
+    const requestId = ++playRequestRef.current;
     const segments = segmentsRef.current;
     if (index >= segments.length) {
       currentLoopRef.current += 1;
@@ -491,17 +509,20 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
     const seg = segments[index];
     const ayah = ayahs.find((a) => a.numberInSurah === seg.verseNum);
     if (!ayah || !ayah.audio) {
+      logEzber('VERSE_MISSING_AUDIO','error',{surah:currentSurah,verse:seg.verseNum});
       stopAudio();
       return;
     }
 
     setActiveVerseNum(seg.verseNum);
+    logEzber('SEGMENT_START','info',{surah:currentSurah,verse:seg.verseNum,detail:{segment:index + 1}});
 
     const player = audioRef.current;
     player.src = ayah.audio;
     player.playbackRate = playbackSpeedRef.current;
 
     player.onloadedmetadata = () => {
+      if (requestId !== playRequestRef.current) return;
       const dur = player.duration;
       const startTime = dur * seg.startRatio;
       const endTime = dur * seg.endRatio;
@@ -509,11 +530,14 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
       player.playbackRate = playbackSpeedRef.current;
 
       player.play().catch((err) => {
-        console.warn('Oynatma engellendi:', err);
+        if (requestId !== playRequestRef.current) return;
+        logEzber('SEGMENT_PLAY_REJECTED','error',{surah:currentSurah,verse:seg.verseNum,detail:{name:ezberErrorName(err)}});
+        stopAudio();
       });
 
       clearInterval(tickIntervalRef.current);
       tickIntervalRef.current = setInterval(() => {
+        if (requestId !== playRequestRef.current) { clearInterval(tickIntervalRef.current); return; }
         const cur = player.currentTime;
 
         // Vurgu hesaplama
@@ -528,14 +552,19 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
           player.pause();
           clearInterval(tickIntervalRef.current);
           setActiveWordKey(null);
-          setTimeout(() => {
-            playSegmentAt(segmentIdxRef.current + 1);
+          logEzber('SEGMENT_END','info',{surah:currentSurah,verse:seg.verseNum,detail:{segment:index + 1}});
+          segmentAdvanceTimerRef.current = setTimeout(() => {
+            segmentAdvanceTimerRef.current = null;
+            if (requestId !== playRequestRef.current) return;
+            playSegmentAt(index + 1);
           }, 150);
         }
       }, 30);
     };
 
     player.onerror = (e) => {
+      if (requestId !== playRequestRef.current) return;
+      logEzber('SEGMENT_PLAY_ERROR','error',{surah:currentSurah,verse:seg.verseNum,detail:{mediaCode:player.error?.code ?? 0,readyState:player.readyState,networkState:player.networkState}});
       console.warn('Ayet ses oynatma hatası:', e);
       stopAudio();
     };
@@ -586,11 +615,17 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
 
   // Durdur
   const stopAudio = () => {
+    ++playRequestRef.current;
+    if (segmentAdvanceTimerRef.current !== null) {
+      clearTimeout(segmentAdvanceTimerRef.current);
+      segmentAdvanceTimerRef.current = null;
+    }
     setIsPlaying(false);
     clearInterval(tickIntervalRef.current);
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
       audioRef.current.onloadedmetadata = null;
       audioRef.current.onerror = null;
     }
