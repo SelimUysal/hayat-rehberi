@@ -8,6 +8,7 @@ import { Coordinates, TemkinSettings, AsrMethod } from '../types/prayer';
 import { DEFAULT_CITY } from '../data/cities';
 import { DEFAULT_TEMKIN, calculatePrayerTimesForDate } from '../utils/astronomy';
 import { Header, TakvimSubTab } from './Header';
+import { makeTakvimHash, parseTakvimHash } from '../utils/takvimDeepLinks';
 import { HeroCountdown } from './HeroCountdown';
 import { PrayerCards } from './PrayerCards';
 import { MonthlyCalendar } from './MonthlyCalendar';
@@ -47,7 +48,22 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
   const [temkin] = useState<TemkinSettings>(DEFAULT_TEMKIN);
   const [asrMethod] = useState<AsrMethod>(1);
   const [selectedDate, setSelectedDate] = useState<Date>(() => initialDate || new Date());
-  const [activeTab, setActiveTab] = useState<TakvimSubTab>(() => initialSubTab || 'daily');
+  const [activeTab, setActiveTab] = useState<TakvimSubTab>(() => initialSubTab || (typeof window !== 'undefined' ? parseTakvimHash(window.location.hash) : null) || 'daily');
+
+  const selectTakvimTab = (tab: TakvimSubTab) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${makeTakvimHash(tab)}`);
+  };
+
+  useEffect(() => {
+    const syncRoute = () => {
+      const route = parseTakvimHash(window.location.hash);
+      if (route) setActiveTab(route);
+    };
+    window.addEventListener('hashchange', syncRoute);
+    window.addEventListener('popstate', syncRoute);
+    return () => { window.removeEventListener('hashchange', syncRoute); window.removeEventListener('popstate', syncRoute); };
+  }, []);
 
   // Ortak Canlı Sistem Saati ("Canlı Saat Rozeti" ve Özel Hedefler Geri Sayımı için tam senkronize)
   const [systemNow, setSystemNow] = useState<Date>(() => new Date());
@@ -177,7 +193,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
         currentLocation={currentLocation}
         todayData={todayData}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={selectTakvimTab}
         systemNow={systemNow}
         onOpenWorldClock={onOpenWorldClock}
         onOpenOsmanli={onOpenOsmanli}
@@ -236,7 +252,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
               selectedDate={selectedDate}
               onSelectDate={(newDate) => {
                 setSelectedDate(newDate);
-                setActiveTab('daily');
+                selectTakvimTab('daily');
               }}
             />
           </div>
