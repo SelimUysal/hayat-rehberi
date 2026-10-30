@@ -254,13 +254,20 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     try {
       const saved = localStorage.getItem('quran_listening_bookmark');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          surahId: Number(parsed.surahId) || 1,
-          ayahIndex: Number(parsed.ayahIndex) || 0,
-          currentTime: Number(parsed.currentTime) || 0,
-          reciter: parsed.reciter || 'ar.mahermuaiqly'
-        };
+        const parsed: unknown = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          const data = parsed as Record<string, unknown>;
+          const rawSurahId = Number(data.surahId);
+          const surahId = Number.isInteger(rawSurahId) && rawSurahId >= 1 && rawSurahId <= 114 ? rawSurahId : 1;
+          const maxAyahs = SURAHS.find((surah) => surah.id === surahId)?.totalAyahs ?? 1;
+          const rawIndex = Number(data.ayahIndex);
+          const ayahIndex = Number.isInteger(rawIndex) && rawIndex >= 0 ? Math.min(rawIndex, maxAyahs - 1) : 0;
+          const rawTime = Number(data.currentTime);
+          const currentTime = Number.isFinite(rawTime) && rawTime >= 0 ? Math.min(rawTime, 14400) : 0;
+          const reciter = typeof data.reciter === 'string' && RECITERS.some((r) => r.id === data.reciter)
+            ? data.reciter : 'ar.mahermuaiqly';
+          return { surahId, ayahIndex, currentTime, reciter };
+        }
       }
     } catch {
       // ignore
@@ -268,7 +275,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return { surahId: 1, ayahIndex: 0, currentTime: 0, reciter: 'ar.mahermuaiqly' };
   };
 
-  const initialBookmark = getSavedBookmark();
+  // Avoid reparsing localStorage on every word-highlight or time update.
+  const initialBookmarkRef = useRef<ReturnType<typeof getSavedBookmark> | null>(null);
+  if (initialBookmarkRef.current === null) initialBookmarkRef.current = getSavedBookmark();
+  const initialBookmark = initialBookmarkRef.current;
 
   // Durumlar
   const [currentSurahId, setCurrentSurahId] = useState<number>(targetSurahId || initialBookmark.surahId || 1);
@@ -331,7 +341,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   });
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
-  const [isSlideshowRunning, setIsSlideshowRunning] = useState<boolean>(true);
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
 
@@ -358,14 +367,16 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const sleepMenuRef = useRef<HTMLDivElement>(null);
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [isRecovering, setIsRecovering] = useState(false);
   const [surahFetchAttempt, setSurahFetchAttempt] = useState(0);
   const [audioEpoch, setAudioEpoch] = useState(0);
 
-  // Referanslar
-  const audioRef = useRef<HTMLAudioElement>(new Audio());
-  const preloadNextAudioRef = useRef<HTMLAudioElement>(new Audio());
-  const preloadAfterNextAudioRef = useRef<HTMLAudioElement>(new Audio());
+  // Construct each element once per mounted player, not on every React render.
+  const audioRef = useRef<HTMLAudioElement>(null!);
+  const preloadNextAudioRef = useRef<HTMLAudioElement>(null!);
+  const preloadAfterNextAudioRef = useRef<HTMLAudioElement>(null!);
+  if (audioRef.current === null) audioRef.current = new Audio();
+  if (preloadNextAudioRef.current === null) preloadNextAudioRef.current = new Audio();
+  if (preloadAfterNextAudioRef.current === null) preloadAfterNextAudioRef.current = new Audio();
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
   const volumeRef = useRef<number>(volume);
@@ -488,12 +499,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Slayt Gösterisi Otomatik Döngüsü
   useEffect(() => {
-    if (!isSlideshowRunning || isBlackScreenMode) return;
+    if (isBlackScreenMode) return;
     const interval = setInterval(() => {
       setCurrentSlideIndex((prev) => (prev + 1) % AMBIENCE_SLIDES.length);
     }, 14000);
     return () => clearInterval(interval);
-  }, [isSlideshowRunning, isBlackScreenMode]);
+  }, [isBlackScreenMode]);
 
   // Desktop uses an app-level volume slider; touch devices use system keys.
   useEffect(() => {
@@ -532,7 +543,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       reconnectTimerRef.current = null;
     }
     retryAttemptsRef.current = 0;
-    setIsRecovering(false);
     if (!player) {
       isSleepStoppingRef.current = false;
       return;
@@ -562,7 +572,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       reconnectTimerRef.current = null;
     }
     retryAttemptsRef.current = 0;
-    setIsRecovering(false);
   }, []);
 
   // Shared pause path for explicit UI, lock-screen and headset commands.
@@ -606,7 +615,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     if (reconnectTimerRef.current !== null) return;
     const attempt = ++retryAttemptsRef.current;
     const delay = Math.min(30000, attempt <= 1 ? 800 : 1000 * Math.pow(2, Math.min(attempt - 1, 5)));
-    setIsRecovering(true);
     if (attempt >= 2) setAudioError('Ses bağlantısı kesildi. Otomatik yeniden bağlanılıyor…');
     reconnectTimerRef.current = setTimeout(() => {
       reconnectTimerRef.current = null;
@@ -693,7 +701,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     // Reusing the outgoing element as a preload slot is safe only AFTER
     // the incoming element starts; changing its src early also stops it.
+    const requestId = ++playRequestRef.current;
+    const sourceSurahId = currentSurahIdRef.current;
+    const sourceReciter = selectedReciterRef.current;
     const prepareUpcomingAudio = () => {
+      if (requestId !== playRequestRef.current) return;
     // Kesintisiz (Gapless) geçiş için sıradaki 1. ve 2. ayetin ses dosyalarını arka planda önceden belleğe yükle (Preload)
     const nextAyah = list[idx + 1];
     if (nextAyah?.audio && preloadNextAudioRef.current.src !== nextAyah.audio) {
@@ -709,9 +721,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
     // Sure sonuna yaklaşıldığında (son 2 ayet) bir sonraki surenin verisini ve ilk ayet sesini şimdiden önbelleğe hazırla
     if (idx >= list.length - 2) {
-      const upcomingSurahId = nextSurahInListeningLoop(currentSurahIdRef.current);
-      fetchSurahData(upcomingSurahId, selectedReciterRef.current)
+      const upcomingSurahId = nextSurahInListeningLoop(sourceSurahId);
+      fetchSurahData(upcomingSurahId, sourceReciter)
         .then((nextSurahRes) => {
+          if (requestId !== playRequestRef.current ||
+              currentSurahIdRef.current !== sourceSurahId ||
+              selectedReciterRef.current !== sourceReciter) return;
           const firstNextSurahAudio = nextSurahRes.ayahs?.[0]?.audio;
           if (firstNextSurahAudio && !nextAyah?.audio) {
             preloadNextAudioRef.current.preload = 'auto';
@@ -723,8 +738,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
     };
     if (!outgoingPlayer) prepareUpcomingAudio();
-
-    const requestId = ++playRequestRef.current;
     reconnectPlaybackRef.current = () => {
       if (!isPlayingRef.current || requestId !== playRequestRef.current) return;
       const position = Number.isFinite(player.currentTime) && player.currentTime > 0
@@ -795,7 +808,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           lastAudioProgressRef.current = { at: Date.now(), seconds: curTime };
           if (retryAttemptsRef.current > 0) {
             retryAttemptsRef.current = 0;
-            setIsRecovering(false);
             setAudioError(null);
           }
         }
@@ -1016,7 +1028,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           shouldAutoPlayNextSurahRef.current = false;
           setAudioError('Sure verisi alınamadı. Bağlantı geri geldiğinde yeniden denenecek.');
           if (isPlayingRef.current) {
-            setIsRecovering(true);
             // API tekrar denemesi; sonraki sureye geçiş niyeti korunur.
             setTimeout(() => {
               if (!isCancelled && isPlayingRef.current) setSurahFetchAttempt((n) => n + 1);
@@ -1169,7 +1180,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     if (isPlayingRef.current) {
       pausePlayback();
     } else {
-      const curAyah = ayahs[currentAyahIndex];
       // Duraklatmanın geçersiz kıldığı eski handler yerine güncel handler kurulmalı.
       const resumeTime = audioRef.current.currentTime > 0
         ? audioRef.current.currentTime
@@ -1262,8 +1272,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         shouldAutoPlayNextSurahRef.current = true;
         currentSurahIdRef.current = b.surahId;
         setCurrentSurahId(b.surahId);
-        currentAyahIndexRef.current = b.ayahIndex;
-        setCurrentAyahIndex(b.ayahIndex);
       } else {
         playAyahAt(b.ayahIndex, b.currentTime || 0);
       }
