@@ -17,7 +17,7 @@ export default defineConfig(() => {
           this.emitFile({
             type: 'asset',
             fileName: 'app-version.json',
-            source: JSON.stringify({ version }) + '\\n'
+            source: JSON.stringify({ version })
           });
         }
       }
