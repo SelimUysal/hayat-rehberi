@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Maximize2, RotateCcw, ExternalLink, FolderOpen } from 'lucide-react';
+import { Maximize2, RotateCcw, ExternalLink } from 'lucide-react';
 import { useThemeSync } from '../utils/themeSync';
 
 interface MushafModeProps {
@@ -84,43 +84,9 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
     }
   };
 
-  const [activeMushafSource, setActiveMushafSource] = useState<'default' | 'mushaf-1' | 'mushaf-2' | 'mushaf-3'>('default');
-  const [isNavHidden, setIsNavHidden] = useState(false);
-
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'MUSHAF_SOURCE_CHANGED' && e.data.source) {
-        setActiveMushafSource(e.data.source);
-      }
-      if (e.data && e.data.type === 'MUSHAF_NAV_STATE') {
-        setIsNavHidden(Boolean(e.data.hidden));
-      }
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
-
-  const selectMushafSourceFromBar = (source: 'default' | 'mushaf-1' | 'mushaf-2' | 'mushaf-3') => {
-    setActiveMushafSource(source);
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({
-        type: 'SET_MUSHAF_SOURCE',
-        source
-      }, '*');
-    }
-  };
-
-  const openFolderUploadModal = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({
-        type: 'TOGGLE_UPLOAD_MODAL'
-      }, '*');
-    }
-  };
-
   return (
     <div className="w-full h-full flex-1 flex flex-col bg-[#F3E8D2] overflow-hidden">
-      {/* İnce Hızlı Eylem Çubuğu (Mobilde otomatik gizlenir ve tam sayfa alanı sağlar) */}
+      {/* Yalnızca masaüstü yardımcı eylemleri; baskı seçimi iframe içindeki tek çubuktadır. */}
       <div className={`bg-[#EADFC1] border-b border-[#D8C69C] px-3 sm:px-4 py-1.5 hidden sm:flex items-center justify-between gap-2 flex-wrap text-xs text-[#52584C] shrink-0 z-10 shadow-2xs transition-all duration-300 ${
         isNavHidden ? '-translate-y-full opacity-0 max-h-0 py-0 border-none pointer-events-none' : 'translate-y-0 opacity-100 max-h-16'
       }`}>
@@ -131,53 +97,6 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="inline-flex items-center gap-1 bg-[#FBF6E9] p-0.5 rounded-lg border border-[#D8C69C]">
-            <button
-              onClick={() => selectMushafSourceFromBar('default')}
-              className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors cursor-pointer ${
-                activeMushafSource === 'default'
-                  ? 'bg-[#0F5C4A] text-white'
-                  : 'text-[#20261F] hover:bg-[#EADFC1]'
-              }`}
-              title="Varsayılan Mushaf"
-            >
-              Varsayılan
-            </button>
-            <button
-              onClick={() => selectMushafSourceFromBar('mushaf-1')}
-              className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors cursor-pointer ${
-                activeMushafSource === 'mushaf-1'
-                  ? 'bg-[#0F5C4A] text-white'
-                  : 'text-[#20261F] hover:bg-[#EADFC1]'
-              }`}
-              title="Mushaf-1 Görsellerini Aç"
-            >
-              Mushaf-1
-            </button>
-            <button
-              onClick={() => selectMushafSourceFromBar('mushaf-2')}
-              className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors cursor-pointer ${
-                activeMushafSource === 'mushaf-2'
-                  ? 'bg-[#0F5C4A] text-white'
-                  : 'text-[#20261F] hover:bg-[#EADFC1]'
-              }`}
-              title="Mushaf-2 Görsellerini Aç"
-            >
-              Mushaf-2
-            </button>
-            <button
-              onClick={() => selectMushafSourceFromBar('mushaf-3')}
-              className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors cursor-pointer ${
-                activeMushafSource === 'mushaf-3'
-                  ? 'bg-[#0F5C4A] text-white'
-                  : 'text-[#20261F] hover:bg-[#EADFC1]'
-              }`}
-              title="Mushaf-3 Görsellerini Aç"
-            >
-              Mushaf-3
-            </button>
-          </div>
-
           <button
             onClick={handleReload}
             title="Yenile"
