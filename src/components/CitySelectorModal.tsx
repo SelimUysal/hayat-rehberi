@@ -36,6 +36,8 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
   // Canlı konum ve online arama state'leri
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -114,7 +116,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
     closeButtonRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return; }
       if (event.key !== 'Tab' || !dialogRef.current) return;
       const buttons = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
       if (!buttons.length) return;
@@ -127,7 +129,7 @@ export const CitySelectorModal: React.FC<CitySelectorModalProps> = ({
       document.removeEventListener('keydown', onKeyDown);
       restoreFocusRef.current?.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
