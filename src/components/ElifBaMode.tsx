@@ -1722,7 +1722,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
-                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`
+                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`}
                         >
                           <Link2 className="w-3.5 h-3.5" />
                         </button>
@@ -1963,7 +1963,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
-                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`
+                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`}
                         >
                           <Link2 className="w-3.5 h-3.5" />
                         </button>
@@ -2124,7 +2124,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
-                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`
+                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`}
                         >
                           <Link2 className="w-3.5 h-3.5" />
                         </button>

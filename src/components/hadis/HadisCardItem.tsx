@@ -8,7 +8,8 @@ import {
   Copy,
   Check,
   Volume2,
-  ListChecks
+  ListChecks,
+  Link2
 } from 'lucide-react';
 import { HadisItem } from '../../services/hadisService';
 
@@ -88,9 +89,17 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
 
   const handleCopy = () => {
     const text = `${item.arapcaMetin}\n\n"${item.meali}"\n(${item.kaynagi}) — Hayat Rehberi`;
-    navigator.clipboard?.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+    if (!navigator.clipboard?.writeText) { window.prompt('Metni kopyalayın:', text); return; }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 1800);
+    }).catch(() => window.prompt('Metni kopyalayın:', text));
+  };
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}${window.location.pathname}#hadis/${item.id}`;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch(() => window.prompt('Hadis bağlantısını kopyalayın:', url));
+    } else window.prompt('Hadis bağlantısını kopyalayın:', url);
   };
 
   const handleSpeak = () => {
@@ -449,7 +458,7 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      className={`rounded-2xl border transition-all ${
+      className={`rounded-2xl border transition-all scroll-mt-48 min-w-0 max-w-full ${
         variant === 'hero' || variant === 'story' ? 'p-6 sm:p-8' : 'p-4 sm:p-6'
       } ${cardBg} ${dragHighlight}`}
     >
@@ -479,8 +488,14 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
           {/* Sağ Üst "Listeye Seç" / "Seçildi (#X)" Butonu */}
           {renderSelectForListButton()}
 
+          <button type="button" onClick={handleCopyLink} aria-label={`Hadis ${item.id} bağlantısını kopyala`}
+            title="Bu hadisin doğrudan bağlantısını kopyala"
+            className={`p-1.5 rounded-lg border cursor-pointer ${isDark ? 'bg-[#1b1f27] border-[#384152] text-[#cbd5e1]' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+            <Link2 className="w-3.5 h-3.5" />
+          </button>
           {/* Sesli Arapça Dinle */}
           <button
+            aria-label="Arapça hadisi seslendir"
             onClick={handleSpeak}
             className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
               isSpeaking
@@ -579,7 +594,7 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
       <div
         dir="rtl"
         style={{ zoom: arabicScalePercent / 100 }}
-        className={`my-4 p-4 sm:p-5 rounded-xl border font-amiri text-right text-2xl sm:text-3xl md:text-4xl leading-[2.35] ${
+        className={`my-4 p-4 sm:p-5 rounded-xl border max-w-full break-words [overflow-wrap:anywhere] font-amiri text-right text-2xl sm:text-3xl md:text-4xl leading-[2.35] ${
           isDark
             ? 'bg-[#1b1f27] border-[#384152] text-[#6ee7b7]'
             : 'bg-[#FBF9F5] border-emerald-900/10 text-emerald-950'
