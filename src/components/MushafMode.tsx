@@ -84,6 +84,19 @@ export const MushafMode: React.FC<MushafModeProps> = ({ targetSurah, targetPage,
     }
   };
 
+  // Iframe okuyucu kaydırıldığında üst yardımcı çubuğun görünürlüğünü senkronize et.
+  const [isNavHidden, setIsNavHidden] = useState(false);
+  useEffect(() => {
+    const onReaderMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (event.data?.type === 'MUSHAF_NAV_STATE') {
+        setIsNavHidden(Boolean(event.data.hidden));
+      }
+    };
+    window.addEventListener('message', onReaderMessage);
+    return () => window.removeEventListener('message', onReaderMessage);
+  }, []);
+
   return (
     <div className="w-full h-full flex-1 flex flex-col bg-[#F3E8D2] overflow-hidden">
       {/* Yalnızca masaüstü yardımcı eylemleri; baskı seçimi iframe içindeki tek çubuktadır. */}
