@@ -11,7 +11,7 @@ test('GitHub Pages nested base resolves audio to the actual project path', () =>
   assert.equal(resolveNamazAudioUrl('https://cdn.example.org/a.mp3', './', 'https://selimuysal.github.io/hayat-rehberi/'), 'https://cdn.example.org/a.mp3');
 });
 
-test('all prayer/du'a/night-prayer content identifiers are unique', () => {
+test('all prayer and dua content identifiers are unique', () => {
   assert.equal(new Set(ALL_NAMAZ_ITEMS.map(x=>x.id)).size, ALL_NAMAZ_ITEMS.length);
   for (const item of ALL_NAMAZ_ITEMS) assert.equal(getNamazSectionForId(item.id) !== undefined, true, item.id);
   assert.ok(NAMAZ_ITEMS.some(x => x.category === 'dua'));
