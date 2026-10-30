@@ -1940,6 +1940,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
                         return (
                           <tr
                             key={item.id}
+                            data-hadis-id={item.id}
                             draggable={isReorderMode}
                             onDragStart={(e) => handleDragStartItem(e, item.id)}
                             onDragEnter={(e) => handleDragEnterOrOverItem(e, item.id)}
