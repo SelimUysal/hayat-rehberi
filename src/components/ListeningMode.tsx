@@ -514,6 +514,26 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       return;
     }
 
+    // Ön yüklemesi tamamlanan ses öğesini yeniden src yüklemesi yapmadan kullan.
+    const previousPlayer = audioRef.current;
+    const ready = [preloadNextAudioRef.current, preloadAfterNextAudioRef.current].find(
+      (candidate) => candidate.src === ayah.audio && candidate.readyState >= 2
+    );
+    const player = ready || previousPlayer;
+    if (ready && ready !== previousPlayer) {
+      previousPlayer.pause();
+      previousPlayer.ontimeupdate = null;
+      previousPlayer.onended = null;
+      previousPlayer.onloadedmetadata = null;
+      previousPlayer.onerror = null;
+      audioRef.current = ready;
+      if (ready === preloadNextAudioRef.current) preloadNextAudioRef.current = previousPlayer;
+      else preloadAfterNextAudioRef.current = previousPlayer;
+      setAudioEpoch((n) => n + 1);
+    } else if (player.src !== ayah.audio) {
+      player.src = ayah.audio;
+    }
+
     // Kesintisiz (Gapless) geçiş için sıradaki 1. ve 2. ayetin ses dosyalarını arka planda önceden belleğe yükle (Preload)
     const nextAyah = list[idx + 1];
     if (nextAyah?.audio && preloadNextAudioRef.current.src !== nextAyah.audio) {
@@ -542,25 +562,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         .catch(() => {});
     }
 
-    // Ön yüklemesi tamamlanan ses öğesini yeniden src yüklemesi yapmadan kullan.
-    const previousPlayer = audioRef.current;
-    const ready = [preloadNextAudioRef.current, preloadAfterNextAudioRef.current].find(
-      (candidate) => candidate.src === ayah.audio && candidate.readyState >= 2
-    );
-    const player = ready || previousPlayer;
-    if (ready && ready !== previousPlayer) {
-      previousPlayer.pause();
-      previousPlayer.ontimeupdate = null;
-      previousPlayer.onended = null;
-      previousPlayer.onloadedmetadata = null;
-      previousPlayer.onerror = null;
-      audioRef.current = ready;
-      if (ready === preloadNextAudioRef.current) preloadNextAudioRef.current = previousPlayer;
-      else preloadAfterNextAudioRef.current = previousPlayer;
-      setAudioEpoch((n) => n + 1);
-    } else if (player.src !== ayah.audio) {
-      player.src = ayah.audio;
-    }
     const requestId = ++playRequestRef.current;
     setAudioError(null);
     player.preload = 'auto';
@@ -1148,6 +1149,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 {showTranslation ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 <span>{showTranslation ? 'Meali Gizle' : 'Meali Göster'}</span>
               </button>
+            </div>
+          )}
+
+          {audioError && !isFocusMode && (
+            <div role="alert" className="mb-3 rounded-lg border border-amber-500/40 bg-amber-950/70 px-3 py-2 text-sm text-amber-200">
+              {audioError}
             </div>
           )}
 
