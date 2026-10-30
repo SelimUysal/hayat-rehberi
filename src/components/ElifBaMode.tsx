@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { navigateToAppHash } from '../utils/appNavigation';
+import { basicInfoHash, resolveBasicInfoKey } from '../utils/elifbaLinks';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import { QuranMatrixModule } from './QuranMatrixLab/QuranMatrixModule';
 import {
@@ -354,19 +355,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
 
   // 10. Akordiyon Açık/Kapalı Durumu (Temel Bilgiler)
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>(() => {
-    const accKey = targetAccordionKey || initialUrl?.accordionKey;
-    if (accKey) {
-      return { [accKey]: true, dua3_0: true };
-    }
-    if (savedSession?.openAccordions) {
-      return {
-        ...savedSession.openAccordions,
-        dua3_0: savedSession.openAccordions.dua3_0 !== undefined ? savedSession.openAccordions.dua3_0 : true,
-        dua3_1: savedSession.openAccordions.dua3_1 !== undefined ? savedSession.openAccordions.dua3_1 : true
-      };
-    }
-    return { dua1_0: true, dua2_0: true, dua3_0: true, dua3_1: true };
+    const initial = resolveBasicInfoKey(targetAccordionKey || initialUrl?.accordionKey);
+    return initial ? { [initial]: true } : {};
   });
+  const pendingBasicScrollRef = useRef<string | null>(resolveBasicInfoKey(targetAccordionKey || initialUrl?.accordionKey) || null);
+  const skipUrlWriteRef = useRef(false);
 
   // Sadece Zırh Duası İçin Özel Ses Oynatıcı Durumu
   const zirhAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -595,7 +588,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   };
 
   const toggleAccordion = (key: string) => {
-    setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
+    setOpenAccordions(prev => prev[key] ? {} : { [key]: true });
   };
 
   const toggleDuaDone = (key: string) => {
@@ -658,35 +651,22 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       );
     } catch {}
 
-    // 2. Canlı URL Hash güncelleme
-    let newHash = `elifba/${activeTab}`;
-    if (activeTab === 'harfler') {
-      if (selectedLetter) newHash += `/${selectedLetter.name}`;
-    } else if (activeTab === 'hece') {
-      newHash += `/step-${heceStep}`;
-      if (heceStep === 3) newHash += `/${wordLevel}`;
-    } else if (activeTab === 'temel') {
-      const firstOpen = Object.keys(openAccordions).find((k) => openAccordions[k]);
-      if (firstOpen) newHash += `/${firstOpen}`;
-    } else if (activeTab === 'tecvid') {
-      if (typeof currentTecvidLesson === 'number') newHash += `/ders-${currentTecvidLesson}`;
-    } else if (activeTab === 'matrix') {
-      if (typeof currentMatrixStage === 'number') newHash += `/asama-${currentMatrixStage}`;
+    let newHash = `#elifba/${activeTab}`;
+    if (activeTab === 'harfler' && selectedLetter) newHash += `/${encodeURIComponent(selectedLetter.name)}`;
+    if (activeTab === 'hece') newHash += `/step-${heceStep}${heceStep === 3 ? `/${wordLevel}` : ''}`;
+    if (activeTab === 'temel') {
+      const opened = Object.keys(openAccordions).find(key => openAccordions[key]);
+      if (opened) newHash = basicInfoHash(opened);
     }
-
-    if (typeof window !== 'undefined') {
-      if (restoringHistoryRef.current) {
-        restoringHistoryRef.current = false;
-      } else if (initialUrlSyncRef.current) {
-        // Mevcut bir dış bağlantı varsa ilk render'da koru, iç ayarı URL'ye zorla yazma.
-        if (window.location.hash === '#elifba' || window.location.hash === '#') {
-          navigateToAppHash(`#${newHash}`, 'replace');
-        }
-      } else if (window.location.hash.startsWith('#elifba') || window.location.hash.startsWith('#tecvid')) {
-        navigateToAppHash(`#${newHash}`);
-      }
-      initialUrlSyncRef.current = false;
+    if (activeTab === 'tecvid' && typeof currentTecvidLesson === 'number') newHash += `/ders-${currentTecvidLesson}`;
+    if (activeTab === 'matrix' && typeof currentMatrixStage === 'number') newHash += `/asama-${currentMatrixStage}`;
+    if (skipUrlWriteRef.current) skipUrlWriteRef.current = false;
+    else if (initialUrlSyncRef.current) {
+      if (window.location.hash === '#elifba' || window.location.hash === '#') navigateToAppHash(newHash, 'replace');
+    } else if (window.location.hash.startsWith('#elifba') || window.location.hash.startsWith('#tecvid')) {
+      navigateToAppHash(newHash);
     }
+    initialUrlSyncRef.current = false;
   }, [
     activeTab,
     heceStep,
@@ -701,7 +681,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   useEffect(() => {
     const handleHashChange = () => {
       const parsed = parseElifbaUrl();
-      if (parsed) restoringHistoryRef.current = true;
+      if (parsed) skipUrlWriteRef.current = true;
       if (!parsed) return;
       if (parsed.tab) setActiveTab(parsed.tab);
       if (typeof parsed.heceStep === 'number') setHeceStep(parsed.heceStep);
@@ -712,8 +692,10 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       } else if (parsed.tab === 'harfler' && !parsed.letterName) {
         setSelectedLetter(null);
       }
-      if (parsed.accordionKey) {
-        setOpenAccordions((prev) => ({ ...prev, [parsed.accordionKey!]: true }));
+      if (parsed.tab === 'temel') {
+        const key = resolveBasicInfoKey(parsed.accordionKey);
+        setOpenAccordions(key ? { [key]: true } : {});
+        pendingBasicScrollRef.current = key || null;
       }
       if (typeof parsed.tecvidLesson === 'number') setCurrentTecvidLesson(parsed.tecvidLesson);
       if (typeof parsed.matrixStage === 'number') setCurrentMatrixStage(parsed.matrixStage);
@@ -750,37 +732,12 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       }
     }
     if (targetAccordionKey) {
-      setActiveTab('temel');
-      let keyToOpen = targetAccordionKey;
-      const normalizeStr = (s?: string) => (s ? s.toLowerCase().replace(/[^a-z0-9ğüşıöç]/g, '') : '');
-      if (!keyToOpen.startsWith('dua')) {
-        const normTarget = normalizeStr(targetAccordionKey);
-        let matched = TEMEL_DATA_1.findIndex(i => normalizeStr(i.title).includes(normTarget));
-        if (matched !== -1) {
-          keyToOpen = `dua1_${matched}`;
-        } else {
-          matched = TEMEL_DATA_2.findIndex(i => normalizeStr(i.title).includes(normTarget));
-          if (matched !== -1) {
-            keyToOpen = `dua2_${matched}`;
-          } else {
-            matched = TEMEL_DATA_3.findIndex(i => normalizeStr(i.title).includes(normTarget));
-            if (matched !== -1) {
-              keyToOpen = `dua3_${matched}`;
-            }
-          }
-        }
+      const key = resolveBasicInfoKey(targetAccordionKey);
+      if (key) {
+        setActiveTab('temel');
+        setOpenAccordions({ [key]: true });
+        pendingBasicScrollRef.current = key;
       }
-      setOpenAccordions((prev) => ({ ...prev, [keyToOpen]: true }));
-      setTimeout(() => {
-        const el = document.getElementById(`section-${keyToOpen}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('ring-4', 'ring-emerald-400', 'transition-all', 'duration-500');
-          setTimeout(() => {
-            el.classList.remove('ring-4', 'ring-emerald-400');
-          }, 2000);
-        }
-      }, 250);
     }
     if (typeof targetTecvidLesson === 'number') {
       setActiveTab('tecvid');
@@ -798,6 +755,22 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
     targetMatrixStage,
     targetTimestamp
   ]);
+
+  // On direct URL load and browser back, reveal and scroll after rendering.
+  useEffect(() => {
+    if (activeTab !== 'temel' || !pendingBasicScrollRef.current) return;
+    const key = pendingBasicScrollRef.current;
+    if (!openAccordions[key]) return;
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(`section-${key}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('ring-2', 'ring-emerald-500');
+      window.setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-500'), 2000);
+      pendingBasicScrollRef.current = null;
+    }, 160);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, openAccordions]);
 
   // Tema renk sınıfları
   const isDark = themeMode === 'dark';
@@ -835,7 +808,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
           
           {/* Başlık (Sol Taraf - H2 Bold Siyah) */}
           <h2 className={`text-lg sm:text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-black'} whitespace-nowrap`}>
-            Elif ba & tecvid
+            Elif-Bâ ve Tecvid
           </h2>
 
           {/* Sekmeler (Yatay Kaydırılabilir Modern Şerit) */}
@@ -870,7 +843,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                Hece & Kelime
+                Heceleme ve Kelimeler
               </button>
 
               <button
@@ -1727,11 +1700,14 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                   <div
                     key={item.title}
                     id={`section-${key}`}
+                    style={{ scrollMarginTop: '190px' }}
                     className={`rounded-2xl border overflow-hidden transition-all ${
                       isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200 shadow-2xs'
                     }`}
                   >
                     <div
+                      role="button" tabIndex={0} aria-expanded={isOpen} aria-controls={`content-${key}`}
+                      onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleAccordion(key); } }}
                       onClick={() => toggleAccordion(key)}
                       className="p-4 flex items-center justify-between cursor-pointer font-bold text-sm sm:text-base select-none"
                     >
@@ -1744,12 +1720,12 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyDirectLink(`elifba/temel/${key}`, item.title);
+                            copyDirectLink(basicInfoHash(key), item.title);
                           }}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
-                          title="Doğrudan bağlantıyı kopyala"
+                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`
                         >
                           <Link2 className="w-3.5 h-3.5" />
                         </button>
@@ -1965,11 +1941,14 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                   <div
                     key={item.title}
                     id={`section-${key}`}
+                    style={{ scrollMarginTop: '190px' }}
                     className={`rounded-2xl border overflow-hidden transition-all ${
                       isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200 shadow-2xs'
                     }`}
                   >
                     <div
+                      role="button" tabIndex={0} aria-expanded={isOpen} aria-controls={`content-${key}`}
+                      onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleAccordion(key); } }}
                       onClick={() => toggleAccordion(key)}
                       className="p-4 flex items-center justify-between cursor-pointer font-bold text-sm sm:text-base select-none"
                     >
@@ -1982,12 +1961,12 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyDirectLink(`elifba/temel/${key}`, item.title);
+                            copyDirectLink(basicInfoHash(key), item.title);
                           }}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
-                          title="Doğrudan bağlantıyı kopyala"
+                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`
                         >
                           <Link2 className="w-3.5 h-3.5" />
                         </button>
@@ -2117,6 +2096,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                   <div
                     key={item.title}
                     id={`section-${key}`}
+                    style={{ scrollMarginTop: '190px' }}
                     className={`rounded-2xl border overflow-hidden transition-all ${
                       item.hasAudioPlayer
                         ? isDark
@@ -2128,6 +2108,8 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                     }`}
                   >
                     <div
+                      role="button" tabIndex={0} aria-expanded={isOpen} aria-controls={`content-${key}`}
+                      onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleAccordion(key); } }}
                       onClick={() => toggleAccordion(key)}
                       className="p-4 flex items-center justify-between cursor-pointer font-bold text-sm sm:text-base select-none"
                     >
@@ -2140,12 +2122,12 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyDirectLink(`elifba/temel/${key}`, item.title);
+                            copyDirectLink(basicInfoHash(key), item.title);
                           }}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
-                          title="Doğrudan bağlantıyı kopyala"
+                          title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`
                         >
                           <Link2 className="w-3.5 h-3.5" />
                         </button>
