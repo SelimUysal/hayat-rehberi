@@ -1009,6 +1009,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       }
     };
     window.addEventListener('online', onOnline);
+    window.addEventListener('hayat-rehberi:prepare-update', saveCurrentProgress);
     window.addEventListener('beforeunload', saveCurrentProgress);
     const onPageHide = () => {
       saveCurrentProgress();
@@ -1027,6 +1028,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return () => {
       saveCurrentProgress();
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('hayat-rehberi:prepare-update', saveCurrentProgress);
       window.removeEventListener('beforeunload', saveCurrentProgress);
       window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', handleVisibilityChange);

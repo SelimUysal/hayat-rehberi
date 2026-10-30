@@ -19,7 +19,8 @@ import {
   X,
   LayoutGrid,
   Check,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 import { HayatRehberiLogo } from './HayatRehberiLogo';
 
@@ -42,6 +43,7 @@ interface NavbarProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   onGoHome: () => void;
+  onCheckUpdates?: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
 }
@@ -61,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onGoHome,
+  onCheckUpdates,
   isDarkMode = true,
   onToggleDarkMode
 }) => {
@@ -411,6 +414,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* 3. SAĞ: Hızlı Arama, Koyu Mod & Menü */}
             <div className="flex items-center gap-1.5 sm:gap-2">
               
+              {/* Sürüm kontrolü: telefon ve masaüstünde erişilebilir. */}
+              <button type="button" onClick={onCheckUpdates} aria-label="Güncellemeleri kontrol et" title="Güncellemeleri kontrol et" className={`p-2 rounded-xl border transition-colors cursor-pointer ${isDarkMode ? 'text-stone-300 hover:text-white hover:bg-white/10 border-white/10' : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100 border-stone-200'}`}>
+                <RefreshCw className="w-4 h-4" aria-hidden="true" />
+              </button>
+
               {/* Arama Butonu */}
               <button
                 type="button"

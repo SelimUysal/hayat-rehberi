@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar, TabType } from './components/Navbar';
+import { AppUpdateNotice } from './components/AppUpdateNotice';
 import { ElifBaMode, ElifbaTab } from './components/ElifBaMode';
 import { NamazMode } from './components/NamazMode';
 import { KazaMode } from './components/KazaMode';
@@ -24,6 +25,7 @@ import { getMainTabFromHash, makeMainTabHash } from './utils/mainDeepLinks';
 import { navigateToAppHash } from './utils/appNavigation';
 
 export function App() {
+  const [updateCheckRequest, setUpdateCheckRequest] = useState(0);
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -413,11 +415,14 @@ export function App() {
         </div>
       )}
       
+      <AppUpdateNotice activeTab={activeTab} checkRequestId={updateCheckRequest} />
+
       {/* Üst Gezinme Barı */}
       <Navbar 
         activeTab={activeTab} 
         setActiveTab={handleTabChange} 
         onGoHome={handleGoHome}
+        onCheckUpdates={() => setUpdateCheckRequest((value) => value + 1)}
         isDarkMode={isDark} 
         onToggleDarkMode={handleToggleTheme} 
       />
