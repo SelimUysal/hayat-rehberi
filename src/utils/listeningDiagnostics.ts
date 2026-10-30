@@ -126,7 +126,7 @@ export function clearListeningDiagnostics(): void {
 export function classifyListeningError(error: unknown): { errorName: string; httpStatus?: number } {
   const rawName = error && typeof error === 'object' && 'name' in error
     ? String((error as { name: unknown }).name) : 'UnknownError';
-  const errorName = /^[A-Za-z]{2,32}Error$/.test(rawName) || rawName === 'AbortError'
+  const errorName = rawName === 'Error' || /^[A-Za-z]{2,32}Error$/.test(rawName) || rawName === 'AbortError'
     ? rawName : 'UnknownError';
   // Extract only the numeric HTTP status, never the exception message or URL.
   const rawMessage = error && typeof error === 'object' && 'message' in error
@@ -137,7 +137,7 @@ export function classifyListeningError(error: unknown): { errorName: string; htt
 
 export function createListeningDiagnosticReport(): string {
   const events = readListeningDiagnostics();
-  const version = String(import.meta.env.VITE_APP_VERSION || 'unknown').slice(0, 12);
+  const version = String(import.meta.env?.VITE_APP_VERSION || 'unknown').slice(0, 12);
   const lines = [
     'HAYAT REHBERI - KESINTISIZ DINLEME TEKNIK RAPORU',
     'Olusturma: ' + new Date().toISOString(),
