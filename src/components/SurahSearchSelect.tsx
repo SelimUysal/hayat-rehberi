@@ -186,18 +186,18 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
   const isDark = theme === 'dark';
 
   return (
-    <div className={`relative ${isOpen ? 'z-[100]' : 'z-10'} ${className}`} ref={dropdownRef}>
+    <div className={`relative min-w-0 max-w-full ${isOpen ? 'z-[100]' : 'z-10'} ${className}`} ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-3 px-6 py-2.5 min-w-[270px] sm:min-w-[320px] text-left rounded-xl transition-all focus:outline-none cursor-pointer ${
+        className={`w-full min-w-0 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 text-left rounded-xl transition-all focus:outline-none cursor-pointer ${
           isDark
             ? "bg-slate-900/80 hover:bg-slate-800/90 border border-emerald-500/30 hover:border-emerald-500/60 text-slate-100 shadow-sm focus:ring-2 focus:ring-emerald-500/40"
             : "bg-slate-50 hover:bg-slate-100/90 border border-slate-300/80 hover:border-emerald-500 text-slate-800 focus:ring-2 focus:ring-emerald-500/20 shadow-none"
         }`}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-1 items-center gap-2 min-w-0">
           <span
             className={`flex-shrink-0 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center border ${
               isDark
@@ -207,7 +207,7 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
           >
             {currentSurah.id}
           </span>
-          <div className="truncate">
+          <div className="min-w-0 truncate">
             <span className={`text-xs block sm:inline mr-1 font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               {buttonLabelPrefix}
             </span>
@@ -225,7 +225,7 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
       {/* Popover / Dropdown Menu */}
       {isOpen && (
         <div
-          className={`absolute left-0 top-full mt-2 w-80 sm:w-96 max-w-[95vw] rounded-2xl overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
+          className={`absolute left-0 top-full mt-2 w-full min-w-0 sm:w-96 max-w-full rounded-2xl overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
             isDark
               ? "bg-slate-900/98 backdrop-blur-2xl border border-emerald-500/40 text-slate-100 ring-1 ring-emerald-500/20"
               : "bg-white border border-slate-200 text-slate-800 ring-1 ring-slate-900/10"
