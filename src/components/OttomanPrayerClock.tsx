@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { zoneNowDate } from '../utils/locationTimezone';
 import { Clock } from 'lucide-react';
 
 interface OttomanPrayerClockProps {
   prayerName: string;
   prayerTimeStr: string;
   now: Date;
+  timezoneId?: string;
   sizePx?: number;
   isNextPrayer?: boolean;
 }
@@ -16,10 +18,27 @@ export const OttomanPrayerClock: React.FC<OttomanPrayerClockProps> = ({
   prayerName,
   prayerTimeStr,
   now,
+  timezoneId,
   sizePx = 240,
   isNextPrayer = false
 }) => {
   const [mode, setMode] = useState<'prayer' | 'live'>('prayer');
+  const [liveClockNow, setLiveClockNow] = useState<Date>(() => now);
+
+  // Tick independently on mobile and re-sync when the page returns to foreground.
+  useEffect(() => {
+    if (mode !== 'live') return;
+    const refresh = () => setLiveClockNow(timezoneId ? zoneNowDate(timezoneId) : new Date());
+    refresh();
+    const timer = window.setInterval(refresh, 1000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('pageshow', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('pageshow', refresh);
+    };
+  }, [mode, timezoneId]);
 
   // Vakit Saati (Akrep ve Yelkovan için)
   const [pHour, pMin] = (prayerTimeStr || '12:00').split(':').map(Number);
@@ -27,9 +46,9 @@ export const OttomanPrayerClock: React.FC<OttomanPrayerClockProps> = ({
   const prayerMinAngle = (pMin || 0) * 6;
 
   // Canlı Saat
-  const liveHours = now.getHours();
-  const liveMinutes = now.getMinutes();
-  const liveSeconds = now.getSeconds();
+  const liveHours = liveClockNow.getHours();
+  const liveMinutes = liveClockNow.getMinutes();
+  const liveSeconds = liveClockNow.getSeconds();
   const liveHourAngle = ((liveHours % 12) + liveMinutes / 60) * 30;
   const liveMinAngle = (liveMinutes + liveSeconds / 60) * 6;
   const liveSecAngle = liveSeconds * 6;
@@ -41,9 +60,12 @@ export const OttomanPrayerClock: React.FC<OttomanPrayerClockProps> = ({
   return (
     <div className="flex flex-col items-center gap-2.5 select-none w-full max-w-full">
       {/* Analog Saat Kadranı */}
-      <div
-        className="relative cursor-pointer transition-transform hover:scale-102 active:scale-98 mx-auto"
-        style={{ width: `${sizePx}px`, height: `${sizePx}px`, maxWidth: '100%', aspectRatio: '1 / 1' }}
+      <button
+        type="button"
+        aria-pressed={mode === 'live'}
+        aria-label={mode === 'prayer' ? 'Canlı saati göster' : 'Sıradaki namaz saatini göster'}
+        className="relative cursor-pointer border-0 bg-transparent p-0 transition-transform hover:scale-102 active:scale-98 mx-auto touch-manipulation focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-600"
+        style={{ width: `${sizePx}px`, height: `${sizePx}px`, maxWidth: '100%', aspectRatio: '1 / 1', touchAction: 'manipulation' }}
         onClick={() => setMode(m => m === 'prayer' ? 'live' : 'prayer')}
         title={
           mode === 'prayer'
@@ -215,7 +237,7 @@ export const OttomanPrayerClock: React.FC<OttomanPrayerClockProps> = ({
           <circle cx="100" cy="100" r="5" fill="#1CA39C" stroke="#142952" strokeWidth="1.5" />
           <circle cx="100" cy="100" r="2" fill="#FAF4E6" />
         </svg>
-      </div>
+      </button>
 
       {/* Alt Bilgi Rozeti: Vakit Saati ve Canlı Saat Seçeneği */}
       <div className="text-center space-y-1 pt-0.5">
@@ -228,7 +250,7 @@ export const OttomanPrayerClock: React.FC<OttomanPrayerClockProps> = ({
           <span>
             {mode === 'prayer'
               ? `${isNextPrayer ? 'Sıradaki Vakit' : 'Vakit'}: ${prayerName} (${prayerTimeStr})`
-              : `Canlı Saat: ${now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`}
+              : `Canlı Saat: ${liveClockNow.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
           </span>
         </button>
         <div className="text-[10px] text-[#5C101E] font-serif font-semibold">

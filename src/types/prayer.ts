@@ -3,6 +3,7 @@ export interface Coordinates {
   lng: number;
   timezone: number;
   timezoneId?: string;
+  timezoneStatus?: 'verified' | 'unverified';
   city: string;
   country: string;
   state?: string;

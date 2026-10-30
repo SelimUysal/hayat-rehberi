@@ -150,9 +150,8 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
       lng: Number(Number(newCity.lng).toFixed(6)),
       timezone: Number(newCity.timezone)
     };
-    // Resolve timezone including DST without modifying the existing temkin model.
-    // Show selection immediately; async timezone lookup must not overwrite newer choices.
-    setCurrentLocation(updatedLocation);
+    // Keep the previous, verified location visible until the new timezone is resolved.
+    // This prevents briefly displaying Kuala Lumpur with Istanbul UTC+3 prayer times.
     const resolvedLocation = await resolveLocationTimezone(updatedLocation);
     if (requestId !== selectionId.current) return;
     setCurrentLocation(resolvedLocation);
@@ -239,9 +238,16 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
 
       {/* Ana İçerik */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-8">
+        {currentLocation.timezoneStatus === 'unverified' && (
+          <div role="alert" className="rounded-xl border border-amber-400 bg-amber-50 p-4 text-amber-950 space-y-2">
+            <p className="font-bold">Bu konumun saat dilimi doğrulanamadı.</p>
+            <p className="text-sm">Yanlış UTC farkıyla namaz vakti göstermemek için konumu yeniden doğrulayın. İnternet bağlantınızı kontrol edin veya konum seçiciden saat dilimi bilinen bir şehir seçin.</p>
+            <button type="button" onClick={() => setIsCityModalOpen(true)} className="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white">Konumu yeniden seç</button>
+          </div>
+        )}
         
         {/* Tab İçerikleri */}
-        {activeTab === 'daily' && (
+        {activeTab === 'daily' && currentLocation.timezoneStatus !== 'unverified' && (
           <div className="space-y-8 animate-fadeIn">
             {/* Vakit Ekranı: Şablon seçici, büyütülmüş miladi tarih & ay sayı/yazı butonu */}
             <HeroCountdown
@@ -281,7 +287,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
           </div>
         )}
 
-        {activeTab === 'monthly' && (
+        {activeTab === 'monthly' && currentLocation.timezoneStatus !== 'unverified' && (
           <div className="animate-fadeIn space-y-6">
             <MonthlyCalendar
               key={`monthly-${currentLocation.lat}-${currentLocation.lng}`}
