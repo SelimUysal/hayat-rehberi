@@ -331,7 +331,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const selectedTranslationText = translations.find((t) => t.numberInSurah === selectedVerseNum)?.text || '';
 
   return (
-    <div className={`max-w-3xl mx-auto w-full px-3 py-4 pb-36 font-sans ${isDark ? 'text-[#f1ecdd]' : 'text-slate-800'}`}>
+    <div className={`max-w-3xl mx-auto w-full min-w-0 px-3 py-4 pb-64 sm:pb-44 font-sans ${isDark ? 'text-[#f1ecdd]' : 'text-slate-800'}`}>
       
       {/* Mobil Üst Başlık & Sure Seçimi */}
       <div className={`rounded-2xl p-3 sm:p-4 shadow-sm border mb-4 sticky top-16 z-30 transition-colors ${
@@ -563,13 +563,13 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       )}
 
       {/* SABİT ALT KONTROL ÇUBUĞU (Sticky Floating Bottom Dock) */}
-      <div className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t shadow-2xl p-3 sm:px-6 transition-colors ${
+      <div className={`fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 z-40 w-full max-w-[100vw] min-w-0 backdrop-blur-md border-t shadow-2xl px-2 py-2 sm:px-4 sm:py-3 transition-colors ${
         isDark ? 'bg-[#211d16]/95 border-[#3a3226] text-[#f1ecdd]' : 'bg-white/95 border-slate-200 text-slate-800'
       }`}>
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
+        <div className="max-w-2xl mx-auto grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:items-center sm:justify-between sm:gap-2 min-w-0">
           
           {/* Sol: Ayet Navigasyon & Bilgi */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <button
               onClick={goToPreviousVerse}
               disabled={selectedVerseNum <= 1}
@@ -601,7 +601,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
           </div>
 
           {/* Orta: Ana Oynat / Durdur Butonları */}
-          <div className="flex-1 max-w-[290px] flex items-center justify-center">
+          <div className="col-span-2 row-start-2 w-full min-w-0 flex items-center justify-center sm:row-auto sm:col-auto sm:flex-1 sm:max-w-[290px]">
             {isPlaying ? (
               <button
                 onClick={stopAudio}
@@ -611,10 +611,10 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                 <span>Durdur ({currentlyPlayingVerseNum ? `${currentlyPlayingVerseNum}. Ayet` : 'Oynatılıyor'})</span>
               </button>
             ) : (
-              <div className="flex items-center gap-1.5 w-full">
+              <div className="flex items-center gap-1.5 w-full min-w-0">
                 <button
                   onClick={() => startPlayback(selectedVerseNum)}
-                  className="flex-1 py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+                  className="flex-1 min-w-0 py-2.5 px-1.5 sm:px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
                   title={`${selectedVerseNum}. Ayeti Döngüyle Çal`}
                 >
                   <Play className="w-3.5 h-3.5 fill-current shrink-0" />
@@ -622,7 +622,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                 </button>
                 <button
                   onClick={startFullSurahPlayback}
-                  className={`flex-1 py-2.5 px-2 font-bold text-xs rounded-xl border shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 min-w-0 py-2.5 px-1.5 sm:px-2 font-bold text-xs rounded-xl border shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
                     isDark
                       ? 'bg-[#1c3630] hover:bg-[#23453d] text-[#3fb996] border-[#3fb996]/40'
                       : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
@@ -637,10 +637,10 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
           </div>
 
           {/* Sağ: İmleçli Hız Slider & Çekmece */}
-          <div className="flex items-center gap-1.5 relative">
+          <div className="flex items-center gap-1.5 relative justify-self-end shrink-0">
             {/* Hız Slider Popover Kartı */}
             {showSpeedPopover && (
-              <div className={`absolute right-0 bottom-full mb-3 w-64 p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
+              <div className={`absolute right-0 bottom-full mb-3 w-64 max-w-[calc(100vw-1rem)] p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
                 isDark ? 'bg-[#211d16] border-[#3a3226] text-[#f1ecdd]' : 'bg-white border-slate-200 text-slate-800'
               }`}>
                 <div className="flex items-center justify-between mb-2">
