@@ -212,6 +212,13 @@ export const HadisMode: React.FC<HadisModeProps> = ({
   const [rowPositionInputVal, setRowPositionInputVal] = useState<string>('');
 
   const [modalHadisId, setModalHadisId] = useState<number | null>(null);
+  const onHadisCardInteraction = (event: React.MouseEvent<HTMLElement>) => {
+    const card = (event.target as HTMLElement).closest<HTMLElement>('[data-hadis-id]');
+    if (!card) return;
+    const id = Number(card.dataset.hadisId);
+    const index = filteredHadisler.findIndex(h => h.id === id);
+    if (index >= 0 && id !== activeHadis?.id) selectHadisIndex(index);
+  };
   const [activeDrawer, setActiveDrawer] = useState<'none' | 'quiz' | 'stats'>('none');
   const [clozeRatio, setClozeRatio] = useState<number>(0.5);
   const [deeplinkCopied, setDeeplinkCopied] = useState<boolean>(false);
@@ -301,12 +308,23 @@ export const HadisMode: React.FC<HadisModeProps> = ({
 
   const sharedIndex = sharedHadisId === null ? -1 : filteredHadisler.findIndex(h => h.id === sharedHadisId);
   const activeHadis = filteredHadisler[sharedIndex >= 0 ? sharedIndex : safeFocusedIndex] || allHadisler[0];
+  // Always reflect the focused hadith in the address bar without adding
+  // a history entry for incidental rerenders or filter changes.
+  useEffect(() => {
+    if (!activeHadis || !window.location.hash.startsWith('#hadis')) return;
+    const next = `#hadis/${activeHadis.id}`;
+    if (window.location.hash === next) return;
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${next}`);
+  }, [activeHadis?.id]);
+
   const selectHadisIndex = (index: number) => {
     const item = filteredHadisler[index];
     if (!item) return;
     setSharedHadisId(null);
     setFocusedIndex(index);
-    window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#hadis/${item.id}`);
+    if (window.location.hash !== `#hadis/${item.id}`) {
+      window.history.pushState(window.history.state, '', `${window.location.pathname}${window.location.search}#hadis/${item.id}`);
+    }
   };
   useEffect(() => {
     if (sharedIndex < 0) return;
@@ -1499,6 +1517,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
           <HadisStatsView items={allHadisler} logs={activityLogs} isDark={isDark} />
         )}
 
+        <div onClickCapture={onHadisCardInteraction} className="contents">
         {/* =========================================================================
             4. 7 TEMEL GÖRÜNÜM MODUNUN CANLI RENDER ALANI ([8, 1, 2, 4, 11, 9, 5] Sırasıyla)
            ========================================================================= */}
@@ -1921,6 +1940,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
                         return (
                           <tr
                             key={item.id}
+                            data-hadis-id={item.id}
                             draggable={isReorderMode}
                             onDragStart={(e) => handleDragStartItem(e, item.id)}
                             onDragEnter={(e) => handleDragEnterOrOverItem(e, item.id)}
@@ -2177,6 +2197,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

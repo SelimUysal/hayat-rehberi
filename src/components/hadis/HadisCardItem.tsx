@@ -282,6 +282,7 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
   if (variant === 'flip') {
     return (
       <div
+        data-hadis-id={item.id}
         draggable={isReorderMode}
         onDragStart={onDragStart}
         onDragEnter={onDragEnter}
@@ -454,6 +455,7 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
   return (
     <article
       id={`hadis-card-${item.id}`}
+      data-hadis-id={item.id}
       draggable={isReorderMode}
       onDragStart={onDragStart}
       onDragEnter={onDragEnter}
