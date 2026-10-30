@@ -1,0 +1,24 @@
+name: Verify Ezber Assistant cleanup and diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm install --legacy-peer-deps
+      - name: Ezber diagnostics regression tests
+        run: npx tsx --test tests/ezberDiagnostics.test.ts
+      - name: Production build
+        run: npx vite build

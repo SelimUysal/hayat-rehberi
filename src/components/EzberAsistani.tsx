@@ -3,6 +3,8 @@ import { Monitor, Smartphone, Moon, Sun } from 'lucide-react';
 import { DesktopMode } from './DesktopMode';
 import { MobileMode } from './MobileMode';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
+import { EzberDiagnosticsPanel } from './EzberDiagnosticsPanel';
+import { recordEzberEvent as logEzber } from '../utils/ezberDiagnostics';
 
 export type EzberSubMode = 'desktop' | 'mobile';
 export type EzberTheme = 'dark' | 'emerald';
@@ -48,11 +50,13 @@ export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId }) =
   });
 
   const handleSubModeChange = (mode: EzberSubMode) => {
+    if (mode === subMode) return;
+    logEzber('VIEW_CHANGE', 'info', { detail: {mode} });
     setSubMode(mode);
     try {
       localStorage.setItem('quran_ezber_view_submode', mode);
-    } catch {
-      // ignore
+    } catch (err) {
+      logEzber('PREFERENCE_SAVE_FAILED', 'warning', {detail:{name:'StorageError',stage:'view'}});
     }
   };
 
@@ -70,6 +74,7 @@ export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId }) =
         isDark ? 'dark bg-[#181510] text-[#f1ecdd]' : 'bg-[#FBF9F5] text-slate-800'
       }`}
     >
+      <EzberDiagnosticsPanel />
       {/* Ezber Asistanı Mod ve Tema Seçici Çubuğu */}
       <div
         className={`border-b py-2.5 px-4 sm:px-6 sticky top-16 z-35 backdrop-blur-md ${

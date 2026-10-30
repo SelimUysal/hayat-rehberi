@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
+import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
 
 export interface VoiceRecordingItem {
   id: string;
@@ -85,9 +86,13 @@ async function loadSavedRecordingsFromDB(): Promise<VoiceRecordingItem[]> {
           .slice(0, MAX_RECORDINGS);
         resolve(items);
       };
-      req.onerror = () => resolve([]);
+      req.onerror = () => {
+        logEzber('RECORD_DB_READ_FAILED','error',{detail:{stage:'read',name:ezberErrorName(req.error)}});
+        resolve([]);
+      };
     });
-  } catch {
+  } catch (err) {
+    logEzber('RECORD_DB_READ_FAILED','error',{detail:{stage:'open',name:ezberErrorName(err)}});
     return [];
   }
 }
@@ -96,8 +101,12 @@ async function syncRecordingsToDB(items: VoiceRecordingItem[]): Promise<void> {
   try {
     const db = await openRecordingsDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.clear();
+    await new Promise<void>((resolve,reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('Transaction error'));
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+      const store = tx.objectStore(STORE_NAME);
+      store.clear();
     items.forEach((item) => {
       store.put({
         id: item.id,
@@ -110,8 +119,9 @@ async function syncRecordingsToDB(items: VoiceRecordingItem[]): Promise<void> {
         pinned: Boolean(item.pinned)
       });
     });
-  } catch {
-    // ignore storage errors
+    });
+  } catch (err) {
+    logEzber('RECORD_DB_WRITE_FAILED','error',{detail:{stage:'sync',name:ezberErrorName(err)}});
   }
 }
 
@@ -201,7 +211,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
       const next = !prev;
       try {
         localStorage.setItem('ezber_blind_on_record', String(next));
-      } catch {}
+      } catch (err) {logEzber('PREFERENCE_SAVE_FAILED','warning',{detail:{stage:'blind',name:ezberErrorName(err)}});}
       return next;
     });
   };
@@ -211,7 +221,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
       const next = !prev;
       try {
         localStorage.setItem('ezber_autoplay_after_record', String(next));
-      } catch {}
+      } catch (err) {logEzber('PREFERENCE_SAVE_FAILED','warning',{detail:{stage:'autoplay',name:ezberErrorName(err)}});}
       return next;
     });
   };
@@ -254,6 +264,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
     }
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      logEzber('MIC_UNSUPPORTED','warning',{surah:surahId});
       setErrorMsg('Tarayıcınız mikrofonla ses kaydını desteklemiyor.');
       return;
     }
@@ -325,6 +336,13 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
       setRecordingSeconds(0);
       setIsRecording(true);
 
+      recorder.onerror = () => {
+        logEzber('RECORD_ERROR','error',{surah:surahId,detail:{stage:'recorder'}});
+        setErrorMsg('Ses kaydı beklenmedik şekilde durdu. Tekrar deneyin.');
+        stopRecordingCleanup();
+        setIsRecording(false);
+      };
+
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
@@ -338,7 +356,12 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
         stopRecordingCleanup();
         setIsRecording(false);
 
-        if (audioBlob.size === 0) return;
+        if (audioBlob.size === 0) {
+          logEzber('RECORD_EMPTY','warning',{surah:surahId});
+          setErrorMsg('Ses kaydı boş geldi. Mikrofonu kontrol edip tekrar deneyin.');
+          return;
+        }
+        logEzber('RECORD_STOP','info',{surah:surahId,detail:{duration:durationSec}});
 
         const audioUrl = URL.createObjectURL(audioBlob);
         const newItem: VoiceRecordingItem = {
@@ -394,12 +417,14 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
       };
 
       recorder.start(200);
+      logEzber('RECORD_START','info',{surah:surahId});
 
       timerIntervalRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - recordStartTimeRef.current) / 1000);
         setRecordingSeconds(elapsed);
       }, 250);
-    } catch (err: any) {
+    } catch (err) {
+      logEzber('MIC_PERMISSION_ERROR','error',{surah:surahId,detail:{name:ezberErrorName(err)}});
       stopRecordingCleanup();
       setIsRecording(false);
       setErrorMsg('Mikrofon izni alınamadı. Lütfen tarayıcıdan mikrofon erişimine izin verin.');
@@ -451,7 +476,10 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
     audio.onended = () => {
       if (loopPlaybackRef.current) {
         audio.currentTime = 0;
-        audio.play().catch(() => stopPlayback());
+        audio.play().catch((err) => {
+          logEzber('RECORD_PLAY_ERROR','warning',{surah:surahId,detail:{name:ezberErrorName(err),stage:'repeat'}});
+          stopPlayback();
+        });
       } else {
         setPlayingId(null);
         setPlaybackProgress(0);
@@ -459,10 +487,12 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
     };
 
     audio.onerror = () => {
+      logEzber('RECORD_PLAY_ERROR','error',{surah:surahId,detail:{mediaCode:audio.error?.code ?? 0,stage:'resource'}});
       stopPlayback();
     };
 
-    audio.play().catch(() => {
+    audio.play().catch((err) => {
+      logEzber('RECORD_PLAY_ERROR','error',{surah:surahId,detail:{name:ezberErrorName(err),stage:'play'}});
       stopPlayback();
     });
   };
@@ -473,6 +503,10 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
       playerRef.current.currentTime = 0;
       playerRef.current.ontimeupdate = null;
       playerRef.current.onended = null;
+      playerRef.current.onerror = null;
+      playerRef.current.ontimeupdate = null;
+      playerRef.current.removeAttribute('src');
+      playerRef.current.load();
       playerRef.current = null;
     }
     setPlayingId(null);
