@@ -250,6 +250,24 @@ export function App() {
     }
   };
 
+  // Logo her zaman ana sayfanın Bugünkü Vakitler sekmesine döner;
+  // takvim zaten açıksa bile iç sekme, seçili tarih ve URL güncellenir.
+  const handleGoHome = () => {
+    setTakvimTargetDate(new Date());
+    setTakvimTargetSubTab('daily');
+    setTakvimTargetAction(null);
+    setTakvimTimestamp(Date.now());
+    setActiveTab('takvim');
+    try { localStorage.setItem('quran_active_tab', 'takvim'); } catch {}
+    if (typeof window !== 'undefined') {
+      const nextUrl = `${window.location.pathname}${window.location.search}${makeTakvimHash('daily')}`;
+      if (window.location.hash !== makeTakvimHash('daily')) {
+        window.history.pushState(null, '', nextUrl);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const handleNavigate = (tab: TabType, params?: SearchNavigateParams) => {
     if (params?.specialView) {
       setSpecialView(params.specialView);
@@ -385,6 +403,7 @@ export function App() {
       <Navbar 
         activeTab={activeTab} 
         setActiveTab={handleTabChange} 
+        onGoHome={handleGoHome}
         isDarkMode={isDark} 
         onToggleDarkMode={handleToggleTheme} 
       />
