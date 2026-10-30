@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { CalculatedDay, PrayerTimes, Coordinates } from '../types/prayer';
 import { timeStrToMinutes } from '../utils/astronomy';
+import { zoneNowDate } from '../utils/locationTimezone';
 import { 
   Sun, Moon, Sunrise, Sunset, ChevronLeft, ChevronRight, 
   Calendar, MapPin, Compass, Sparkles, LayoutGrid, Split, Clock, Activity,
@@ -155,9 +156,10 @@ export const HeroCountdown: React.FC<HeroCountdownProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const currentHours = now.getHours();
-  const currentMins = now.getMinutes();
-  const currentSecs = now.getSeconds();
+  const locationNow = zoneNowDate(currentLocation.timezoneId);
+  const currentHours = locationNow.getHours();
+  const currentMins = locationNow.getMinutes();
+  const currentSecs = locationNow.getSeconds();
   const currentTotalSeconds = currentHours * 3600 + currentMins * 60 + currentSecs;
 
   // Sıralı ana vakitler (Kullanıcı Talebi: Ana takvimde Teheccüd vakti yer almaz; Yatsı namazı son vakti otomatik Teheccüd vaktine kadardır)
@@ -285,7 +287,7 @@ export const HeroCountdown: React.FC<HeroCountdownProps> = ({
   const setQuickDate = (offsetDays: number) => {
     const target = new Date();
     target.setDate(target.getDate() + offsetDays);
-    const dateStr = target.toISOString().split('T')[0];
+    const dateStr = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')}`;
     onSelectDate(dateStr);
     setIsDatePickerOpen(false);
   };
