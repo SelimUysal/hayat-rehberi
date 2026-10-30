@@ -371,8 +371,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   const [zirhPlaybackRate, setZirhPlaybackRate] = useState<number>(1);
   const [zirhCustomAudioUrl, setZirhCustomAudioUrl] = useState<string | null>(null);
   const [zirhCustomFileName, setZirhCustomFileName] = useState<string | null>(null);
-  const [zirhFallbackMode, setZirhFallbackMode] = useState<boolean>(false);
-  const zirhSequenceAbortRef = useRef<boolean>(false);
+  // Kullanıcının önceden kaydettiği ses IndexedDB'de kalır; ancak
+  // varsayılan Zırh Duası kaydını otomatik olarak değiştirmez.
+  const [zirhUseCustomAudio, setZirhUseCustomAudio] = useState(false);
+  const [zirhAudioError, setZirhAudioError] = useState<string | null>(null);
+  const zirhObjectUrlRef = useRef<string | null>(null);
 
   // IndexedDB'den kullanıcı tarafından yüklenmiş Zırh Duası ses dosyasını yükle
   useEffect(() => {
@@ -395,6 +398,8 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
           const record = getReq.result;
           if (record && record.blob) {
             const objUrl = URL.createObjectURL(record.blob);
+            if (zirhObjectUrlRef.current) URL.revokeObjectURL(zirhObjectUrlRef.current);
+            zirhObjectUrlRef.current = objUrl;
             setZirhCustomAudioUrl(objUrl);
             setZirhCustomFileName(record.name || 'zirh_duasi.mp3');
           }
@@ -408,11 +413,19 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   const handleZirhFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size === 0 || file.size > 30 * 1024 * 1024 ||
+        (file.type && !['audio/mpeg', 'audio/mp3'].includes(file.type))) {
+      setZirhAudioError('Geçerli ve 30 MB altında bir MP3 dosyası seçin.');
+      return;
+    }
     handleZirhStop();
     const objUrl = URL.createObjectURL(file);
+    if (zirhObjectUrlRef.current) URL.revokeObjectURL(zirhObjectUrlRef.current);
+    zirhObjectUrlRef.current = objUrl;
     setZirhCustomAudioUrl(objUrl);
     setZirhCustomFileName(file.name);
-    setZirhFallbackMode(false);
+    setZirhUseCustomAudio(true);
+    setZirhAudioError(null);
 
     if (typeof window !== 'undefined' && 'indexedDB' in window) {
       try {
@@ -434,62 +447,6 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
     }
   };
 
-  const playZirhFallbackSequence = () => {
-    zirhSequenceAbortRef.current = false;
-    setZirhFallbackMode(true);
-    setZirhIsPlaying(true);
-    setZirhIsPaused(false);
-
-    const playAudioUrl = (url: string): Promise<void> =>
-      new Promise((resolve) => {
-        if (zirhSequenceAbortRef.current) return resolve();
-        const audio = zirhAudioRef.current || new Audio();
-        zirhAudioRef.current = audio;
-        audio.src = url;
-        audio.playbackRate = zirhPlaybackRate;
-        audio.onloadedmetadata = () => setZirhDuration(audio.duration || 0);
-        audio.ontimeupdate = () => setZirhCurrentTime(audio.currentTime || 0);
-        audio.onended = () => resolve();
-        audio.onerror = () => resolve();
-        audio.play().catch(() => resolve());
-      });
-
-    const speakText = (arText: string): Promise<void> =>
-      new Promise((resolve) => {
-        if (zirhSequenceAbortRef.current) return resolve();
-        if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-          return resolve();
-        }
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(arText);
-        utter.lang = 'ar-SA';
-        utter.rate = Math.max(0.6, zirhPlaybackRate * 0.88);
-        utter.onend = () => resolve();
-        utter.onerror = () => resolve();
-        window.speechSynthesis.speak(utter);
-      });
-
-    (async () => {
-      // 1. Yûsuf Suresi 64. Ayet: فَاللّٰهُ خَيْرٌ حَافِظاًۖ وَهُوَ اَرْحَمُ الرَّاحِم۪ينَ
-      await playAudioUrl('https://everyayah.com/data/Alafasy_128kbps/012064.mp3');
-      if (zirhSequenceAbortRef.current) return;
-      // 2. Zırh Duası Arapça Metni
-      await speakText(
-        'بِسْمِ اللهِ الْخَالِقِ الْأَكْبَرِ، وَهُوَ حِرْزٌ مَانِعٌ مِمَّا أَخَافُ مِنْهُ وَأَحْذَرُ. لَا قُدْرَةَ لِمَخْلُوقٍ مَعَ قُدْرَةِ الْخَالِقِ، يُلْجِمُهُ بِلِجَامِ قُدْرَتِهِ، أَحْمَى حَمِيثاً أَطْمَى طَمِيثاً، وَكَانَ اللهُ قَوِيّاً عَزِيزاً. حٰمۤ عۤسۤقۤ حِمَايَتُنَا، كٰهٰيٰعۤصۤ كِفَايَتُنَا'
-      );
-      if (zirhSequenceAbortRef.current) return;
-      // 3. Bakara Suresi 137. Ayet ve Havkale
-      await playAudioUrl('https://everyayah.com/data/Alafasy_128kbps/002137.mp3');
-      if (zirhSequenceAbortRef.current) return;
-      await speakText('وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللهِ الْعَلِيِّ الْعَظِيمِ');
-      if (!zirhSequenceAbortRef.current) {
-        setZirhIsPlaying(false);
-        setZirhIsPaused(false);
-        setZirhCurrentTime(0);
-      }
-    })();
-  };
-
   const handleZirhPlayPause = (defaultAudioUrl?: string) => {
     if (zirhIsPlaying) {
       // Duraklat
@@ -497,9 +454,6 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       setZirhIsPaused(true);
       if (zirhAudioRef.current && !zirhAudioRef.current.paused) {
         zirhAudioRef.current.pause();
-      }
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.pause();
       }
       return;
     }
@@ -509,17 +463,20 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       setZirhIsPlaying(true);
       setZirhIsPaused(false);
       if (zirhAudioRef.current && zirhAudioRef.current.src) {
-        zirhAudioRef.current.play().catch(() => {});
-      }
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.resume();
+        zirhAudioRef.current.play().catch((error: unknown) => {
+          if (error instanceof Error && error.name === 'AbortError') return;
+          setZirhIsPlaying(false);
+          setZirhIsPaused(true);
+          setZirhAudioError('Devam ettirilemedi. Tekrar deneyin.');
+        });
       }
       return;
     }
 
     // Sıfırdan Oynat
-    zirhSequenceAbortRef.current = false;
-    const targetUrl = zirhCustomAudioUrl || defaultAudioUrl || '/audio/dualar/zirh_duasi.mp3';
+    const targetUrl = zirhUseCustomAudio && zirhCustomAudioUrl
+      ? zirhCustomAudioUrl
+      : (defaultAudioUrl || import.meta.env.BASE_URL + 'audio/dualar/zirh_duasi.mp3');
     if (!zirhAudioRef.current) {
       zirhAudioRef.current = new Audio();
     }
@@ -530,10 +487,19 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
 
     audio.onloadedmetadata = () => {
       setZirhDuration(audio.duration || 0);
-      setZirhFallbackMode(false);
+      setZirhAudioError(null);
     };
     audio.ontimeupdate = () => {
       setZirhCurrentTime(audio.currentTime || 0);
+    };
+    audio.onplay = () => {
+      setZirhIsPlaying(true);
+      setZirhIsPaused(false);
+      setZirhAudioError(null);
+    };
+    audio.onpause = () => {
+      setZirhIsPlaying(false);
+      if (!audio.ended && audio.currentTime > 0) setZirhIsPaused(true);
     };
     audio.onended = () => {
       setZirhIsPlaying(false);
@@ -541,41 +507,40 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       setZirhCurrentTime(0);
     };
     audio.onerror = () => {
-      // Eğer yerel/sunucu ses dosyası henüz eklenmemişse otomatik sesli tilavet devreye girer
-      playZirhFallbackSequence();
+      setZirhIsPlaying(false);
+      setZirhIsPaused(false);
+      setZirhAudioError('Ses kaydı açılamadı. Bağlantınızı kontrol edin veya MP3 kaydını yeniden seçin.');
     };
 
-    setZirhIsPlaying(true);
     setZirhIsPaused(false);
-    audio.play().catch(() => {
-      playZirhFallbackSequence();
+    audio.play().catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      setZirhIsPlaying(false);
+      setZirhIsPaused(false);
+      setZirhAudioError('Ses başlatılamadı. Tarayıcı izinlerini ve MP3 dosyasını kontrol edin.');
     });
   };
 
   const handleZirhStop = () => {
-    zirhSequenceAbortRef.current = true;
     setZirhIsPlaying(false);
     setZirhIsPaused(false);
     setZirhCurrentTime(0);
+    setZirhAudioError(null);
     if (zirhAudioRef.current) {
       zirhAudioRef.current.pause();
       zirhAudioRef.current.currentTime = 0;
       zirhAudioRef.current.onended = null;
       zirhAudioRef.current.onerror = null;
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      zirhAudioRef.current.onplay = null;
+      zirhAudioRef.current.onpause = null;
     }
   };
 
   useEffect(() => {
     return () => {
-      zirhSequenceAbortRef.current = true;
+      if (zirhObjectUrlRef.current) URL.revokeObjectURL(zirhObjectUrlRef.current);
       if (zirhAudioRef.current) {
         zirhAudioRef.current.pause();
-      }
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -2166,13 +2131,13 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                                       isDark ? 'text-[#b9b09a]' : 'text-slate-600'
                                     }`}
                                   >
-                                    {zirhCustomFileName
-                                      ? `Yüklü Ses: ${zirhCustomFileName}`
+                                    {zirhUseCustomAudio && zirhCustomFileName
+                                      ? `Özel MP3: ${zirhCustomFileName}`
                                       : zirhIsPlaying
-                                      ? 'Zırh Duası okunuyor...'
+                                      ? 'Zırh Duası ses kaydı çalıyor...'
                                       : zirhIsPaused
-                                      ? 'Duraklatıldı — Devam etmek için Başlat butonuna basın'
-                                      : 'Dinlemek için Başlat butonuna basın veya kendi ses dosyanızı seçin'}
+                                      ? 'Duraklatıldı — Devam Et düğmesine basın'
+                                      : 'Zırh Duası MP3 kaydı · Başlat ile dinleyin'}
                                   </span>
                                 </div>
                               </div>
@@ -2249,13 +2214,37 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                                   ))}
                                 </div>
 
-                                {/* Kullanıcının elindeki özel Zırh Duası ses dosyasını seçebilmesi için buton */}
-
+                                <input
+                                  ref={zirhFileInputRef}
+                                  type="file"
+                                  accept=".mp3,audio/mpeg"
+                                  onChange={handleZirhFileUpload}
+                                  className="hidden"
+                                  aria-label="Kendi Zırh Duası MP3 dosyanızı seçin"
+                                />
+                                <button type="button"
+                                  onClick={() => zirhFileInputRef.current?.click()}
+                                  className="min-h-[44px] px-3 rounded-xl border border-emerald-500/40 text-xs font-semibold">
+                                  Özel MP3 Seç
+                                </button>
+                                {zirhCustomAudioUrl && (
+                                  <button type="button"
+                                    onClick={() => {
+                                      handleZirhStop();
+                                      setZirhUseCustomAudio(value => !value);
+                                    }}
+                                    className="min-h-[44px] px-3 rounded-xl border border-amber-500/50 text-xs font-semibold">
+                                    {zirhUseCustomAudio ? 'Varsayılan Kayda Dön' : 'Kayıtlı Sesimi Dinle'}
+                                  </button>
+                                )}
                               </div>
                             </div>
 
+                            {zirhAudioError && (
+                              <p role="alert" className="text-xs text-rose-500">{zirhAudioError}</p>
+                            )}
                             {/* Ses İlerleme Çubuğu */}
-                            {!zirhFallbackMode && zirhDuration > 0 && (
+                            {zirhDuration > 0 && (
                               <div className="flex items-center gap-3 pt-1">
                                 <span className="text-[11px] font-mono opacity-80">
                                   {formatAudioTime(zirhCurrentTime)}

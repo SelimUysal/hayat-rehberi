@@ -648,7 +648,7 @@ export const TEMEL_DATA_3: TemelDuaItem[] = [
       '"Allah koruyanların en hayırlısıdır ve O, merhametlilerin en merhametlisidir." (Yûsuf Suresi, 64. Ayet)\n"En büyük Yaratıcı olan Allah\'ın adıyla. O, korktuğum ve çekindiğim her şeyden koruyan engelleyici bir zırhtır. Yaratıcının kudreti karşısında hiçbir yaratılmışın gücü yetmez; Allah onu kendi kudret gemiyle gemler. (Her türlü şerri) tamamen korur ve engeller. Allah çok güçlüdür, mutlak izzet sahibidir. Hâ-Mîm-Ayn-Sîn-Kâf koruyucumuz, Kâf-Hâ-Yâ-Ayn-Sâd yetenimizdir (bize kafidir). Onlara karşı Allah sana yetecektir; O, hakkıyla işitendir, hakkıyla bilendir. (Bakara Suresi, 137. Ayet) Güç ve kuvvet ancak yüce ve azamet sahibi olan Allah’ındır."',
     note: "Üstad Kadir Mısıroğlu'nun her türlü maddi ve manevi şerden, korkulan ve çekinilen tehlikelerden Cenâb-ı Hakk'ın hıfz u emânına sığınmak üzere okunmasını hassaten tavsiye ettiği meşhur Zırh (Hırz) Duasıdır.",
     hasAudioPlayer: true,
-    audioUrl: '/audio/dualar/zirh_duasi.mp3'
+    audioUrl: import.meta.env.BASE_URL + 'audio/dualar/zirh_duasi.mp3'
   },
   {
     title: '1. Sabah Kalkış Rutini (Güne İhlasla Başlarken)',
