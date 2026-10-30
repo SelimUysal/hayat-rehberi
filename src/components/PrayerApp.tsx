@@ -70,6 +70,17 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
 
   // Ortak Canlı Sistem Saati ("Canlı Saat Rozeti" ve Özel Hedefler Geri Sayımı için tam senkronize)
   const [systemNow, setSystemNow] = useState<Date>(() => new Date());
+  // Migrate older saved international locations without changing Turkey presets.
+  useEffect(() => {
+    if (currentLocation.timezoneId || currentLocation.country === 'Türkiye' || currentLocation.country === 'Turkey') return;
+    let cancelled = false;
+    resolveLocationTimezone(currentLocation).then(resolved => {
+      if (cancelled || !resolved.timezoneId) return;
+      setCurrentLocation(resolved);
+      try { localStorage.setItem('namaz_current_location', JSON.stringify(resolved)); } catch {}
+    });
+    return () => { cancelled = true; };
+  }, [currentLocation.lat, currentLocation.lng, currentLocation.country, currentLocation.timezoneId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
