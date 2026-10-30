@@ -19,7 +19,7 @@ export function zoneNowDate(zone?: string): Date {
 }
 export async function resolveLocationTimezone(location: Coordinates): Promise<Coordinates> {
   // Preserve Turkey's existing fixed UTC+3 settings, calculations and chosen temkin.
-  if (location.country === 'Türkiye' || location.country === 'Turkey') return { ...location, timezone: 3, timezoneId: 'Europe/Istanbul' };
+  if (location.country === 'Türkiye' || location.country === 'Turkey') return { ...location, timezone: 3, timezoneId: 'Europe/Istanbul', timezoneStatus: 'verified' };
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lng}&current=temperature_2m&timezone=auto&forecast_days=1`;
     const controller = new AbortController();
@@ -29,10 +29,14 @@ export async function resolveLocationTimezone(location: Coordinates): Promise<Co
       if (!response.ok) throw Error('timezone lookup failed');
       const data = await response.json();
       if (typeof data.timezone !== 'string' || !Number.isFinite(data.utc_offset_seconds)) throw Error('bad timezone');
-      return { ...location, timezoneId: data.timezone, timezone: offsetForDate(new Date(),data.timezone,data.utc_offset_seconds/3600) };
+      return { ...location, timezoneId: data.timezone, timezone: offsetForDate(new Date(),data.timezone,data.utc_offset_seconds/3600), timezoneStatus: 'verified' };
     } finally {clearTimeout(timeout);}
   } catch {
-    // Do not silently claim a guessed timezone is accurate.
-    return location;
+    // Kuala Lumpur bounding area has an established UTC+8 timezone.
+    if (location.lat >= 2.9 && location.lat <= 3.4 && location.lng >= 101.45 && location.lng <= 101.9) {
+      return { ...location, timezoneId: 'Asia/Kuala_Lumpur', timezone: 8, timezoneStatus: 'verified' };
+    }
+    // Never silently calculate overseas times using the device UTC offset.
+    return { ...location, timezoneId: undefined, timezoneStatus: 'unverified' };
   }
 }
