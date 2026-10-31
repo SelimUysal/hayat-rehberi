@@ -376,7 +376,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       updateCycle({ ...old, surah: 1, ayah: 0, completedSurahs: 0 });
     }
   };
-  const recordCompletedAyah = (surah: number, idx: number, length: number, startedAt: number, player: HTMLAudioElement) => {
+  const recordCompletedAyah = (surah: number, idx: number, length: number, player: HTMLAudioElement) => {
     const old = cycleRef.current;
     if (!old.enabled) return;
     // A new cycle must begin at the first second of Al-Fatiha.
@@ -867,7 +867,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         return;
       }
       // Only automatically finished ayahs count. Skip/manual navigation never counts.
-      recordCompletedAyah(currentSurahIdRef.current, idx, list.length, startTime, player);
+      recordCompletedAyah(currentSurahIdRef.current, idx, list.length, player);
       hasAdvancedToNext = true;
       logListen('AYAH_ADVANCE', 'info', { surah: currentSurahIdRef.current, ayah: idx + 1 });
       playAyahAt(idx + 1, 0, list);
