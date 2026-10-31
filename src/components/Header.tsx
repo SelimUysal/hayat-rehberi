@@ -262,9 +262,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Sistem Saatinin Hemen Yanında (Orta Kısma Doğru) Minimalist En Yakın Hedef Geri Sayım Alanı */}
             {nearestGoal && nearestCountdown ? (
-              <button
-                type="button"
-                onClick={() => onTabChange('goals')}
+              <AppRouteLink
+                
+                href={makeTakvimHash('goals')} navigate={() => onTabChange('goals')}
                 title={`${nearestGoal.title}${nearestGoal.description ? ' — ' + nearestGoal.description : ''} (Özel Hedefler & Geri Sayım sayfasına gitmek için tıklayın)`}
                 className="group flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50/90 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300/80 transition-colors cursor-pointer text-left max-w-[200px] sm:max-w-[320px] md:max-w-[380px]"
               >
@@ -289,23 +289,23 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   )}
                 </div>
-              </button>
+              </AppRouteLink>
             ) : (
-              <button
-                type="button"
-                onClick={() => onTabChange('goals')}
+              <AppRouteLink
+                
+                href={makeTakvimHash('goals')} navigate={() => onTabChange('goals')}
                 title="Yeni bir özel hedef ve geri sayım ekleyin"
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200/70 text-slate-500 hover:text-slate-800 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Target className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                 <span>Özel Hedef Ekle</span>
-              </button>
+              </AppRouteLink>
             )}
 
             {/* Canlı Saat Rozeti & Dünya Saatleri Hızlı Geçiş */}
-            <button
-              type="button"
-              onClick={() => onOpenWorldClock?.()}
+            <AppRouteLink
+              
+              href="#worldclock" navigate={onOpenWorldClock}
               title="Dünya Saatleri Modülünü Aç"
               className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100/80 hover:bg-emerald-50 border border-slate-200/80 hover:border-emerald-300 transition-colors cursor-pointer"
             >
@@ -317,7 +317,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="font-mono text-xs sm:text-sm font-extrabold text-slate-900 tabular-nums">
                 {liveTime}
               </span>
-            </button>
+            </AppRouteLink>
           </div>
         </div>
 
@@ -403,28 +403,28 @@ export const Header: React.FC<HeaderProps> = ({
           </AppRouteLink>
 
           {onOpenWorldClock && (
-            <button
+            <AppRouteLink
               id="tab-worldclock-link"
-              type="button"
-              onClick={onOpenWorldClock}
+              
+              href="#worldclock" navigate={onOpenWorldClock}
               className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 bg-white text-slate-500 hover:text-emerald-800 hover:bg-emerald-50/70 hover:shadow-xs border border-transparent hover:border-emerald-200/60"
             >
               <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700 shrink-0" />
               <span>Dünya Saatleri</span>
-            </button>
+            </AppRouteLink>
           )}
 
           {onOpenOsmanli && (
-            <button
+            <AppRouteLink
               id="tab-osmanli-link"
-              type="button"
-              onClick={onOpenOsmanli}
+              
+              href="#osmanli" navigate={onOpenOsmanli}
               className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 bg-white text-stone-600 hover:text-[#4a3b19] hover:bg-[#fbf8f1] hover:shadow-xs border border-transparent hover:border-[#d4af37]/60"
               title="Osmanlı Saati & Muvakkithâne Modülünü Aç"
             >
               <Landmark className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#8c6b1c] shrink-0" />
               <span>Osmanlı Saati</span>
-            </button>
+            </AppRouteLink>
           )}
         </nav>
         <button type="button" onClick={copyTabLink} aria-label="Açık takvim bölümünün bağlantısını kopyala" title="Bu bölümün bağlantısını kopyala" className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100">
