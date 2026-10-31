@@ -20,22 +20,28 @@ test('radio is discoverable in main header and Quran modules',()=>{
   assert.ok(app.includes("activeTab === 'radio' && <SadaQuranRadio />"));
   assert.ok(app.includes("'radio',"));
 });
-test('no fake audio stream URL or automatic media playback, and safe external fallback',()=>{
+test('real AWE HLS audio stream and safe external fallback, no iframe',()=>{
   const code=read('src/components/SadaQuranRadio.tsx');
   assert.ok(code.includes('https://sadaquran.aweradio.app/'));
-  assert.ok(code.includes('src={SADAQURAN_STATION_URL}'));
+  assert.ok(code.includes('https://manifest.aweradio.app/sadaquran/music/aac.m3u8'));
+  assert.ok(code.includes("import('hls.js')"));
+  assert.ok(code.includes("canPlayType('application/vnd.apple.mpegurl')"));
   assert.ok(code.includes('target="_blank" rel="noopener noreferrer"'));
-  assert.ok(code.includes('onClick={start}'));
+  assert.ok(code.includes('onClick={connect}'));
   assert.ok(code.includes('onClick={stop}'));
-  assert.ok(!code.includes('.m3u8'));
+  assert.ok(code.includes('onClick={pause}'));
+  assert.ok(code.includes('onClick={resume}'));
+  assert.ok(!code.includes('<iframe'));
   assert.ok(!code.includes('autoPlay'));
 });
-test('iframe unmounts on tab change and user can explicitly close it',()=>{
+test('radio playback cleans up on unmount and connection problems are explained',()=>{
   const app=read('src/App.tsx');
   assert.ok(app.includes("{activeTab === 'radio' && <SadaQuranRadio />}"));
   const code=read('src/components/SadaQuranRadio.tsx');
-  assert.ok(code.includes('setEmbedded(false)'));
-  assert.ok(code.includes('{embedded ? ('));
-  assert.ok(code.includes('allow="autoplay;'));
+  assert.ok(code.includes('cleanupAudio();'));
+  assert.ok(code.includes('hlsRef.current?.destroy()'));
   assert.ok(code.includes("window.removeEventListener('offline'"));
+  assert.ok(code.includes('Hls.ErrorTypes.NETWORK_ERROR'));
+  assert.ok(code.includes('Hls.ErrorTypes.MEDIA_ERROR'));
+  assert.ok(code.includes("role=\"alert\""));
 });

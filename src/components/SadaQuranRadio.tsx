@@ -1,41 +1,138 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Headphones, Play, RadioTower, ShieldCheck, Square, Volume2, WifiOff } from 'lucide-react';
+import {
+  AlertCircle, ExternalLink, Headphones, Pause, Play, RadioTower,
+  RotateCcw, ShieldCheck, Square, Volume2, WifiOff
+} from 'lucide-react';
 
 export const SADAQURAN_STATION_URL = 'https://sadaquran.aweradio.app/';
+/** Public listener HLS address supplied in SadaQuran's AWE station settings. */
+export const SADAQURAN_STREAM_URL = 'https://manifest.aweradio.app/sadaquran/music/aac.m3u8';
 
-/**
- * AWE Radio does not publish an independently verified player URL or embed API.
- * Load the station's real listener page in an opt-in iframe. If AWE blocks
- * embedding with CSP frame-ancestors / X-Frame-Options, provide a visible
- * external listening link instead of guessing a stream endpoint.
- */
+type PlaybackStatus = 'idle' | 'connecting' | 'playing' | 'paused' | 'error';
+
 export const SadaQuranRadio: React.FC = () => {
-  const [embedded, setEmbedded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [status, setStatus] = useState<PlaybackStatus>('idle');
+  const [error, setError] = useState('');
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const hlsRef = useRef<import('hls.js').default | null>(null);
+  const sessionRef = useRef(0);
+
+  const cleanupAudio = () => {
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+  };
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener('online', update);
     window.addEventListener('offline', update);
     return () => {
+      ++sessionRef.current;
+      cleanupAudio();
       window.removeEventListener('online', update);
       window.removeEventListener('offline', update);
     };
   }, []);
 
-  // When the tab unmounts React removes the iframe and its media playback.
-  // The user can also shut down the external player without leaving this tab.
   const stop = () => {
-    setEmbedded(false);
-    setFailed(false);
+    ++sessionRef.current;
+    cleanupAudio();
+    setError('');
+    setStatus('idle');
   };
-  const start = () => {
+
+  const fail = (message: string, session: number) => {
+    if (session !== sessionRef.current) return;
+    ++sessionRef.current;
+    cleanupAudio();
+    setError(message);
+    setStatus('error');
+  };
+
+  const connect = async () => {
     if (!online) return;
-    setFailed(false);
-    setEmbedded(true);
+    const session = ++sessionRef.current;
+    cleanupAudio();
+    setError('');
+    setStatus('connecting');
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const requestPlayback = () => {
+      if (session !== sessionRef.current) return;
+      void audio.play().catch(() => {
+        fail('Ses başlatılamadı. Tekrar deneyin veya AWE yayın sayfasından dinleyin.', session);
+      });
+    };
+
+    // Safari/iOS play HLS natively. Chrome/Edge/Firefox require MediaSource + hls.js.
+    if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+      audio.src = SADAQURAN_STREAM_URL;
+      requestPlayback();
+      return;
+    }
+
+    try {
+      // Loaded only after the listener clicks Play, so other app pages stay lightweight.
+      const { default: Hls } = await import('hls.js');
+      if (session !== sessionRef.current) return;
+      if (!Hls.isSupported()) {
+        fail('Tarayıcınız bu canlı yayın biçimini desteklemiyor.', session);
+        return;
+      }
+      const hls = new Hls({
+        enableWorker: true,
+        maxBufferLength: 30,
+        manifestLoadingMaxRetry: 2,
+        levelLoadingMaxRetry: 2,
+        fragLoadingMaxRetry: 2,
+      });
+      hlsRef.current = hls;
+      let networkRetries = 0;
+      let mediaRetries = 0;
+      hls.on(Hls.Events.MANIFEST_PARSED, requestPlayback);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (session !== sessionRef.current || !data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRetries++ < 2) {
+          hls.startLoad();
+          return;
+        }
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRetries++ < 1) {
+          hls.recoverMediaError();
+          return;
+        }
+        fail('Canlı yayın akışına ulaşılamadı. Yayın henüz hazır olmayabilir veya AWE dış sitelerden erişimi engelliyor olabilir.', session);
+      });
+      hls.loadSource(SADAQURAN_STREAM_URL);
+      hls.attachMedia(audio);
+    } catch {
+      fail('Radyo oynatıcısı yüklenemedi. İnternet bağlantısını kontrol edip yeniden deneyin.', session);
+    }
   };
+
+  const pause = () => {
+    audioRef.current?.pause();
+    setStatus('paused');
+  };
+
+  const resume = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    setStatus('connecting');
+    void audio.play().catch(() => {
+      setError('Oynatma devam ettirilemedi. Yeniden bağlanmayı deneyin.');
+      setStatus('error');
+    });
+  };
+
+  const active = status === 'connecting' || status === 'playing' || status === 'paused';
 
   return (
     <section className="relative isolate flex-1 w-full min-w-0 overflow-x-hidden bg-[#0c1512] text-stone-100" aria-labelledby="sadaquran-title">
@@ -61,75 +158,84 @@ export const SadaQuranRadio: React.FC = () => {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111d18] shadow-[0_18px_56px_rgba(0,0,0,0.28)] sm:rounded-3xl">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
             <div className="flex items-center gap-2.5">
               <Volume2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
-              <span className="text-sm font-semibold text-white">Radyo oynatıcısı</span>
-              <span className="text-[11px] text-stone-400">SadaQuran</span>
+              <span className="text-sm font-semibold text-white">SadaQuran canlı yayın</span>
             </div>
-            {embedded && (
-              <button type="button" onClick={stop}
-                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 text-xs font-semibold text-stone-200 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400">
-                <Square className="h-3.5 w-3.5" aria-hidden="true" /> Yayını kapat
-              </button>
-            )}
+            <span className="flex items-center gap-2 text-xs text-stone-300" role="status">
+              <span className={`h-2 w-2 rounded-full ${status === 'playing' ? 'bg-emerald-400 animate-pulse' : status === 'error' ? 'bg-rose-400' : status === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-stone-500'}`} />
+              {status === 'playing' ? 'Dinleniyor' : status === 'connecting' ? 'Bağlanıyor…' : status === 'paused' ? 'Duraklatıldı' : status === 'error' ? 'Bağlantı sorunu' : 'Dinlemeye hazır'}
+            </span>
           </div>
 
-          {embedded ? (
-            <div className="px-3 pb-4 pt-3 sm:px-5 sm:pb-5">
-              <div className="overflow-hidden rounded-xl border border-white/15 bg-white">
-                <iframe
-                  ref={iframeRef}
-                  title="SadaQuran — AWE Radio canlı yayın oynatıcısı"
-                  src={SADAQURAN_STATION_URL}
-                  loading="eager"
-                  allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  onError={() => setFailed(true)}
-                  className="block h-[min(680px,77dvh)] min-h-[360px] w-full border-0 bg-white"
-                />
-              </div>
-              <p role="status" className="mt-3 text-xs leading-relaxed text-stone-300">
-                {failed
-                  ? 'Oynatıcı yüklenemedi. Aşağıdaki bağlantıyla doğrudan radyo sayfasını açabilirsiniz.'
-                  : 'Yayın sayfası uygulama içinde açılır. Sesi başlatmak için AWE oynatıcısının oynat düğmesine dokunun. İçerik boşsa AWE gömülmeye izin vermiyor olabilir.'}
+          <div className="flex min-h-[260px] flex-col items-center justify-center gap-5 px-5 py-10 text-center sm:min-h-[310px]">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10">
+              <Headphones className="h-9 w-9 text-emerald-300" aria-hidden="true" />
+            </div>
+            <div className="max-w-lg space-y-2">
+              <h2 className="text-lg font-bold text-white">Kur'an-ı Kerim canlı radyo</h2>
+              <p className="text-sm leading-relaxed text-stone-300">
+                Aynı canlı yayın akışını kendi oynatıcımızdan dinleyin. Ses yalnızca siz başlattığınızda açılır.
               </p>
             </div>
-          ) : (
-            <div className="flex min-h-[260px] flex-col items-center justify-center gap-4 px-5 py-10 text-center sm:min-h-[310px]">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10">
-                <Headphones className="h-7 w-7 text-emerald-300" aria-hidden="true" />
-              </div>
-              <div className="max-w-md space-y-1.5">
-                <h2 className="text-lg font-bold text-white">Kur'an radyosunu dinle</h2>
-                <p className="text-sm leading-relaxed text-stone-300">
-                  Yayın sayfasını uygulamanın içinde açmak için aşağıdaki düğmeye dokunun.
-                  Sizin izniniz olmadan harici oynatıcı yüklenmez.
-                </p>
-              </div>
-              <button type="button" onClick={start} disabled={!online}
-                className="inline-flex min-h-12 items-center gap-2.5 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-950/40 transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
-                {online ? <Play className="h-4 w-4 fill-current" aria-hidden="true" /> : <WifiOff className="h-4 w-4" aria-hidden="true" />}
-                {online ? 'Radyo oynatıcısını aç' : 'İnternet bağlantısı gerekli'}
-              </button>
+
+            <audio
+              ref={audioRef}
+              preload="none"
+              aria-label="SadaQuran canlı yayın ses oynatıcısı"
+              onPlaying={() => setStatus('playing')}
+              onWaiting={() => setStatus(previous => previous === 'playing' ? 'connecting' : previous)}
+              onError={() => {
+                if (sessionRef.current > 0 && status !== 'idle' && status !== 'error') {
+                  fail('Ses akışı açılamadı. AWE istasyonunun yayında olduğunu kontrol edin.', sessionRef.current);
+                }
+              }}
+            />
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {(status === 'idle' || status === 'error') && (
+                <button type="button" onClick={connect} disabled={!online}
+                  className="inline-flex min-h-12 items-center gap-2.5 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50">
+                  {online ? (status === 'error' ? <RotateCcw className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />) : <WifiOff className="h-4 w-4" />}
+                  {!online ? 'İnternet bağlantısı gerekli' : status === 'error' ? 'Yeniden bağlan' : 'Canlı dinle'}
+                </button>
+              )}
+              {status === 'playing' && (
+                <button type="button" onClick={pause} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-500">
+                  <Pause className="h-4 w-4" /> Duraklat
+                </button>
+              )}
+              {status === 'paused' && (
+                <button type="button" onClick={resume} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-500">
+                  <Play className="h-4 w-4" /> Devam et
+                </button>
+              )}
+              {active && (
+                <button type="button" onClick={stop} className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-stone-200 hover:bg-white/10">
+                  <Square className="h-4 w-4" /> Durdur
+                </button>
+              )}
             </div>
-          )}
+            {status === 'error' && (
+              <p role="alert" className="flex max-w-lg items-start gap-2 text-left text-xs leading-relaxed text-rose-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+              </p>
+            )}
+          </div>
 
           <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-start gap-2 text-xs leading-relaxed text-stone-400">
               <ShieldCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-              <span>Radyo AWE Radio üzerinden yayınlanır. Bu sayfadan ayrılınca gömülü oynatıcı kapanır.</span>
+              <span>Yayın AWE Radio sunucularından alınır; uygulama içinde kalabilirsiniz. Radyo sekmesinden çıkınca ses durur.</span>
             </div>
             <a href={SADAQURAN_STATION_URL} target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" /> Yayın sayfasını aç
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20">
+              <ExternalLink className="h-4 w-4" aria-hidden="true" /> AWE'de dinle
             </a>
           </div>
         </div>
         <p className="mt-4 text-center text-xs leading-relaxed text-stone-400">
-          Harici yayın sayfası bazı tarayıcılarda çerçeve içinde çalışmayabilir.
-          Bu durumda “Yayın sayfasını aç” seçeneğini kullanabilirsiniz.
-          Doğrudan ses akışı veya AWE tarafından onaylanmış bir embed bağlantısı henüz doğrulanmadı.
+          Yayın henüz hazırlanıyorsa veya AWE akışı harici sitelere açmıyorsa doğrudan AWE dinleme sayfasını kullanabilirsiniz.
         </p>
       </div>
     </section>

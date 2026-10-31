@@ -19,6 +19,7 @@
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "hls.js": "^1.7.4",
     "lucide-react": "^1.48.0",
     "motion": "^13.4.4",
     "react": "^19.0.1",
