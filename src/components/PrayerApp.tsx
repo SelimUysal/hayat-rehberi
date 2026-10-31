@@ -8,6 +8,7 @@ import { Coordinates, TemkinSettings, AsrMethod } from '../types/prayer';
 import { DEFAULT_CITY } from '../data/cities';
 import { DEFAULT_TEMKIN, calculatePrayerTimesForDate } from '../utils/astronomy';
 import { resolveLocationTimezone, zoneNowDate } from '../utils/locationTimezone';
+import { PRAYER_LOCATION_CHANGED_EVENT } from '../utils/prayerAdhanScheduling';
 import { Header, TakvimSubTab } from './Header';
 import { makeTakvimHash, parseTakvimHash } from '../utils/takvimDeepLinks';
 import { navigateToAppHash } from '../utils/appNavigation';
@@ -83,7 +84,8 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
     resolveLocationTimezone(currentLocation).then(resolved => {
       if (cancelled || !resolved.timezoneId) return;
       setCurrentLocation(resolved);
-      try { localStorage.setItem('namaz_current_location', JSON.stringify(resolved)); }
+      try { localStorage.setItem('namaz_current_location', JSON.stringify(resolved));
+        window.dispatchEvent(new Event(PRAYER_LOCATION_CHANGED_EVENT)); }
       catch (error) { recordPrayerIssue('city', 'save-resolved', error, 'warning'); }
     });
     return () => { cancelled = true; };
@@ -121,6 +123,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
       setCurrentLocation(updatedLocation);
       try {
         localStorage.setItem('namaz_current_location', JSON.stringify(updatedLocation));
+        window.dispatchEvent(new Event(PRAYER_LOCATION_CHANGED_EVENT));
       } catch (error) {
         recordPrayerIssue('city', 'save-initial', error, 'warning');
       }
@@ -172,6 +175,7 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
       setCurrentLocation(resolvedLocation);
       try {
         localStorage.setItem('namaz_current_location', JSON.stringify(resolvedLocation));
+        window.dispatchEvent(new Event(PRAYER_LOCATION_CHANGED_EVENT));
       } catch (error) {
         recordPrayerIssue('city', 'save-selection', error, 'warning');
       }
