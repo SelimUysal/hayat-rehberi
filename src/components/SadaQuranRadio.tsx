@@ -17,8 +17,10 @@ export const SadaQuranRadio: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<import('hls.js').default | null>(null);
   const sessionRef = useRef(0);
+  const playbackModeRef = useRef<'native' | 'hls' | null>(null);
 
   const cleanupAudio = () => {
+    playbackModeRef.current = null;
     hlsRef.current?.destroy();
     hlsRef.current = null;
     const audio = audioRef.current;
@@ -67,13 +69,20 @@ export const SadaQuranRadio: React.FC = () => {
 
     const requestPlayback = () => {
       if (session !== sessionRef.current) return;
-      void audio.play().catch(() => {
-        fail('Ses başlatılamadı. Tekrar deneyin veya AWE yayın sayfasından dinleyin.', session);
+      void audio.play().catch((reason) => {
+        if (session !== sessionRef.current) return;
+        if (reason?.name === 'NotAllowedError') {
+          setError('Tarayıcı otomatik sesi engelledi. Devam et düğmesine basın.');
+          setStatus('paused');
+          return;
+        }
+        fail('Ses başlatılamadı (' + (reason?.name || 'bilinmeyen hata') + '). Yeniden deneyin.', session);
       });
     };
 
     // Safari/iOS play HLS natively. Chrome/Edge/Firefox require MediaSource + hls.js.
     if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+      playbackModeRef.current = 'native';
       audio.src = SADAQURAN_STREAM_URL;
       requestPlayback();
       return;
@@ -94,6 +103,7 @@ export const SadaQuranRadio: React.FC = () => {
         levelLoadingMaxRetry: 2,
         fragLoadingMaxRetry: 2,
       });
+      playbackModeRef.current = 'hls';
       hlsRef.current = hls;
       let networkRetries = 0;
       let mediaRetries = 0;
@@ -125,10 +135,12 @@ export const SadaQuranRadio: React.FC = () => {
   const resume = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    const session = sessionRef.current;
     setStatus('connecting');
-    void audio.play().catch(() => {
-      setError('Oynatma devam ettirilemedi. Yeniden bağlanmayı deneyin.');
-      setStatus('error');
+    void audio.play().catch((reason) => {
+      if (session !== sessionRef.current) return;
+      setError('Oynatma devam ettirilemedi: ' + (reason?.name || 'bilinmeyen hata'));
+      setStatus('paused');
     });
   };
 
@@ -187,9 +199,13 @@ export const SadaQuranRadio: React.FC = () => {
               onPlaying={() => setStatus('playing')}
               onWaiting={() => setStatus(previous => previous === 'playing' ? 'connecting' : previous)}
               onError={() => {
-                if (sessionRef.current > 0 && status !== 'idle' && status !== 'error') {
-                  fail('Ses akışı açılamadı. AWE istasyonunun yayında olduğunu kontrol edin.', sessionRef.current);
-                }
+                // When hls.js manages MediaSource, it owns the recoverable media errors.
+                // Native audio error events can be transient during source changes/cleanup.
+                if (playbackModeRef.current !== 'native') return;
+                const audio = audioRef.current;
+                if (!audio?.error) return;
+                const code = audio.error.code;
+                fail('Tarayıcı canlı sesi açamadı (medya hata kodu: ' + code + '). Yeniden bağlanmayı deneyin.', sessionRef.current);
               }}
             />
             <div className="flex flex-wrap items-center justify-center gap-3">
