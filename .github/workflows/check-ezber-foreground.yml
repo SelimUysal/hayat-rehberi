@@ -1,0 +1,20 @@
+name: Verify Ezber foreground-follow behavior
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm install --legacy-peer-deps
+      - name: Mobile follow regression tests
+        run: npx tsx --test tests/ezberForegroundFollow.test.ts
+      - name: Production build
+        run: npx vite build

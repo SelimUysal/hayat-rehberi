@@ -7,7 +7,8 @@ export type EzberEventCode =
   | 'MIC_UNSUPPORTED' | 'MIC_PERMISSION_ERROR' | 'RECORD_START'
   | 'RECORD_STOP' | 'RECORD_EMPTY' | 'RECORD_ERROR' | 'RECORD_PLAY_ERROR'
   | 'RECORD_DB_READ_FAILED' | 'RECORD_DB_WRITE_FAILED'
-  | 'PREFERENCE_SAVE_FAILED' | 'RENDER_ERROR';
+  | 'PREFERENCE_SAVE_FAILED' | 'RENDER_ERROR'
+  | 'APP_BACKGROUND' | 'APP_FOREGROUND' | 'FOLLOW_RESYNC';
 export type EzberEventLevel = 'info' | 'warning' | 'error';
 export interface EzberEvent {
   time: string;
@@ -28,7 +29,8 @@ const ALLOWED = new Set<string>([
   'MIC_UNSUPPORTED','MIC_PERMISSION_ERROR','RECORD_START',
   'RECORD_STOP','RECORD_EMPTY','RECORD_ERROR','RECORD_PLAY_ERROR',
   'RECORD_DB_READ_FAILED','RECORD_DB_WRITE_FAILED',
-  'PREFERENCE_SAVE_FAILED','RENDER_ERROR'
+  'PREFERENCE_SAVE_FAILED','RENDER_ERROR',
+  'APP_BACKGROUND','APP_FOREGROUND','FOLLOW_RESYNC'
 ]);
 const FIELDS = new Set(['mode','name','mediaCode','networkState','readyState','online','repeat','segment','stage','duration']);
 let fallback: EzberEvent[] = [];
