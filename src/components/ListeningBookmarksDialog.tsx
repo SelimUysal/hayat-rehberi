@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Check, Headphones, Pencil, Trash2, X } from 'lucide-react';
 import { RECITERS } from '../data/surahs';
-import { type ABLoopState, labelABPoint, validateABRange, type ABPoint } from '../utils/listeningABLoop';
+import { type ABLoopState, labelABPoint, orderABPoints, validateABRange, type ABPoint } from '../utils/listeningABLoop';
 import {
   bookmarkLabel, formatListeningBookmarkTime, MAX_MANUAL_LISTENING_BOOKMARKS,
   type ListeningBookmarkPosition, type ManualListeningBookmark,
@@ -42,6 +42,11 @@ export function ListeningBookmarksDialog({
   const [limitText, setLimitText] = useState('');
   const [section, setSection] = useState<'bookmarks'|'ab'>('bookmarks');
   const toABPoint = (b: ManualListeningBookmark): ABPoint => ({surahId:b.surahId,ayahIndex:b.ayahIndex,seconds:b.currentTime});
+  const chosenFirst = bookmarks.find(b => b.id === startId);
+  const chosenSecond = bookmarks.find(b => b.id === endId);
+  const orderedRange = chosenFirst && chosenSecond
+    ? orderABPoints(toABPoint(chosenFirst), toABPoint(chosenSecond))
+    : null;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -138,37 +143,47 @@ export function ListeningBookmarksDialog({
           </p>
           <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Yer imi bölümleri">
             <button type="button" role="tab" aria-selected={section==='bookmarks'} onClick={()=>setSection('bookmarks')} className={`min-h-11 rounded-lg px-2 text-sm font-bold ${section==='bookmarks'?'bg-emerald-700 text-white':'bg-slate-800 text-slate-300'}`}>Yer İmlerim</button>
-            <button type="button" role="tab" aria-selected={section==='ab'} onClick={()=>setSection('ab')} className={`min-h-11 rounded-lg px-2 text-sm font-bold ${section==='ab'?'bg-emerald-700 text-white':'bg-slate-800 text-slate-300'}`}>A–B Döngüsü</button>
+            <button type="button" role="tab" aria-selected={section==='ab'} onClick={()=>setSection('ab')} className={`min-h-11 rounded-lg px-2 text-sm font-bold ${section==='ab'?'bg-emerald-700 text-white':'bg-slate-800 text-slate-300'}`}>Bölüm Tekrarı</button>
           </div>
-          {section==='ab' && <section className="space-y-3 rounded-xl border border-emerald-500/25 p-3" aria-label="A–B ayet döngüsü">
-            <p className="text-sm text-slate-300">İki yer imi seçin. Aralarındaki bütün ayetler sırayla okunur; B bitince A'ya dönülür. Hatim sayacı artmaz.</p>
-            {(['start','end'] as const).map(kind=><label key={kind} className="block text-xs font-bold text-slate-200">{kind==='start'?'A · Başlangıç':'B · Bitiş'}
-              <select aria-label={kind==='start'?'A başlangıç yer imi':'B bitiş yer imi'} value={kind==='start'?startId:endId} onChange={e=>kind==='start'?setStartId(e.target.value):setEndId(e.target.value)} className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 text-sm text-white">
+          {section==='ab' && <section className="space-y-3 rounded-xl border border-emerald-500/25 p-3" aria-label="Bölüm Tekrarı ayarları">
+            <p className="text-sm text-slate-300">İki yer imi seçin. Hangi sırayla seçerseniz seçin, Kur’an sırasındaki ilk noktadan sona kadar bütün ayetler okunur, sonra tekrar başa dönülür. Hatim sayacı artmaz.</p>
+            {(['start','end'] as const).map(kind=><label key={kind} className="block text-xs font-bold text-slate-200">{kind==='start'?'1. Nokta':'2. Nokta'}
+              <select aria-label={kind==='start'?'Birinci yer imi':'İkinci yer imi'} value={kind==='start'?startId:endId} onChange={e=>kind==='start'?setStartId(e.target.value):setEndId(e.target.value)} className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 text-sm text-white">
                 <option value="">Yer imi seçin</option>
                 {bookmarks.map(b=><option key={b.id} value={b.id}>{b.name} — {labelABPoint(toABPoint(b))}</option>)}
               </select>
             </label>)}
+            {orderedRange && <div role="status" className="space-y-1 rounded-lg border border-emerald-500/25 bg-emerald-950/30 p-3 text-xs text-emerald-100">
+              <p className="font-bold">Okunacak bölüm</p>
+              <p className="leading-relaxed">
+                {labelABPoint(orderedRange.start)} ({orderedRange.start.seconds > 0 ? formatListeningBookmarkTime(orderedRange.start.seconds) : 'başlangıç'})
+                {' → '}
+                {labelABPoint(orderedRange.end)} ({orderedRange.end.seconds > 0 ? formatListeningBookmarkTime(orderedRange.end.seconds) : 'ayet sonuna kadar'})
+              </p>
+              {orderedRange.swapped && <p className="text-emerald-200">Seçim sırasını otomatik düzelttik.</p>}
+            </div>}
             <label className="block text-xs text-slate-200">Tekrar sayısı (boş bırak: sürekli)
               <input type="number" min={1} max={10000} step={1} inputMode="numeric" value={limitText} onChange={e=>setLimitText(e.target.value)} placeholder="Sürekli" className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 text-sm text-white"/>
             </label>
-            <p className="text-xs text-slate-300">B yer iminin saniyesi 00:00 ise B ayetinin sonuna kadar okur.</p>
-            {abLoop.active && <p role="status" className="text-sm font-bold text-emerald-300">Döngü etkin · {abLoop.completed} tam tekrar</p>}
-            {!abLoop.active && abLoop.completed>0 && <p className="text-xs text-slate-300">Son döngü: {abLoop.completed} tekrar</p>}
+            <p className="text-xs text-slate-300">Bitiş saniyesi 00:00 ise bitiş ayetini sonuna kadar okur.</p>
+            {abLoop.active && <p role="status" className="text-sm font-bold text-emerald-300">Bölüm Tekrarı etkin · {abLoop.completed} tam tekrar</p>}
+            {!abLoop.active && abLoop.completed>0 && <p className="text-xs text-slate-300">Tamamlanan bölüm tekrarı: {abLoop.completed}</p>}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={!startId||!endId} onClick={()=>{
                 const a=bookmarks.find(b=>b.id===startId),b=bookmarks.find(b=>b.id===endId);
                 if(!a||!b)return;
                 const limit=limitText.trim()===''?null:Number(limitText);
                 if(limit!==null&&(!Number.isSafeInteger(limit)||limit<1||limit>10000)){setFeedback('Tekrar sayısı 1–10000 arasında olmalı.');return;}
-                const problem=validateABRange(toABPoint(a),toABPoint(b));
+                const {start,end}=orderABPoints(toABPoint(a),toABPoint(b));
+                const problem=validateABRange(start,end);
                 if(problem){setFeedback(problem);return;}
                 const error=onABStart(a,b,limit);
                 if(error)setFeedback(error);else onClose();
-              }} className="min-h-11 flex-1 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white disabled:opacity-40">Döngüyü Başlat</button>
-              {abLoop.active && <button type="button" onClick={onABStop} className="min-h-11 rounded-lg border border-rose-500/40 px-3 text-xs font-semibold text-rose-200">Döngüyü Durdur</button>}
-              <button type="button" onClick={()=>{if(window.confirm('A–B tekrar sayısı sıfırlansın mı?'))onABReset();}} className="min-h-11 rounded-lg border border-slate-600 px-3 text-xs text-slate-200">Sayacı Sıfırla</button>
+              }} className="min-h-11 flex-1 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white disabled:opacity-40">Tekrarı Başlat</button>
+              {abLoop.active && <button type="button" onClick={onABStop} className="min-h-11 rounded-lg border border-rose-500/40 px-3 text-xs font-semibold text-rose-200">Tekrarı Durdur</button>}
+              <button type="button" onClick={()=>{if(window.confirm('Bölüm Tekrarı sayacı sıfırlansın mı?'))onABReset();}} className="min-h-11 rounded-lg border border-slate-600 px-3 text-xs text-slate-200">Sayacı Sıfırla</button>
             </div>
-            {bookmarks.length<2&&<p className="text-xs text-amber-200">Önce Yer İmlerim sekmesinden iki nokta kaydedin. Tek ayetlik döngü için aynı yer imini iki kere seçebilirsiniz.</p>}
+            {bookmarks.length===0&&<p className="text-xs text-amber-200">Önce Yer İmlerim sekmesinden en az bir yer imi kaydedin. Tek ayeti tekrar etmek için aynı yer imini iki kez seçebilirsiniz.</p>}
           </section>}
           {section==='bookmarks' && position && !editingId && (
             <form onSubmit={saveNew} className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 p-3">
