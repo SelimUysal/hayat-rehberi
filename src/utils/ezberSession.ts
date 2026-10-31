@@ -19,6 +19,8 @@ export interface SavedMobileEzberSession {
 export interface LiveEzberSession extends SavedMobileEzberSession {
   mode: 'verse' | 'full';
   updatedAt: number;
+  /** Optional media metadata for accurate visual follow in another tab/PWA. */
+  durationSeconds?: number;
 }
 
 type Message =
@@ -80,6 +82,9 @@ function validLiveState(value: unknown): value is LiveEzberSession {
     typeof state.positionSeconds === 'number' && Number.isFinite(state.positionSeconds) &&
     state.positionSeconds >= 0 && state.positionSeconds < 3600 &&
     state.wasPlaying === true &&
+    (state.durationSeconds === undefined ||
+      (typeof state.durationSeconds === 'number' && Number.isFinite(state.durationSeconds) &&
+       state.durationSeconds > 0 && state.durationSeconds < 3600)) &&
     (state.mode === 'verse' || state.mode === 'full') &&
     typeof state.updatedAt === 'number' && Number.isFinite(state.updatedAt) &&
     Math.abs(Date.now() - state.updatedAt) < 15000;

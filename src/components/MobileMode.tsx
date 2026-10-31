@@ -66,6 +66,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const [currentlyPlayingVerseNum, setCurrentlyPlayingVerseNum] = useState<number | null>(null);
   const [playMode, setPlayMode] = useState<'verse' | 'full'>('verse');
   const [activeWordIdx, setActiveWordIdx] = useState<number | null>(null);
+  const [remoteWordIdx, setRemoteWordIdx] = useState<number | null>(null);
 
   // Mobil Çekmece (Bottom Sheet) Durumu
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
@@ -80,6 +81,9 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const audioRef = useRef<HTMLAudioElement>(null!);
   if (audioRef.current === null) audioRef.current = new Audio();
   const playbackRequestRef = useRef(0);
+  const ayahsRef = useRef(ayahs);
+  ayahsRef.current = ayahs;
+  const getWordsOfVerseRef = useRef<(ayah: Ayah) => string[]>(() => []);
   const lastSavedSecondRef = useRef(-1);
   const currentSurahRef = useRef(currentSurah);
   const selectedVerseNumRef = useRef(selectedVerseNum);
@@ -99,6 +103,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   sessionSpeedRef.current = playbackSpeed;
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const syncFollowRef = useRef<(() => void) | null>(null);
+  const lastValidWordRef = useRef<number | null>(null);
   const resumeFollowTimerRef = useRef<(() => void) | null>(null);
   const activeScreenRef = useRef(active);
   activeScreenRef.current = active;
@@ -167,12 +172,17 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     };
     const release = coordinateEzberWindows(stopFromOtherWindow, state => {
       remoteRef.current = state; setRemoteSession(state);
+      if (state) {
+        const verse = ayahsRef.current.find(a => a.numberInSurah === state.verseNum);
+        const count = verse ? getWordsOfVerseRef.current(verse).length : 0;
+        setRemoteWordIdx(getEzberWordIndex(state.positionSeconds,state.durationSeconds ?? 0,count));
+      } else setRemoteWordIdx(null);
       if(state){setCurrentSurah(state.surahId);setSelectedReciter(state.reciter);setPlaybackSpeed(state.playbackSpeed);setSelectedVerseNum(state.verseNum);setResumeAvailable(false);}
       else setResumeAvailable(true);
     },()=>{
       const player=audioRef.current;
       if(!ownsAudioRef.current||player.paused||!player.currentSrc)return null;
-      return {surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current??selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:playbackSpeedRef.current,positionSeconds:player.currentTime||0,wasPlaying:true,mode:modeRef.current,updatedAt:Date.now()};
+      return {surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current??selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:playbackSpeedRef.current,positionSeconds:player.currentTime||0,wasPlaying:true,mode:modeRef.current,updatedAt:Date.now(),durationSeconds:Number.isFinite(player.duration)?player.duration:undefined};
     },speed=>{playbackSpeedRef.current=speed;setPlaybackSpeed(speed);audioRef.current.playbackRate=speed;});
     return () => {
       release();
@@ -284,6 +294,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     const cleaned = cleanVerseText(ayah.text, ayah.numberInSurah);
     return cleaned.split(' ').filter(Boolean);
   };
+  getWordsOfVerseRef.current = getWordsOfVerse;
 
   const stopAudio = () => {
     const player = audioRef.current;
@@ -294,6 +305,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       saveMobileEzberSession({surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:sessionSpeedRef.current,positionSeconds:position,wasPlaying:false});
     }
     ownsAudioRef.current=false;
+    lastValidWordRef.current = null;
     ++playbackRequestRef.current;
     if (isPlayingRef.current) logEzber('PLAY_STOP','info',{surah:currentSurah,verse:currentlyPlayingVerseNumRef.current??undefined,detail:{mode:'mobile'}});
     if (loopTimeoutRef.current) {
@@ -342,7 +354,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
     claimEzberAudio();
     ownsAudioRef.current=true;
-    remoteRef.current=null;setRemoteSession(null);
+    remoteRef.current=null;setRemoteSession(null);setRemoteWordIdx(null);
     modeRef.current=mode;
     const requestId = ++playbackRequestRef.current;
     const ayah = ayahs.find((a) => a.numberInSurah === verseNum);
@@ -375,6 +387,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     setIsPlaying(true);
     isPlayingRef.current = true;
     setActiveWordIdx(null);
+    lastValidWordRef.current = null;
     // Scroll after React has marked the next ayah active; never scroll while hidden.
     if (!document.hidden && activeScreenRef.current) {
       window.setTimeout(() => {
@@ -424,6 +437,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
           surahId: currentSurah, verseNum, reciter: selectedReciterRef.current,
           playbackSpeed: playbackSpeedRef.current, positionSeconds: cur,
           wasPlaying: true, mode, updatedAt: Date.now(),
+          durationSeconds: Number.isFinite(player.duration) ? player.duration : undefined,
         });
       }
       if (second % 5 === 0 && second !== lastSavedSecondRef.current) {
@@ -437,7 +451,9 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       // The current audio position is the source of truth, not a timer counter.
       if (!document.hidden) {
         const idx = getEzberWordIndex(cur, player.duration, words.length);
-        setActiveWordIdx(previous => previous === idx ? previous : idx);
+        if (idx !== null) lastValidWordRef.current = idx;
+        const next = idx ?? lastValidWordRef.current;
+        setActiveWordIdx(previous => previous === next ? previous : next);
       }
       if (player.ended) finishVerse();
     };
@@ -722,7 +738,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
             const vNum = ayah.numberInSurah;
             const words = getWordsOfVerse(ayah);
             const isSelected = selectedVerseNum === vNum;
-            const isPlayingThisVerse = isPlaying && currentlyPlayingVerseNum === vNum;
+            const isPlayingThisVerse = (isPlaying && currentlyPlayingVerseNum === vNum) || (!!remoteSession && remoteSession.verseNum === vNum);
 
             return (
               <div
@@ -816,7 +832,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   style={{ fontSize: `${fontSize}rem` }}
                 >
                   {words.map((word, wIdx) => {
-                    const isWordActive = isPlayingThisVerse && activeWordIdx === wIdx;
+                    const isWordActive = isPlayingThisVerse && (remoteSession ? remoteWordIdx : activeWordIdx) === wIdx;
                     return (
                       <span
                         key={wIdx}

@@ -33,3 +33,13 @@ test('native ended transition survives background timer throttling and avoids do
   assert.ok(src.includes('setInterval(syncFollow, 125)'));
   assert.ok(src.includes('syncFollowRef.current = null;'));
 });
+
+test('remote PWA playback carries duration and highlights its live word', () => {
+ const mobile=fs.readFileSync('src/components/MobileMode.tsx','utf8');
+ const session=fs.readFileSync('src/utils/ezberSession.ts','utf8');
+ assert.ok(session.includes('durationSeconds?: number'));
+ assert.ok(mobile.includes('setRemoteWordIdx(getEzberWordIndex(state.positionSeconds,state.durationSeconds ?? 0,count))'));
+ assert.ok(mobile.includes('(remoteSession ? remoteWordIdx : activeWordIdx) === wIdx'));
+ assert.ok(mobile.includes('lastValidWordRef.current'));
+ assert.ok(mobile.includes('durationSeconds: Number.isFinite(player.duration) ? player.duration : undefined'));
+});
