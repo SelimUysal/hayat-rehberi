@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { navigateToAppHash } from '../utils/appNavigation';
+import { AppRouteLink } from './AppRouteLink';
 import { basicInfoHash, resolveBasicInfoKey } from '../utils/elifbaLinks';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import { QuranMatrixModule } from './QuranMatrixLab/QuranMatrixModule';
@@ -738,9 +739,9 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
           {/* Sekmeler (Yatay Kaydırılabilir Modern Şerit) */}
           <div className={`relative flex items-center w-full ${viewMode === 'desktop' ? 'md:w-auto' : ''}`}>
             <div className={`flex items-center gap-1.5 overflow-x-auto scroll-smooth pb-2 md:pb-0 w-full [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${viewMode === 'desktop' ? 'md:w-auto -mx-4 px-4 md:mx-0 md:px-0' : '-mx-4 px-4'}`}>
-              <button
+              <AppRouteLink href={`#elifba/harfler`} navigate={() => setActiveTab('harfler')}
                 id="tab-btn-harfler"
-                onClick={() => setActiveTab('harfler')}
+                
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex-shrink-0 ${
                   activeTab === 'harfler'
                     ? isDark
@@ -752,11 +753,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                 }`}
               >
                 Harfler & Harekeler
-              </button>
+              </AppRouteLink>
 
-              <button
+              <AppRouteLink href={`#elifba/hece`} navigate={() => setActiveTab('hece')}
                 id="tab-btn-hece"
-                onClick={() => setActiveTab('hece')}
+                
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex-shrink-0 ${
                   activeTab === 'hece'
                     ? isDark
@@ -768,11 +769,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                 }`}
               >
                 Heceleme ve Kelimeler
-              </button>
+              </AppRouteLink>
 
-              <button
+              <AppRouteLink href={`#elifba/temel`} navigate={() => setActiveTab('temel')}
                 id="tab-btn-temel"
-                onClick={() => setActiveTab('temel')}
+                
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex-shrink-0 ${
                   activeTab === 'temel'
                     ? isDark
@@ -784,11 +785,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                 }`}
               >
                 Temel Bilgiler
-              </button>
+              </AppRouteLink>
 
-              <button
+              <AppRouteLink href={`#elifba/tecvid`} navigate={() => setActiveTab('tecvid')}
                 id="tab-btn-tecvid"
-                onClick={() => setActiveTab('tecvid')}
+                
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 flex-shrink-0 ${
                   activeTab === 'tecvid'
                     ? isDark
@@ -800,11 +801,11 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                 }`}
               >
                 <span>Tecvid</span>
-              </button>
+              </AppRouteLink>
 
-              <button
+              <AppRouteLink href={`#elifba/matrix`} navigate={() => setActiveTab('matrix')}
                 id="tab-btn-matrix"
-                onClick={() => setActiveTab('matrix')}
+                
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 flex-shrink-0 ${
                   activeTab === 'matrix'
                     ? isDark
@@ -816,7 +817,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                 }`}
               >
                 <span>⚡ Yeni Nesil Matrixli Öğrenme Metodu</span>
-              </button>
+              </AppRouteLink>
             </div>
             
             {/* Küçük Kaydırma Göstergesi / Oku */}
