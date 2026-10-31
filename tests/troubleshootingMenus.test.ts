@@ -49,3 +49,39 @@ test('prayer page help contains technical logs inside a collapsible section',()=
   assert.ok(src.includes('Yardım ve sorun giderme'));
   assert.ok(src.includes('<PrayerDiagnosticsPanel />'));
 });
+
+test('shared React Help dialog uses body portal and viewport-safe bounds', () => {
+  const src=read('src/components/TroubleshootingMenu.tsx');
+  assert.ok(src.includes('createPortal('));
+  assert.ok(src.includes('document.body'));
+  assert.ok(src.includes('max-w-[440px]'));
+  assert.ok(src.includes('max-h-[calc(100dvh-24px)]'));
+  assert.ok(src.includes('role="dialog"'));
+  assert.ok(src.includes('aria-modal="true"'));
+  assert.ok(src.includes("event.key === 'Escape'"));
+  assert.ok(!src.includes('absolute right-0 top-full'));
+});
+
+test('Mushaf Help opens a centered dialog which closes on backdrop and Escape', () => {
+  const js=read('public/mushaf-diagnostics.js');
+  const dom=new JSDOM('<!doctype html><html><head></head><body><div class="mushaf-navbar"><div class="nav-secondary"></div></div></body></html>',{
+    url:'https://example.test/hayat-rehberi/mushaf.html',runScripts:'outside-only'
+  });
+  dom.window.eval(js);
+  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+  const toggle=dom.window.document.querySelector('#mushafDiagnosticToggle') as HTMLButtonElement;
+  const dialog=dom.window.document.querySelector('#mushafDiagnosticPanel') as HTMLElement;
+  const backdrop=dom.window.document.querySelector('#mushafDiagnosticBackdrop') as HTMLElement;
+  assert.ok(js.includes('left:50%;top:50%;transform:translate(-50%,-50%)'));
+  assert.ok(js.includes('width:min(440px,calc(100vw - 24px))'));
+  toggle.click();
+  assert.equal(dialog.hidden,false);
+  assert.equal(backdrop.hidden,false);
+  assert.equal(dialog.querySelector('details')?.open,false);
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  assert.equal(dialog.hidden,true);
+  toggle.click();
+  backdrop.click();
+  assert.equal(dialog.hidden,true);
+  dom.window.close();
+});

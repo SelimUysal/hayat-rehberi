@@ -122,11 +122,15 @@
     var style = document.createElement('style');
     style.textContent =
       '#mushafDiagnosticToggle{background:var(--card,#163c31);color:var(--ink,#163c31);border:1px solid var(--line,#45ad8c);padding:6px 9px;border-radius:8px;font:600 12px Inter,system-ui;cursor:pointer;white-space:nowrap}' +
-      '#mushafDiagnosticPanel{position:fixed;right:10px;bottom:122px;z-index:2001;width:min(370px,calc(100vw - 20px));max-height:min(480px,70dvh);overflow:auto;background:#132821;color:#fff;border:1px solid #45ad8c;border-radius:14px;padding:12px;box-shadow:0 15px 30px #0007;font:12px Inter,system-ui}' +
+      '#mushafDiagnosticBackdrop{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.7)}' +
+      '#mushafDiagnosticBackdrop[hidden],#mushafDiagnosticPanel[hidden]{display:none}' +
+      '#mushafDiagnosticPanel{box-sizing:border-box;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2001;width:min(440px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;overflow-wrap:anywhere;background:#132821;color:#fff;border:1px solid #45ad8c;border-radius:14px;padding:14px;box-shadow:0 15px 30px #0007;font:12px Inter,system-ui}' +
       '#mushafDiagnosticPanel[hidden]{display:none}' +
       '#mushafDiagnosticPanel button{border:1px solid #4cb295;color:white;background:#16503d;border-radius:8px;padding:7px 9px;margin:5px 4px 0 0;cursor:pointer}' +
       '#mushafDiagnosticEvents{max-height:215px;overflow:auto;padding:6px;background:#0b1d17;border-radius:7px;font:11px monospace;white-space:pre-wrap;overflow-wrap:anywhere}' +
-      '#mushafDiagnosticReport{width:100%;height:55px;background:#0b1d17;color:#d8eee4;border:1px solid #365b4c;border-radius:6px;margin-top:7px;font:10px monospace}';
+      '#mushafDiagnosticReport{box-sizing:border-box;width:100%;min-height:65px;max-width:100%;background:#0b1d17;color:#d8eee4;border:1px solid #365b4c;border-radius:6px;margin-top:7px;font:10px monospace}' +
+      '#mushafDiagnosticPanel summary{cursor:pointer;padding:10px 0;min-height:32px;font-weight:600}' +
+      '#mushafDiagnosticPanel button{min-height:38px}';
     document.head.appendChild(style);
     var toggle = document.createElement('button');
     toggle.id = 'mushafDiagnosticToggle';
@@ -134,15 +138,22 @@
     toggle.textContent = 'ⓘ Yardım';
     toggle.setAttribute('aria-label', 'Yardım ve sorun giderme');
     toggle.setAttribute('aria-expanded', 'false');
+    var backdrop = document.createElement('div');
+    backdrop.id = 'mushafDiagnosticBackdrop';
+    backdrop.hidden = true;
     var panel = document.createElement('section');
     panel.id = 'mushafDiagnosticPanel';
-    panel.setAttribute('aria-label', 'Mushaf teknik hata raporu');
-    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-label', 'Yardım ve sorun giderme');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
     panel.hidden = true;
     var title = document.createElement('strong');
     title.textContent = 'Yardım ve sorun giderme';
     var help = document.createElement('p');
     help.textContent = 'Sayfa açılmazsa başka Mushaf baskısını deneyin ve interneti kontrol edin. Teknik kayıtlar: en fazla 80 olay / 7 gün. Veriler yalnızca cihazınızda tutulur.';
+    var technicalDetails = document.createElement('details');
+    var technicalSummary = document.createElement('summary');
+    technicalSummary.textContent = 'Teknik kayıtları göster';
     var events = document.createElement('div');
     events.id = 'mushafDiagnosticEvents';
     var copy = document.createElement('button');
@@ -168,32 +179,71 @@
       }).join('\n') : 'Henüz hata kaydı bulunmuyor.';
       textarea.value = report();
     }
-    toggle.addEventListener('click', function () {
-      panel.hidden = !panel.hidden;
-      toggle.setAttribute('aria-expanded', String(!panel.hidden));
-      if (!panel.hidden) refresh();
-    });
-    close.addEventListener('click', function () {
-      panel.hidden = true; toggle.setAttribute('aria-expanded', 'false');
+    var previousOverflow = '';
+    function setOpen(open) {
+      if (open === !panel.hidden) return;
+      panel.hidden = !open;
+      backdrop.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      if (open) {
+        previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        refresh();
+        close.focus();
+      } else {
+        document.body.style.overflow = previousOverflow;
+        toggle.focus();
+      }
+    }
+    toggle.addEventListener('click', function () { setOpen(panel.hidden); });
+    close.addEventListener('click', function () { setOpen(false); });
+    backdrop.addEventListener('click', function () { setOpen(false); });
+    window.addEventListener('keydown', function (event) {
+      if (panel.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+      }
+      if (event.key === 'Tab') {
+        var focusables = Array.prototype.slice.call(panel.querySelectorAll('button,summary,textarea'))
+          .filter(function (el) { return el.getClientRects().length > 0; });
+        if (!focusables.length) return;
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first.focus();
+        }
+      }
     });
     copy.addEventListener('click', function () {
       var data = report();
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(data).then(function () {
           copy.textContent = 'Kopyalandı';
-        }).catch(function () { textarea.focus(); textarea.select(); });
-      } else { textarea.focus(); textarea.select(); }
+        }).catch(function () {
+          technicalDetails.open = true;
+          textarea.focus(); textarea.select();
+        });
+      } else {
+        technicalDetails.open = true;
+        textarea.focus(); textarea.select();
+      }
     });
     erase.addEventListener('click', clear);
     panel.appendChild(title);
     panel.appendChild(help);
-    panel.appendChild(events);
     panel.appendChild(copy);
     panel.appendChild(erase);
     panel.appendChild(close);
-    panel.appendChild(textarea);
+    technicalDetails.appendChild(technicalSummary);
+    technicalDetails.appendChild(events);
+    technicalDetails.appendChild(textarea);
+    panel.appendChild(technicalDetails);
     var navbarTools = document.querySelector('.mushaf-navbar .nav-secondary');
     (navbarTools || document.body).appendChild(toggle);
+    document.body.appendChild(backdrop);
     document.body.appendChild(panel);
     listeners.push(function () { if (!panel.hidden) refresh(); });
     refresh();
