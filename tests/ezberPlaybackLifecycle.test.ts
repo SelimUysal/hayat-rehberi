@@ -32,7 +32,7 @@ test('reopened Mobile Ezber restores selection but never silently autoplays', ()
   assert.ok(code.includes('resumeOffsetRef.current = offset'));
   assert.ok(code.includes('player.currentTime = Math.min(resumeOffsetRef.current'));
   assert.ok(code.includes('Önceki ses oturumu kapatıldı'));
-  assert.ok(code.includes('coordinateEzberWindows(stopFromOtherWindow)'));
+  assert.ok(code.includes('coordinateEzberWindows(stopFromOtherWindow, state =>'));
 });
 
 test('voice recorder auto-play timeout is cancelled on unmount and new audio ownership', () => {
