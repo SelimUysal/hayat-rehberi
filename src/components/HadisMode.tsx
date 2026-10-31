@@ -1819,7 +1819,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
                 }`}
               >
                 ← Önceki Hadis
-              </AppRouteLink>
+              </button>
               <button
                 onClick={() =>
                   selectHadisIndex(safeFocusedIndex + 1 < filteredHadisler.length ? safeFocusedIndex + 1 : 0)
