@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, 
+  Pause,
+  RotateCcw,
   Square, 
   Settings2, 
   ChevronLeft, 
@@ -66,6 +68,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const [currentlyPlayingVerseNum, setCurrentlyPlayingVerseNum] = useState<number | null>(null);
   const [playMode, setPlayMode] = useState<'verse' | 'full'>(initialSession?.mode ?? 'verse');
   const [pausedSession, setPausedSession] = useState(() => initialSession?.wasPlaying ? initialSession : null);
+  const [completedSurah, setCompletedSurah] = useState<number | null>(null);
   const [activeWordIdx, setActiveWordIdx] = useState<number | null>(null);
   const [remoteWordIdx, setRemoteWordIdx] = useState<number | null>(null);
 
@@ -340,7 +343,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     currentLoopRef.current = 0;
   };
 
-  // Önceki ses oturumu kapatıldı; this note describes a reloaded (not mounted) audio owner.
+  // Keep the actual player mounted while paused, so we can resume precisely.
   const pauseAudio = () => {
     const player = audioRef.current;
     if (!ownsAudioRef.current || player.paused || !isPlayingRef.current) return;
@@ -401,6 +404,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     resumeFollowTimerRef.current = null;
 
     claimEzberAudio();
+    setCompletedSurah(null);
     setPausedSession(null);
     ownsAudioRef.current=true;
     remoteRef.current=null;setRemoteSession(null);setRemoteWordIdx(null);
@@ -539,6 +543,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
           }, 180);
         } else {
           stopAudio();
+          setCompletedSurah(currentSurah);
         }
       } else {
         currentLoopRef.current += 1;
@@ -609,12 +614,11 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   };
 
   const startPlayback = (vNum = selectedVerseNum) => {
-    const saved = readMobileEzberSession();
-    const offset = resumeAvailable && saved?.surahId === currentSurah && saved.verseNum === vNum
-      ? saved.positionSeconds : 0;
+    // Choosing a verse explicitly starts that verse from the beginning.
+    // Only the dedicated Continue action restores the saved second.
     stopAudio();
     setPausedSession(null);
-    resumeOffsetRef.current = offset;
+    resumeOffsetRef.current = 0;
     setResumeAvailable(false);
     currentLoopRef.current = 1;
     setCurrentLoop(1);
@@ -675,6 +679,17 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   };
 
   const currentSurahMeta = SURAHS.find((s) => s.id === currentSurah);
+  // Only offer the Continue action when it belongs to this surah and there is
+  // no live player already playing (locally or in another PWA window).
+  const pausedPlayback = !isPlaying && !remoteSession
+    ? (pausedSession ?? (resumeAvailable ? readMobileEzberSession() : null))
+    : null;
+  const canResume = !loading && !!pausedPlayback && pausedPlayback.surahId === currentSurah;
+  const formatPlaybackSecond = (seconds: number) => {
+    const safe = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+    return `${Math.floor(safe / 60).toString().padStart(2, '0')}:${(safe % 60).toString().padStart(2, '0')}`;
+  };
+  const displayedVerse = remoteSession?.verseNum ?? currentlyPlayingVerseNum ?? selectedVerseNum;
   const selectedAyahObj = ayahs.find((a) => a.numberInSurah === selectedVerseNum);
   const selectedTranslationText = translations.find((t) => t.numberInSurah === selectedVerseNum)?.text || '';
 
@@ -911,12 +926,6 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         </div>
       )}
 
-      {resumeAvailable && !isPlaying && !loading && (
-        <p role="status" className={`mx-auto mb-3 max-w-2xl rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-emerald-600/40 bg-emerald-950/30 text-emerald-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
-          Dinleme {pausedSession?.verseNum ?? selectedVerseNum}. ayette duraklatıldı. Devam Et ile aynı saniyeden ve {pausedSession?.mode === 'full' ? 'tüm sure' : 'tek ayet'} modunda sürdürebilirsin.
-        </p>
-      )}
-
       {remoteSession && <p role="status" className="mx-auto max-w-2xl rounded-xl bg-emerald-950/70 p-3 mb-3 text-emerald-100 text-xs">Dinleme başka bir sekmede devam ediyor: {remoteSession.verseNum}. ayet. Durdurabilir veya oynatmayı bu ekrana devralabilirsin.</p>}
       {/* SABİT ALT KONTROL ÇUBUĞU (Sticky Floating Bottom Dock) */}
       <div className={`fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 z-40 w-full max-w-[100vw] min-w-0 backdrop-blur-md border-t shadow-2xl px-2 py-2 sm:px-4 sm:py-3 transition-colors ${
@@ -956,40 +965,116 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
             </div>
           </div>
 
-          {/* Orta: Ana Oynat / Durdur Butonları */}
-          <div className="col-span-2 row-start-2 w-full min-w-0 flex items-center justify-center sm:row-auto sm:col-auto sm:flex-1 sm:max-w-[290px]">
+          {/* Duruma göre tek ana kontrol: Başlat / Duraklat / Devam Et */}
+          <div className="col-span-2 row-start-2 w-full min-w-0 sm:row-auto sm:col-auto sm:flex-1 sm:max-w-[340px]">
             {isPlaying || remoteSession ? (
-              <button
-                onClick={() => {if(remoteSession){stopRemoteEzberAudio();remoteRef.current=null;setRemoteSession(null);setResumeAvailable(true);}else pauseAudio();}}
-                className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Square className="w-4 h-4 fill-current" />
-                <span>{remoteSession ? 'Durdur' : 'Duraklat'} ({remoteSession?.verseNum ?? currentlyPlayingVerseNum ?? selectedVerseNum}. Ayet)</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 w-full min-w-0">
-                {(pausedSession || resumeAvailable) && !remoteSession && (
-                  <button type="button" onClick={resumeAudio} className="min-h-10 rounded-xl bg-amber-500 px-2.5 text-xs font-bold text-slate-950" title="Kaldığın ayet ve saniyeden devam et">Devam Et</button>
-                )}
-                <button
-                  onClick={() => startPlayback(selectedVerseNum)}
-                  className="flex-1 min-w-0 py-2.5 px-1.5 sm:px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
-                  title={`${selectedVerseNum}. Ayeti Döngüyle Çal`}
+              <div className={`rounded-xl border p-2.5 space-y-2 min-w-0 ${
+                isDark ? 'border-[#3a3226] bg-[#181510]/80' : 'border-slate-200 bg-slate-50'
+              }`} aria-label="Şu an dinleniyor">
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="min-w-0 truncate font-bold">{currentSurahMeta?.name || 'Sure'}</span>
+                  <span className={`shrink-0 tabular-nums ${isDark ? 'text-[#b9b09a]' : 'text-slate-500'}`}>
+                    {displayedVerse} / {ayahs.length} ayet
+                  </span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label="Sure ayet ilerlemesi"
+                  aria-valuemin={0}
+                  aria-valuemax={Math.max(1, ayahs.length)}
+                  aria-valuenow={displayedVerse}
+                  className={`h-1 overflow-hidden rounded-full ${isDark ? 'bg-[#3a3226]' : 'bg-slate-200'}`}
                 >
-                  <Play className="w-3.5 h-3.5 fill-current shrink-0" />
-                  <span>{selectedVerseNum}. Ayeti Çal</span>
+                  <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-200"
+                       style={{ width: `${ayahs.length ? Math.min(100, displayedVerse / ayahs.length * 100) : 0}%` }} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (remoteSession) {
+                      stopRemoteEzberAudio();
+                      remoteRef.current = null;
+                      setRemoteSession(null);
+                      setResumeAvailable(true);
+                    } else pauseAudio();
+                  }}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 text-sm font-bold text-white transition-colors hover:bg-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-400 cursor-pointer"
+                >
+                  <Pause className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{remoteSession ? 'Diğer Oturumu Durdur' : 'Duraklat'}</span>
+                </button>
+              </div>
+            ) : canResume && pausedPlayback ? (
+              <div className={`rounded-xl border p-2.5 space-y-2 min-w-0 ${
+                isDark ? 'border-emerald-700/50 bg-[#181e19]' : 'border-emerald-200 bg-emerald-50/70'
+              }`} aria-label="Duraklatılmış dinleme">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold">{currentSurahMeta?.name || 'Sure'} · {pausedPlayback.verseNum}. ayet</p>
+                    <p className={`mt-0.5 text-[11px] ${isDark ? 'text-[#b9b09a]' : 'text-slate-600'}`}>
+                      {formatPlaybackSecond(pausedPlayback.positionSeconds)} konumunda · {pausedPlayback.mode === 'full' ? 'Tüm sure' : 'Tek ayet'}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${
+                    isDark ? 'bg-amber-900/30 text-amber-200' : 'bg-amber-100 text-amber-900'
+                  }`}>Duraklatıldı</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={resumeAudio}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 cursor-pointer"
+                  title="Aynı ayetten ve saniyeden devam et"
+                >
+                  <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden="true" />
+                  <span>Dinlemeye Devam Et</span>
                 </button>
                 <button
-                  onClick={startFullSurahPlayback}
-                  className={`flex-1 min-w-0 py-2.5 px-1.5 sm:px-2 font-bold text-xs rounded-xl border shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-                    isDark
-                      ? 'bg-[#1c3630] hover:bg-[#23453d] text-[#3fb996] border-[#3fb996]/40'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                  type="button"
+                  onClick={() => pausedPlayback.mode === 'full'
+                    ? startFullSurahPlayback()
+                    : startPlayback(pausedPlayback.verseNum)}
+                  className={`flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                    isDark ? 'text-[#b9b09a] hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-emerald-100 hover:text-emerald-900'
                   }`}
-                  title="Tüm Sureyi Baştan Sona Oku"
+                  title={pausedPlayback.mode === 'full' ? 'Sureyi birinci ayetten başlat' : 'Ayeti baştan başlat'}
                 >
-                  <Layers className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-[#3fb996]' : 'text-emerald-700'}`} />
-                  <span>Tüm Sureyi Oku</span>
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Baştan Dinle</span>
+                </button>
+              </div>
+            ) : completedSurah === currentSurah ? (
+              <button
+                type="button"
+                onClick={startFullSurahPlayback}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 cursor-pointer"
+                title="Tamamlanan sureyi yeniden birinci ayetten dinle"
+              >
+                <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Sureyi Yeniden Dinle</span>
+              </button>
+            ) : (
+              <div className="grid w-full min-w-0 grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => startPlayback(selectedVerseNum)}
+                  className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 cursor-pointer"
+                  title={`${selectedVerseNum}. ayeti baştan çal`}
+                >
+                  <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden="true" />
+                  <span>Seçili Ayeti Çal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={startFullSurahPlayback}
+                  className={`flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                    isDark
+                      ? 'border-[#3fb996]/40 bg-[#1c3630] text-[#3fb996] hover:bg-[#23453d]'
+                      : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  }`}
+                  title="Tüm sureyi birinci ayetten başlat"
+                >
+                  <Layers className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Tüm Sureyi Çal</span>
                 </button>
               </div>
             )}
