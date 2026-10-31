@@ -1206,8 +1206,9 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                       <span className="text-[11px] text-slate-500 font-medium">
                         Elif-Bâ Temel Bilgiler
                       </span>
-                      <button
-                        onClick={() => {
+                      <AppRouteLink
+                        href={res.letterName ? `#elifba/harfler/${encodeURIComponent(res.letterName)}` : `#elifba/temel/${encodeURIComponent(res.accordionKey || '')}`}
+                        navigate={() => {
                           if (res.letterName) {
                             onNavigateToTab('elifba', { elifbaTab: 'harfler', elifbaLetterName: res.letterName });
                           } else {
@@ -1219,7 +1220,7 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                       >
                         <span>Elif-Bâ'da Aç</span>
                         <ArrowRight className="w-3.5 h-3.5 text-amber-300" />
-                      </button>
+                      </AppRouteLink>
                     </div>
                   </div>
                 ))}
