@@ -11,6 +11,7 @@ import {
   Landmark,
   Globe,
   Headphones,
+  RadioTower,
   Search,
   MessageSquare,
   Moon,
@@ -38,6 +39,7 @@ export type TabType =
   | 'hadis'
   | 'esma'
   | 'listen'
+  | 'radio'
   | 'search'
   | 'support'
   | 'worldclock';
@@ -149,7 +151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const hrefFor = (tab: TabType) => tab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(tab);
 
-  // Tüm 13 Modül Tanımı
+  // Tüm modüllerin merkezi tanımı
   const allModules: NavItem[] = [
     // 1. Temel & Namaz
     {
@@ -208,6 +210,15 @@ export const Navbar: React.FC<NavbarProps> = ({
       categoryLabel: "📖 Kur'an & Tilavet",
       icon: Headphones,
       desc: 'Arka planda kesintisiz sure, cüz ve hatim tilaveti'
+    },
+    {
+      id: 'radio',
+      label: 'SadaQuran · Canlı Radyo',
+      shortLabel: 'Canlı Radyo',
+      category: 'kuran',
+      categoryLabel: "📖 Kur'an & Tilavet",
+      icon: RadioTower,
+      desc: "SadaQuran 7/24 Kur'an radyosunu uygulama içinden dinle"
     },
 
     // 3. İlim & Eğitim
@@ -412,7 +423,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-normal ${
                   isDarkMode ? 'bg-white/10 text-stone-300' : 'bg-stone-200 text-stone-700'
                 }`}>
-                  13
+                  {allModules.length}
                 </span>
               </button>
             </nav>
@@ -451,24 +462,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </kbd>
               </button>
 
-              {/* Destek Butonu (Masaüstü) */}
-              <button
-                type="button"
-                onClick={() => handleSelectTab('support')}
-                className={`p-2 rounded-xl border transition-colors cursor-pointer hidden sm:block ${
-                  activeTab === 'support'
+              {/* SadaQuran: doğrudan header sekmesi. Destek merkezi Tüm Bölümler'de kalır. */}
+              <AppRouteLink
+                href={hrefFor('radio')}
+                navigate={() => handleSelectTab('radio')}
+                aria-label="SadaQuran Canlı Radyo sekmesine git"
+                aria-current={activeTab === 'radio' ? 'page' : undefined}
+                data-radio-quick-tab
+                className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === 'radio'
                     ? isDarkMode
-                      ? 'bg-emerald-900/40 text-emerald-300 border-emerald-700/60'
-                      : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                      ? 'bg-emerald-900/60 border-emerald-600/60 text-emerald-300'
+                      : 'bg-emerald-100 border-emerald-400 text-emerald-900'
                     : isDarkMode
-                      ? 'text-stone-300 hover:text-white hover:bg-white/5 border-white/10'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100 border-stone-200'
+                      ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-300 hover:bg-emerald-900/50'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
                 }`}
-                title="Destek ve Öneri Bildir"
-                aria-label="Destek Sayfası"
+                title="SadaQuran · Canlı Kur'an Radyosu"
               >
-                <MessageSquare className="w-4 h-4" />
-              </button>
+                <RadioTower className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="hidden 2xl:inline">Radyo</span>
+              </AppRouteLink>
 
               {/* Mobil Menü Butonu (Hub Açıcı) */}
               <button
@@ -670,7 +684,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className={`p-3 sm:px-6 border-t flex items-center justify-between text-xs ${
               isDarkMode ? 'bg-[#14120e] border-[#2e261b] text-stone-500' : 'bg-[#f5f1e8] border-stone-200 text-stone-500'
             }`}>
-              <span>Hayat Rehberi • Toplam 13 Modül</span>
+              <span>Hayat Rehberi • Toplam {allModules.length} Modül</span>
               <span className="hidden sm:inline">Kapatmak için ESC tuşuna basın</span>
             </div>
 
