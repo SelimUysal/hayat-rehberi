@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Coordinates, PrayerTimes } from '../types/prayer';
 import { DEFAULT_CITY } from '../data/cities';
 import { calculatePrayerTimesForDate, DEFAULT_TEMKIN } from '../utils/astronomy';
+import { nextAdhanCheckDelay, PRAYER_LOCATION_CHANGED_EVENT } from './prayerAdhanScheduling';
 
 // Kullanıcının sağladığı 10,17 saniyelik ezan klibinin 1,5× hızlandırılmış,
 // yaklaşık 6,8 saniyelik AAC sürümü. Dosya bu depodadır ve üçüncü taraf
@@ -232,12 +233,20 @@ export function usePrayerAdhanSound() {
     if (!enabled) return;
 
     let cancelled = false;
+    const onStorageLocation = (event: StorageEvent) => {
+      if (event.key === 'namaz_current_location') check();
+    };
+    let timer: number | undefined;
+    const schedule = (delay: number) => {
+      window.clearTimeout(timer);
+      if (!cancelled) timer = window.setTimeout(check, delay);
+    };
     const check = () => {
       if (cancelled) return;
       const now = new Date();
       const location = loadLocation();
       const zone = location && locationZone(location);
-      if (!location || !zone) return;
+      if (!location || !zone) { schedule(15 * 60_000); return; }
 
       try {
         const z = zoneParts(now, zone);
@@ -254,6 +263,7 @@ export function usePrayerAdhanSound() {
           now.getTime() - item.instant <= DUE_WINDOW_MS &&
           item.instant >= enabledSinceRef.current
         );
+        schedule(nextAdhanCheckDelay(now.getTime(), cachedEventsRef.current.events.map(item => item.instant)));
         if (!event || currentSessionKeyRef.current === event.id) return;
         const execute = () => {
           if (cancelled || currentSessionKeyRef.current === event.id) return;
@@ -273,19 +283,28 @@ export function usePrayerAdhanSound() {
         } else execute();
       } catch {
         // Invalid timezone/date data must never break other application views.
+        schedule(15 * 60_000);
       }
     };
 
-    check();
-    const timer = window.setInterval(check, 4000);
     const onResume = () => check();
+    // Do not run a periodic four-second poll; only check when a relevant
+    // event occurs and around the next calculated prayer time.
+    check();
     document.addEventListener('visibilitychange', onResume);
     window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+    window.addEventListener(PRAYER_LOCATION_CHANGED_EVENT, onResume);
+    window.addEventListener('storage', onStorageLocation);
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onResume);
       window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+      window.removeEventListener(PRAYER_LOCATION_CHANGED_EVENT, onResume);
+      window.removeEventListener('storage', onStorageLocation);
     };
   }, [enabled, play]);
 

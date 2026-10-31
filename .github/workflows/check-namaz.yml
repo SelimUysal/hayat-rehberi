@@ -19,6 +19,6 @@ jobs:
           cache: npm
       - run: npm install --legacy-peer-deps
       - name: Namaz content and diagnostics regression tests
-        run: npx tsx --test tests/namazMode.test.ts
+        run: npx tsx --test tests/namazMode.test.ts tests/prayerAdhanScheduling.test.ts
       - name: Production build
         run: npx vite build
