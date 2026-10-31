@@ -64,7 +64,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   // Çalma Durumu
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentlyPlayingVerseNum, setCurrentlyPlayingVerseNum] = useState<number | null>(null);
-  const [playMode, setPlayMode] = useState<'verse' | 'full'>('verse');
+  const [playMode, setPlayMode] = useState<'verse' | 'full'>(initialSession?.mode ?? 'verse');
+  const [pausedSession, setPausedSession] = useState(() => initialSession?.wasPlaying ? initialSession : null);
   const [activeWordIdx, setActiveWordIdx] = useState<number | null>(null);
   const [remoteWordIdx, setRemoteWordIdx] = useState<number | null>(null);
 
@@ -111,7 +112,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const currentLoopRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(false);
   const currentlyPlayingVerseNumRef = useRef<number | null>(null);
-  const playModeRef = useRef<'verse' | 'full'>('verse');
+  const playModeRef = useRef<'verse' | 'full'>(initialSession?.mode ?? 'verse');
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
 
@@ -276,11 +277,11 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   },[remoteSession]);
 
   useEffect(() => {
-    if (isPlayingRef.current || remoteRef.current || loading || !ayahs.length) return;
+    if (isPlayingRef.current || pausedSession || remoteRef.current || loading || !ayahs.length) return;
     saveMobileEzberSession({ surahId: currentSurah, verseNum: selectedVerseNum,
       reciter: selectedReciter, playbackSpeed, positionSeconds: lastPositionRef.current,
       wasPlaying: false });
-  }, [currentSurah, selectedVerseNum, selectedReciter, playbackSpeed, loading, ayahs.length]);
+  }, [currentSurah, selectedVerseNum, selectedReciter, playbackSpeed, loading, ayahs.length, pausedSession]);
 
   // Besmele Temizleme (Fatiha hariç, Fatiha'da 1. ayet Besmele'dir)
   const cleanVerseText = (text: string, verseNum: number): string => {
@@ -302,7 +303,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     resumeOffsetRef.current = 0;
     if (isPlayingRef.current) {
       lastPositionRef.current = position;
-      saveMobileEzberSession({surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:sessionSpeedRef.current,positionSeconds:position,wasPlaying:false});
+      saveMobileEzberSession({surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:sessionSpeedRef.current,positionSeconds:position,wasPlaying:false,mode:playModeRef.current});
     }
     ownsAudioRef.current=false;
     lastValidWordRef.current = null;
@@ -339,6 +340,53 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     currentLoopRef.current = 0;
   };
 
+  // Önceki ses oturumu kapatıldı; this note describes a reloaded (not mounted) audio owner.
+  const pauseAudio = () => {
+    const player = audioRef.current;
+    if (!ownsAudioRef.current || player.paused || !isPlayingRef.current) return;
+    const verseNum = currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current;
+    const saved = {
+      surahId: currentSurahRef.current, verseNum,
+      reciter: selectedReciterRef.current, playbackSpeed: playbackSpeedRef.current,
+      positionSeconds: Number.isFinite(player.currentTime) ? player.currentTime : lastPositionRef.current,
+      wasPlaying: true, mode: playModeRef.current,
+    } as const;
+    player.pause();
+    if (tickIntervalRef.current !== null) {
+      clearInterval(tickIntervalRef.current);
+      tickIntervalRef.current = null;
+    }
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    setPausedSession(saved);
+    setResumeAvailable(true);
+    saveMobileEzberSession(saved);
+  };
+
+  const resumeAudio = () => {
+    const paused = pausedSession ?? readMobileEzberSession();
+    if (!paused || paused.surahId !== currentSurah) return;
+    setResumeAvailable(false);
+    setPausedSession(null);
+    setSelectedVerseNum(paused.verseNum);
+    const player = audioRef.current;
+    if (ownsAudioRef.current && player.currentSrc &&
+        currentlyPlayingVerseNumRef.current === paused.verseNum && !player.ended) {
+      player.play().catch(err => {
+        logEzber('VERSE_PLAY_REJECTED','error',{surah:currentSurah,verse:paused.verseNum,detail:{name:ezberErrorName(err)}});
+        setPausedSession(paused);
+        setResumeAvailable(true);
+      });
+      return;
+    }
+    stopAudio();
+    resumeOffsetRef.current = paused.positionSeconds;
+    currentLoopRef.current = 1;
+    setCurrentLoop(1);
+    setPlayMode(paused.mode ?? 'verse');
+    playVerse(paused.verseNum, paused.mode ?? 'verse');
+  };
+
   // Ayeti Çal ve Döngüye Al (Senkronizasyon garantili, karışma engelli)
   const playVerse = (verseNum: number, mode: 'verse' | 'full' = 'verse') => {
     if (loopTimeoutRef.current) {
@@ -353,6 +401,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     resumeFollowTimerRef.current = null;
 
     claimEzberAudio();
+    setPausedSession(null);
     ownsAudioRef.current=true;
     remoteRef.current=null;setRemoteSession(null);setRemoteWordIdx(null);
     modeRef.current=mode;
@@ -404,7 +453,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     lastPositionRef.current = 0;
     lastSavedSecondRef.current = -1;
     lastBroadcastRef.current=-1;
-    saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciter,playbackSpeed:targetSpeed,positionSeconds:0,wasPlaying:true});
+    saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciter,playbackSpeed:targetSpeed,positionSeconds:0,wasPlaying:true,mode});
     player.defaultPlaybackRate = targetSpeed;
     player.src = ayah.audio;
     player.playbackRate = targetSpeed;
@@ -436,7 +485,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         publishEzberLiveState({
           surahId: currentSurah, verseNum, reciter: selectedReciterRef.current,
           playbackSpeed: playbackSpeedRef.current, positionSeconds: cur,
-          wasPlaying: true, mode, updatedAt: Date.now(),
+          wasPlaying: true, mode, mode, updatedAt: Date.now(),
           durationSeconds: Number.isFinite(player.duration) ? player.duration : undefined,
         });
       }
@@ -445,7 +494,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         saveMobileEzberSession({
           surahId: currentSurah, verseNum, reciter: selectedReciterRef.current,
           playbackSpeed: playbackSpeedRef.current, positionSeconds: cur,
-          wasPlaying: true,
+          wasPlaying: true, mode,
         });
       }
       // The current audio position is the source of truth, not a timer counter.
@@ -564,6 +613,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     const offset = resumeAvailable && saved?.surahId === currentSurah && saved.verseNum === vNum
       ? saved.positionSeconds : 0;
     stopAudio();
+    setPausedSession(null);
     resumeOffsetRef.current = offset;
     setResumeAvailable(false);
     currentLoopRef.current = 1;
@@ -579,6 +629,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
   const startFullSurahPlayback = () => {
     stopAudio();
+    setPausedSession(null);
+    setResumeAvailable(false);
     currentLoopRef.current = 1;
     setCurrentLoop(1);
     setIsPlaying(true);
@@ -861,7 +913,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
       {resumeAvailable && !isPlaying && !loading && (
         <p role="status" className={`mx-auto mb-3 max-w-2xl rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-emerald-600/40 bg-emerald-950/30 text-emerald-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
-          Önceki dinleme {selectedVerseNum}. ayette kaldı. Önceki ses oturumu kapatıldı; aşağıdaki Oynat düğmesiyle kaldığın yerden devam edebilirsin.
+          Dinleme {pausedSession?.verseNum ?? selectedVerseNum}. ayette duraklatıldı. Devam Et ile aynı saniyeden ve {pausedSession?.mode === 'full' ? 'tüm sure' : 'tek ayet'} modunda sürdürebilirsin.
         </p>
       )}
 
@@ -908,14 +960,17 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
           <div className="col-span-2 row-start-2 w-full min-w-0 flex items-center justify-center sm:row-auto sm:col-auto sm:flex-1 sm:max-w-[290px]">
             {isPlaying || remoteSession ? (
               <button
-                onClick={() => {if(remoteSession){stopRemoteEzberAudio();remoteRef.current=null;setRemoteSession(null);setResumeAvailable(true);}else stopAudio();}}
+                onClick={() => {if(remoteSession){stopRemoteEzberAudio();remoteRef.current=null;setRemoteSession(null);setResumeAvailable(true);}else pauseAudio();}}
                 className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Square className="w-4 h-4 fill-current" />
-                <span>Durdur ({remoteSession?.verseNum ?? currentlyPlayingVerseNum ?? selectedVerseNum}. Ayet)</span>
+                <span>{remoteSession ? 'Durdur' : 'Duraklat'} ({remoteSession?.verseNum ?? currentlyPlayingVerseNum ?? selectedVerseNum}. Ayet)</span>
               </button>
             ) : (
               <div className="flex items-center gap-1.5 w-full min-w-0">
+                {(pausedSession || resumeAvailable) && !remoteSession && (
+                  <button type="button" onClick={resumeAudio} className="min-h-10 rounded-xl bg-amber-500 px-2.5 text-xs font-bold text-slate-950" title="Kaldığın ayet ve saniyeden devam et">Devam Et</button>
+                )}
                 <button
                   onClick={() => startPlayback(selectedVerseNum)}
                   className="flex-1 min-w-0 py-2.5 px-1.5 sm:px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
