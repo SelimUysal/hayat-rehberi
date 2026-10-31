@@ -15,10 +15,10 @@ test('recitation can circle the full Quran indefinitely', () => {
   assert.equal(current, 1);
 });
 
-test('previous ayah supports earlier surah boundaries without wrapping before Fâtiha', () => {
+test('previous ayah supports earlier surah boundaries and loops from Fâtiha to Nâs', () => {
   assert.deepEqual(previousAyahInListeningSequence(2, 0), { surahId: 1, ayahIndex: 6 });
   assert.deepEqual(previousAyahInListeningSequence(3, 0), { surahId: 2, ayahIndex: 285 });
   assert.deepEqual(previousAyahInListeningSequence(2, 4), { surahId: 2, ayahIndex: 3 });
-  assert.equal(previousAyahInListeningSequence(1, 0), null);
+  assert.deepEqual(previousAyahInListeningSequence(1, 0), { surahId: 114, ayahIndex: 5 });
   assert.equal(previousAyahInListeningSequence(0, 0), null);
 });

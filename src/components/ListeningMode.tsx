@@ -1882,7 +1882,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               </button>
               <button
                 onClick={handlePrevAyah}
-                disabled={currentSurahId === 1 && currentAyahIndex === 0}
                 className="p-2.5 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 text-slate-300 cursor-pointer"
                 title="Önceki Ayet"
               >
@@ -2203,8 +2202,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
                   <button
                     onClick={handlePrevAyah}
-                    disabled={currentSurahId === 1 && currentAyahIndex === 0}
-                    className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white transition-colors cursor-pointer"
+                        className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white transition-colors cursor-pointer"
                     title="Önceki Ayet"
                   >
                     <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />

@@ -7,14 +7,14 @@ export function nextSurahInListeningLoop(currentSurahId: number): number {
 
 /**
  * The previous button moves to the prior ayah, even across surah boundaries.
- * Fâtiha's first ayah is the start of the Quran and has no earlier ayah.
+ * At Fâtiha's first ayah, loop backward to Nâs's final ayah.
  */
 export function previousAyahInListeningSequence(surahId: number, ayahIndex: number): { surahId: number; ayahIndex: number } | null {
   if (!Number.isInteger(surahId) || surahId < 1 || surahId > 114 ||
       !Number.isInteger(ayahIndex) || ayahIndex < 0) return null;
   if (ayahIndex > 0) return { surahId, ayahIndex: ayahIndex - 1 };
-  if (surahId === 1) return null;
-  const previousSurah = SURAHS.find(surah => surah.id === surahId - 1);
+  const previousSurahId = surahId === 1 ? 114 : surahId - 1;
+  const previousSurah = SURAHS.find(surah => surah.id === previousSurahId);
   return previousSurah && previousSurah.totalAyahs > 0
     ? { surahId: previousSurah.id, ayahIndex: previousSurah.totalAyahs - 1 }
     : null;

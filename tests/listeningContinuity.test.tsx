@@ -118,7 +118,7 @@ Object.defineProperty(globalThis, 'fetch', {
   writable: true,
   value: async (url: string) => {
     const id = Number(String(url).split('/surah/')[1]?.split('/')[0] || 1);
-    const count = id === 1 ? 7 : id === 114 ? 2 : 3;
+    const count = id === 1 ? 7 : id === 114 ? 6 : 3;
     const ayahs = Array.from({ length: count }, (_, i) => ({
       number: i + 1,
       numberInSurah: i + 1,
@@ -142,9 +142,10 @@ function currentAudio(): FakeAudio {
   return player;
 }
 
-async function mountListening(surahId: number, ayahIndex = 0) {
+async function mountListening(surahId: number, ayahIndex = 0, savedCycle?: { enabled: boolean; total: number; surah: number; ayah: number; completedSurahs: number }) {
   mediaActions.clear();
   localStorage.clear();
+  if (savedCycle) localStorage.setItem('quran_listening_full_cycle_v1', JSON.stringify(savedCycle));
   localStorage.setItem('quran_listening_bookmark', JSON.stringify({
     surahId, ayahIndex, currentTime: 0, reciter: 'ar.mahermuaiqly',
   }));
@@ -184,7 +185,7 @@ test('real player continues across ayahs and into the next surah after native pa
 });
 
 test('the final Nâs ayah wraps around to the Fâtiha first ayah', async () => {
-  const page = await mountListening(114, 1);
+  const page = await mountListening(114, 5);
   try {
     await React.act(async () => { currentAudio().finishWithEarlyNativePause(); });
     assert.equal(currentAudio().src, 'https://audio.test/1/1.mp3');
@@ -285,13 +286,37 @@ test('the right arrow at Bakara ayah 1 goes to Fâtiha ayah 7 and can navigate f
   }
 });
 
-test('Fâtiha first ayah has no earlier ayah while Android previous-track navigates across surahs', async () => {
-  const start = await mountListening(1, 0);
+test('Fâtiha first ayah wraps to Nâs last ayah without falsely completing a listening cycle', async () => {
+  const page = await mountListening(1, 0, { enabled: true, total: 3, surah: 1, ayah: 0, completedSurahs: 0 });
   try {
-    const previous = start.container.querySelector('button[title="Önceki Ayet"]') as HTMLButtonElement | null;
-    assert.equal(previous?.disabled, true);
+    const previous = page.container.querySelector('button[title="Önceki Ayet"]') as HTMLButtonElement | null;
+    assert.ok(previous, 'right arrow should be visible');
+    assert.equal(previous.disabled, false, 'backward navigation should wrap at Fâtiha');
+    await React.act(async () => { previous.click(); });
+    assert.equal(currentAudio().src, 'https://audio.test/114/6.mp3');
+    const bookmark = JSON.parse(localStorage.getItem('quran_listening_bookmark') || '{}');
+    assert.equal(bookmark.surahId, 114);
+    assert.equal(bookmark.ayahIndex, 5);
+
+    // Manually jumping to Nâs must not count as a completed Qur'an recitation.
+    await React.act(async () => { currentAudio().finishWithEarlyNativePause(); });
+    assert.equal(currentAudio().src, 'https://audio.test/1/1.mp3');
+    const tracker = JSON.parse(localStorage.getItem('quran_listening_full_cycle_v1') || '{}');
+    assert.equal(tracker.total, 3);
   } finally {
-    await start.cleanup();
+    await page.cleanup();
+  }
+});
+
+test('Android previous-track also wraps from Fâtiha to Nâs and crosses Bakara to Fâtiha', async () => {
+  const first = await mountListening(1, 0);
+  try {
+    const previousTrack = mediaActions.get('previoustrack');
+    assert.equal(typeof previousTrack, 'function');
+    await React.act(async () => { previousTrack?.(); });
+    assert.equal(currentAudio().src, 'https://audio.test/114/6.mp3');
+  } finally {
+    await first.cleanup();
   }
 
   const page = await mountListening(2, 0);
