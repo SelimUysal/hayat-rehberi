@@ -14,6 +14,9 @@ import { GUIDE_ARTICLES, GuideArticle } from '../data/guideArticles';
 import { HISTORICAL_EVENTS_MAP } from './takvim/data/historicalEvents';
 import { TabType } from './Navbar';
 import { SURAH_PAGE_MAP } from '../data/smartNavigationMap';
+import { AppRouteLink } from './AppRouteLink';
+import { makeMainTabHash } from '../utils/mainDeepLinks';
+import { makeNamazItemHash } from '../utils/namazDeepLinks';
 import { fuzzyMatch } from '../utils/fuzzySearch';
 import { detectSecretSearchCommand } from '../utils/security';
 import { NamazItem } from '../types';
@@ -978,13 +981,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                       </div>
 
                       <div className="shrink-0 self-start sm:self-center">
-                        <button
-                          onClick={() => onNavigateToTab(mod.id)}
+                        <AppRouteLink
+                          href={makeMainTabHash(mod.id)} navigate={() => onNavigateToTab(mod.id)}
                           className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 text-white text-xs sm:text-sm font-black cursor-pointer transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group ring-2 ring-emerald-500/40 active:scale-95"
                         >
                           <span>{mod.buttonLabel}</span>
                           <ArrowRight className="w-4 h-4 text-amber-300 group-hover:translate-x-1 transition-transform" />
-                        </button>
+                        </AppRouteLink>
                       </div>
                     </div>
                   );
@@ -1001,13 +1004,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                   <Layers className="w-5 h-5 text-indigo-700" />
                   <span>Namaz Sureleri, Duaları, Gece Namazları & Tüyolar ({totalNamazCount})</span>
                 </div>
-                <button
-                  onClick={() => onNavigateToTab('namaz')}
+                <AppRouteLink
+                  href="#namaz" navigate={() => onNavigateToTab('namaz')}
                   className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <span>Namaz Modülünü Aç</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                </AppRouteLink>
               </div>
 
               {/* Namaz Kartları Grid */}
@@ -1091,14 +1094,14 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                           )}
                           
                           {/* DOĞRUDAN NAMAZ SAYFASINDA BU ÖĞEYİ AÇMA BUTONU */}
-                          <button
-                            onClick={() => onNavigateToTab('namaz', { namazItemId: item.id })}
+                          <AppRouteLink
+                            href={makeNamazItemHash(item.id)} navigate={() => onNavigateToTab('namaz', { namazItemId: item.id })}
                             className={`px-3 py-1.5 rounded-lg ${actionBtnBg} text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs active:scale-95`}
                             title={`Namaz sayfasında ${item.title} içeriğini doğrudan aç`}
                           >
                             <span>Namazda Aç</span>
                             <ArrowRight className="w-3.5 h-3.5 text-amber-300" />
-                          </button>
+                          </AppRouteLink>
                         </div>
                       </div>
                     </div>
@@ -1139,13 +1142,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                           </p>
                         </div>
 
-                        <button
-                          onClick={() => onNavigateToTab('namaz', { namazItemId: 'musluman-sualleri' })}
+                        <AppRouteLink
+                          href={makeNamazItemHash('musluman-sualleri')} navigate={() => onNavigateToTab('namaz', { namazItemId: 'musluman-sualleri' })}
                           className="self-start sm:self-center shrink-0 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         >
                           <span>Rehberde Aç</span>
                           <ArrowRight className="w-3 h-3" />
-                        </button>
+                        </AppRouteLink>
                       </div>
                     ))}
                   </div>
@@ -1162,13 +1165,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                   <GraduationCap className="w-5 h-5 text-emerald-700" />
                   <span>Elif-Bâ & Temel Bilgiler Eşleşmeleri ({filteredElifba.length})</span>
                 </div>
-                <button
-                  onClick={() => onNavigateToTab('elifba', { elifbaTab: 'temel' })}
+                <AppRouteLink
+                  href="#elifba/temel" navigate={() => onNavigateToTab('elifba', { elifbaTab: 'temel' })}
                   className="px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <span>Temel Bilgiler'i Aç</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                </AppRouteLink>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -1349,8 +1352,8 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
 
                         {/* 4. Namaz Sûresi Olarak Aç Butonu (Eğer Namaz Modülünde Varsa) */}
                         {namazItemId && (
-                          <button
-                            onClick={() => onNavigateToTab('namaz', { namazItemId })}
+                          <AppRouteLink
+                            href={makeNamazItemHash(namazItemId)} navigate={() => onNavigateToTab('namaz', { namazItemId })}
                             className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-gradient-to-r hover:from-indigo-800 hover:to-blue-800 hover:border-indigo-700 text-left transition-all duration-200 group cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between active:scale-98"
                             title="Namaz Sureleri sayfasında doğrudan bu sureyi aç"
                           >
@@ -1371,7 +1374,7 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                                 Namazda okunuş, ses & tüyolar
                               </div>
                             </div>
-                          </button>
+                          </AppRouteLink>
                         )}
 
                       </div>
@@ -1477,13 +1480,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                   <History className="w-5 h-5 text-indigo-600" />
                   <span>Tarihte Yaşanan Hadiseler ({filteredHistoryEvents.length})</span>
                 </div>
-                <button
-                  onClick={() => onNavigateToTab('takvim')}
+                <AppRouteLink
+                  href="#takvim/daily" navigate={() => onNavigateToTab('takvim')}
                   className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <span>Takvimde Gör</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                </AppRouteLink>
               </div>
 
               <div className="space-y-2.5">
@@ -1525,13 +1528,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                   <Sparkles className="w-5 h-5 text-amber-500" />
                   <span>Esmaü'l-Hüsnâ ({filteredEsma.length})</span>
                 </div>
-                <button
-                  onClick={() => onNavigateToTab('esma')}
+                <AppRouteLink
+                  href="#esma" navigate={() => onNavigateToTab('esma')}
                   className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <span>Tüm Esma'ya Git</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                </AppRouteLink>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
