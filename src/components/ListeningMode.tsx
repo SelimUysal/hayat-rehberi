@@ -27,6 +27,7 @@ import { SurahSearchSelect } from './SurahSearchSelect';
 import { nextSurahInListeningLoop } from '../utils/listeningPlaybackGuards';
 import { recordListeningDiagnostic as logListen, classifyListeningError } from '../utils/listeningDiagnostics';
 import { ListeningDiagnosticsPanel } from './ListeningDiagnosticsPanel';
+import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { useListeningWakeLock } from '../utils/useListeningWakeLock';
 
 interface ListeningModeProps {
@@ -1382,7 +1383,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       }`}
     >
 
-      <ListeningDiagnosticsPanel />
 
       {/* Odak Modu Aktifken Sağ Üst Köşede Minimalist Çıkış Butonu */}
       {isFocusMode && (
@@ -1708,6 +1708,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
               {/* Sağ Butonlar: Kelime Takibi, Odak Modu, Meal Göster/Gizle, Siyah Ekran, Yer İmi */}
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>
                 <button type="button" onClick={() => setKeepScreenAwake(v => !v)} aria-pressed={keepScreenAwake}
                   aria-label={`${screenAwakeLabel}: ${screenAwakeAccessibility}`}
                   title={screenAwakeTitle}

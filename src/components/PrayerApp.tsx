@@ -349,7 +349,11 @@ export function PrayerApp({ initialDate, initialSubTab, initialCity, initialActi
           </div>
         )}
 
-        <PrayerDiagnosticsPanel />
+        <details className="rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
+          <summary className="cursor-pointer text-sm font-semibold">Yardım ve sorun giderme</summary>
+          <p className="mt-2 text-xs text-slate-600">Vakit verileri yüklenmiyorsa bağlantıyı ve konum seçimini kontrol edin.</p>
+          <div className="mt-3"><PrayerDiagnosticsPanel /></div>
+        </details>
       </main>
 
       {/* Şehir Seçici Modal */}

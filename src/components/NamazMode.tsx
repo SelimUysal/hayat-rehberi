@@ -39,6 +39,7 @@ import { navigateToAppHash } from '../utils/appNavigation';
 import { recordNamazIssue as diagnostic, safeNamazErrorName } from '../utils/namazDiagnostics';
 import { resolveNamazAudioUrl } from '../utils/namazAudioPath';
 import { NamazDiagnosticsPanel } from './NamazDiagnosticsPanel';
+import { TroubleshootingMenu } from './TroubleshootingMenu';
 
 export type NamazTheme = 'dark' | 'emerald';
 export type NamazViewMode = 'desktop' | 'mobile';
@@ -5484,7 +5485,6 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       }`}
       style={{ '--namaz-scale': (arabicScalePercent / 100).toString() } as React.CSSProperties}
     >
-      <NamazDiagnosticsPanel />
       <style>{`
         .namaz-container .font-amiri,
         .namaz-container .font-quran {
@@ -5533,6 +5533,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
 
             {/* Tema ve Görünüm Kontrolleri */}
             <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
+              <TroubleshootingMenu dark={isDark}><NamazDiagnosticsPanel /></TroubleshootingMenu>
               
               {/* Arapça Yazı Boyutu Ayar İmleci (Slider) */}
               <div

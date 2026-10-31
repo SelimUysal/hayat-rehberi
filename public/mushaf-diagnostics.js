@@ -121,7 +121,7 @@
     if (!document.body || document.getElementById('mushafDiagnosticToggle')) return;
     var style = document.createElement('style');
     style.textContent =
-      '#mushafDiagnosticToggle{position:fixed;right:10px;bottom:82px;z-index:2000;background:#163c31;color:#fff;border:1px solid #45ad8c;padding:7px 11px;border-radius:10px;font:600 12px Inter,system-ui;cursor:pointer;box-shadow:0 2px 12px #0004}' +
+      '#mushafDiagnosticToggle{background:var(--card,#163c31);color:var(--ink,#163c31);border:1px solid var(--line,#45ad8c);padding:6px 9px;border-radius:8px;font:600 12px Inter,system-ui;cursor:pointer;white-space:nowrap}' +
       '#mushafDiagnosticPanel{position:fixed;right:10px;bottom:122px;z-index:2001;width:min(370px,calc(100vw - 20px));max-height:min(480px,70dvh);overflow:auto;background:#132821;color:#fff;border:1px solid #45ad8c;border-radius:14px;padding:12px;box-shadow:0 15px 30px #0007;font:12px Inter,system-ui}' +
       '#mushafDiagnosticPanel[hidden]{display:none}' +
       '#mushafDiagnosticPanel button{border:1px solid #4cb295;color:white;background:#16503d;border-radius:8px;padding:7px 9px;margin:5px 4px 0 0;cursor:pointer}' +
@@ -131,8 +131,8 @@
     var toggle = document.createElement('button');
     toggle.id = 'mushafDiagnosticToggle';
     toggle.type = 'button';
-    toggle.textContent = 'Hata kayıtları';
-    toggle.setAttribute('aria-label', 'Mushaf hata kayıtlarını aç');
+    toggle.textContent = 'ⓘ Yardım';
+    toggle.setAttribute('aria-label', 'Yardım ve sorun giderme');
     toggle.setAttribute('aria-expanded', 'false');
     var panel = document.createElement('section');
     panel.id = 'mushafDiagnosticPanel';
@@ -140,9 +140,9 @@
     panel.setAttribute('role', 'region');
     panel.hidden = true;
     var title = document.createElement('strong');
-    title.textContent = 'Mushaf-ı Şerif hata kayıtları';
+    title.textContent = 'Yardım ve sorun giderme';
     var help = document.createElement('p');
-    help.textContent = 'En fazla 80 teknik olay, 7 gün. Veriler yalnızca bu cihazda tutulur ve otomatik gönderilmez.';
+    help.textContent = 'Sayfa açılmazsa başka Mushaf baskısını deneyin ve interneti kontrol edin. Teknik kayıtlar: en fazla 80 olay / 7 gün. Veriler yalnızca cihazınızda tutulur.';
     var events = document.createElement('div');
     events.id = 'mushafDiagnosticEvents';
     var copy = document.createElement('button');
@@ -192,7 +192,8 @@
     panel.appendChild(erase);
     panel.appendChild(close);
     panel.appendChild(textarea);
-    document.body.appendChild(toggle);
+    var navbarTools = document.querySelector('.mushaf-navbar .nav-secondary');
+    (navbarTools || document.body).appendChild(toggle);
     document.body.appendChild(panel);
     listeners.push(function () { if (!panel.hidden) refresh(); });
     refresh();
