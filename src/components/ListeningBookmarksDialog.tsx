@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookmarkPlus, Check, Headphones, Pencil, Trash2, X } from 'lucide-react';
 import { RECITERS } from '../data/surahs';
+import { type ABLoopState, labelABPoint, validateABRange, type ABPoint } from '../utils/listeningABLoop';
 import {
   bookmarkLabel, formatListeningBookmarkTime, MAX_MANUAL_LISTENING_BOOKMARKS,
   type ListeningBookmarkPosition, type ManualListeningBookmark,
@@ -15,10 +16,14 @@ type Props = {
   onEdit: (id: string, name: string, note: string, replacePosition: boolean) => boolean;
   onDelete: (id: string) => boolean;
   onListen: (bookmark: ManualListeningBookmark) => void;
+  abLoop: ABLoopState;
+  onABStart: (a: ManualListeningBookmark, b: ManualListeningBookmark, limit: number | null) => string | null;
+  onABStop: () => void;
+  onABReset: () => void;
 };
 
 export function ListeningBookmarksDialog({
-  bookmarks, position, onClose, onAdd, onEdit, onDelete, onListen
+  bookmarks, position, onClose, onAdd, onEdit, onDelete, onListen, abLoop, onABStart, onABStop, onABReset
 }: Props) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -32,6 +37,11 @@ export function ListeningBookmarksDialog({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [replacePosition, setReplacePosition] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [startId, setStartId] = useState('');
+  const [endId, setEndId] = useState('');
+  const [limitText, setLimitText] = useState('');
+  const [section, setSection] = useState<'bookmarks'|'ab'>('bookmarks');
+  const toABPoint = (b: ManualListeningBookmark): ABPoint => ({surahId:b.surahId,ayahIndex:b.ayahIndex,seconds:b.currentTime});
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -126,7 +136,41 @@ export function ListeningBookmarksDialog({
             Kaldığınız yer zaten otomatik hatırlanıyor. Buraya eklediğiniz özel yer imleri,
             başka sureleri dinleseniz de değişmez.
           </p>
-          {position && !editingId && (
+          <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Yer imi bölümleri">
+            <button type="button" role="tab" aria-selected={section==='bookmarks'} onClick={()=>setSection('bookmarks')} className={`min-h-11 rounded-lg px-2 text-sm font-bold ${section==='bookmarks'?'bg-emerald-700 text-white':'bg-slate-800 text-slate-300'}`}>Yer İmlerim</button>
+            <button type="button" role="tab" aria-selected={section==='ab'} onClick={()=>setSection('ab')} className={`min-h-11 rounded-lg px-2 text-sm font-bold ${section==='ab'?'bg-emerald-700 text-white':'bg-slate-800 text-slate-300'}`}>A–B Döngüsü</button>
+          </div>
+          {section==='ab' && <section className="space-y-3 rounded-xl border border-emerald-500/25 p-3" aria-label="A–B ayet döngüsü">
+            <p className="text-sm text-slate-300">İki yer imi seçin. Aralarındaki bütün ayetler sırayla okunur; B bitince A'ya dönülür. Hatim sayacı artmaz.</p>
+            {(['start','end'] as const).map(kind=><label key={kind} className="block text-xs font-bold text-slate-200">{kind==='start'?'A · Başlangıç':'B · Bitiş'}
+              <select aria-label={kind==='start'?'A başlangıç yer imi':'B bitiş yer imi'} value={kind==='start'?startId:endId} onChange={e=>kind==='start'?setStartId(e.target.value):setEndId(e.target.value)} className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 text-sm text-white">
+                <option value="">Yer imi seçin</option>
+                {bookmarks.map(b=><option key={b.id} value={b.id}>{b.name} — {labelABPoint(toABPoint(b))}</option>)}
+              </select>
+            </label>)}
+            <label className="block text-xs text-slate-200">Tekrar sayısı (boş bırak: sürekli)
+              <input type="number" min={1} max={10000} step={1} inputMode="numeric" value={limitText} onChange={e=>setLimitText(e.target.value)} placeholder="Sürekli" className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 text-sm text-white"/>
+            </label>
+            <p className="text-xs text-slate-300">B yer iminin saniyesi 00:00 ise B ayetinin sonuna kadar okur.</p>
+            {abLoop.active && <p role="status" className="text-sm font-bold text-emerald-300">Döngü etkin · {abLoop.completed} tam tekrar</p>}
+            {!abLoop.active && abLoop.completed>0 && <p className="text-xs text-slate-300">Son döngü: {abLoop.completed} tekrar</p>}
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={!startId||!endId} onClick={()=>{
+                const a=bookmarks.find(b=>b.id===startId),b=bookmarks.find(b=>b.id===endId);
+                if(!a||!b)return;
+                const limit=limitText.trim()===''?null:Number(limitText);
+                if(limit!==null&&(!Number.isSafeInteger(limit)||limit<1||limit>10000)){setFeedback('Tekrar sayısı 1–10000 arasında olmalı.');return;}
+                const problem=validateABRange(toABPoint(a),toABPoint(b));
+                if(problem){setFeedback(problem);return;}
+                const error=onABStart(a,b,limit);
+                if(error)setFeedback(error);else onClose();
+              }} className="min-h-11 flex-1 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white disabled:opacity-40">Döngüyü Başlat</button>
+              {abLoop.active && <button type="button" onClick={onABStop} className="min-h-11 rounded-lg border border-rose-500/40 px-3 text-xs font-semibold text-rose-200">Döngüyü Durdur</button>}
+              <button type="button" onClick={()=>{if(window.confirm('A–B tekrar sayısı sıfırlansın mı?'))onABReset();}} className="min-h-11 rounded-lg border border-slate-600 px-3 text-xs text-slate-200">Sayacı Sıfırla</button>
+            </div>
+            {bookmarks.length<2&&<p className="text-xs text-amber-200">Önce Yer İmlerim sekmesinden iki nokta kaydedin. Tek ayetlik döngü için aynı yer imini iki kere seçebilirsiniz.</p>}
+          </section>}
+          {section==='bookmarks' && position && !editingId && (
             <form onSubmit={saveNew} className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 p-3">
               <div>
                 <div className="text-sm font-bold text-emerald-200">Şu anki konumu kaydet</div>
@@ -153,7 +197,7 @@ export function ListeningBookmarksDialog({
               </button>
             </form>
           )}
-          <section aria-label="Kaydedilen yer imleri" className="space-y-2">
+          {section==='bookmarks' && <section aria-label="Kaydedilen yer imleri" className="space-y-2">
             <h3 className="text-sm font-bold">Kaydedilenler</h3>
             {bookmarks.length === 0 && <p className="rounded-xl border border-dashed border-slate-600 p-4 text-center text-sm text-slate-400">
               Henüz yer imi yok. Dinlemek istediğiniz ayetteyken yukarıdan kaydedebilirsiniz.
@@ -222,7 +266,7 @@ export function ListeningBookmarksDialog({
                 )}
               </div>
             ))}
-          </section>
+          </section>}
           <p aria-live="polite" role="status" className="min-h-5 text-xs text-emerald-200">{feedback}</p>
           <p className="text-[11px] leading-relaxed text-slate-500">
             Yer imleri yalnızca bu tarayıcıda saklanır. Tarayıcı verilerini temizlemek kayıtları silebilir;
