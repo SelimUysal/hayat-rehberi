@@ -1852,9 +1852,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           {!isFocusMode && (
             <div className="flex items-center gap-3 sm:gap-4 animate-in fade-in duration-300">
               <button
-                onClick={handlePrevAyah}
+                onClick={handleNextAyah}
                 className="p-2.5 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 cursor-pointer"
-                title="Önceki Ayet"
+                title="Sonraki Ayet"
               >
                 <SkipBack className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
@@ -1866,9 +1866,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 {isPlaying ? <Pause className="w-5 h-5 sm:w-7 sm:h-7 fill-current" /> : <Play className="w-5 h-5 sm:w-7 sm:h-7 fill-current" />}
               </button>
               <button
-                onClick={handleNextAyah}
+                onClick={handlePrevAyah}
                 className="p-2.5 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 cursor-pointer"
-                title="Sonraki Ayet"
+                title="Önceki Ayet"
               >
                 <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
@@ -2170,10 +2170,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5 sm:gap-2.5">
                   <button
-                    onClick={handlePrevAyah}
-                    disabled={currentAyahIndex <= 0}
+                    onClick={handleNextAyah}
                     className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white transition-colors cursor-pointer"
-                    title="Önceki Ayet"
+                    title="Sonraki Ayet (Son ayette bir sonraki sûreye geçer)"
                   >
                     <SkipBack className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
@@ -2187,9 +2186,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   </button>
 
                   <button
-                    onClick={handleNextAyah}
-                    className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                    title="Sonraki Ayet (Son ayette bir sonraki sureye geçer)"
+                    onClick={handlePrevAyah}
+                    disabled={currentAyahIndex <= 0}
+                    className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white transition-colors cursor-pointer"
+                    title="Önceki Ayet"
                   >
                     <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
