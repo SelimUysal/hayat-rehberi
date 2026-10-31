@@ -15,6 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
+import { EZBER_STOP_AUDIO_EVENT } from '../utils/ezberSession';
 
 export interface VoiceRecordingItem {
   id: string;
@@ -176,6 +177,8 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
   const autoPlayAfterRecordRef = useRef<boolean>(autoPlayAfterRecord);
   autoPlayAfterRecordRef.current = autoPlayAfterRecord;
 
+  const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   const loopPlaybackRef = useRef<boolean>(loopPlayback);
   loopPlaybackRef.current = loopPlayback;
 
@@ -189,6 +192,13 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
     });
     return () => {
       mounted = false;
+      mountedRef.current = false;
+      if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.ondataavailable = null;
+        try { mediaRecorderRef.current.stop(); } catch {}
+      }
       stopRecordingCleanup();
       stopPlayback();
       recordingsRef.current.forEach((r) => {
@@ -197,6 +207,13 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
         } catch {}
       });
     };
+  }, []);
+
+  // Another Ezber window has claimed playback ownership.
+  useEffect(() => {
+    const stopExternal = () => stopPlayback();
+    window.addEventListener(EZBER_STOP_AUDIO_EVENT, stopExternal);
+    return () => window.removeEventListener(EZBER_STOP_AUDIO_EVENT, stopExternal);
   }, []);
 
   // Kayıt durumu veya Bakmadan Oku modu değiştiğinde üst bileşene bildir
@@ -350,6 +367,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
       };
 
       recorder.onstop = () => {
+        if (!mountedRef.current) { stopRecordingCleanup(); return; }
         const durationSec = Math.max(1, Math.round((Date.now() - recordStartTimeRef.current) / 1000));
         const blobType = recorder.mimeType || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
@@ -410,8 +428,10 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
 
         // Otomatik dinleme açıksa kaydı hemen oynat
         if (autoPlayAfterRecordRef.current) {
-          setTimeout(() => {
-            playRecording(newItem);
+          if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+          autoPlayTimerRef.current = setTimeout(() => {
+            autoPlayTimerRef.current = null;
+            if (mountedRef.current) playRecording(newItem);
           }, 150);
         }
       };
@@ -498,13 +518,13 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
   };
 
   const stopPlayback = () => {
+    if (autoPlayTimerRef.current) { clearTimeout(autoPlayTimerRef.current); autoPlayTimerRef.current = null; }
     if (playerRef.current) {
       playerRef.current.pause();
       playerRef.current.currentTime = 0;
       playerRef.current.ontimeupdate = null;
       playerRef.current.onended = null;
       playerRef.current.onerror = null;
-      playerRef.current.ontimeupdate = null;
       playerRef.current.removeAttribute('src');
       playerRef.current.load();
       playerRef.current = null;

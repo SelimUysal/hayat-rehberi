@@ -21,6 +21,7 @@ import { SurahSearchSelect } from './SurahSearchSelect';
 import { QuickSurahBookmarks } from './QuickSurahBookmarks';
 import { EzberVoiceRecorder } from './EzberVoiceRecorder';
 import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
+import { readMobileEzberSession, saveMobileEzberSession, coordinateEzberWindows, claimEzberAudio, EZBER_STOP_AUDIO_EVENT } from '../utils/ezberSession';
 
 interface MobileModeProps {
   targetSurahId?: number | null;
@@ -30,8 +31,10 @@ interface MobileModeProps {
 export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode = 'dark' }) => {
   const isDark = themeMode === 'dark';
   // Durumlar
+  const initialSessionRef = useRef(readMobileEzberSession());
+  const initialSession = initialSessionRef.current;
   const [currentSurah, setCurrentSurah] = useState<number>(() => {
-    return (targetSurahId && targetSurahId >= 1 && targetSurahId <= 114) ? targetSurahId : 67;
+    return (targetSurahId && targetSurahId >= 1 && targetSurahId <= 114) ? targetSurahId : initialSession?.surahId ?? 67;
   });
 
   useEffect(() => {
@@ -39,10 +42,10 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       setCurrentSurah(targetSurahId);
     }
   }, [targetSurahId]);
-  const [selectedReciter, setSelectedReciter] = useState<string>('ar.mahermuaiqly');
+  const [selectedReciter, setSelectedReciter] = useState<string>(initialSession?.reciter ?? 'ar.mahermuaiqly');
   const [selectedFont, setSelectedFont] = useState<string>('font-amiri');
   const [fontSize, setFontSize] = useState<number>(1.85);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(initialSession?.playbackSpeed ?? 1.0);
   const [targetLoopCount, setTargetLoopCount] = useState<number | 'infinite'>(3);
   const [currentLoop, setCurrentLoop] = useState<number>(0);
 
@@ -53,7 +56,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const [loading, setLoading] = useState<boolean>(true);
 
   // Seçili Ayet
-  const [selectedVerseNum, setSelectedVerseNum] = useState<number>(1);
+  const [selectedVerseNum, setSelectedVerseNum] = useState<number>(targetSurahId ? 1 : initialSession?.verseNum ?? 1);
   const [showMeal, setShowMeal] = useState<boolean>(false); // Varsayılan gizli
 
   // Çalma Durumu
@@ -75,6 +78,18 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const audioRef = useRef<HTMLAudioElement>(null!);
   if (audioRef.current === null) audioRef.current = new Audio();
   const playbackRequestRef = useRef(0);
+  const lastSavedSecondRef = useRef(-1);
+  const currentSurahRef = useRef(currentSurah);
+  const selectedVerseNumRef = useRef(selectedVerseNum);
+  const selectedReciterRef = useRef(selectedReciter);
+  const sessionSpeedRef = useRef(playbackSpeed);
+  const lastPositionRef = useRef(initialSession?.positionSeconds ?? 0);
+  const resumeOffsetRef = useRef(0);
+  const [resumeAvailable, setResumeAvailable] = useState(!targetSurahId && !!initialSession?.wasPlaying);
+  currentSurahRef.current = currentSurah;
+  selectedVerseNumRef.current = selectedVerseNum;
+  selectedReciterRef.current = selectedReciter;
+  sessionSpeedRef.current = playbackSpeed;
   const tickIntervalRef = useRef<any>(null);
   const loopTimeoutRef = useRef<any>(null);
   const currentLoopRef = useRef<number>(0);
@@ -100,7 +115,12 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
           setAyahs(surahRes.ayahs);
           setTranslations(surahRes.translations);
           setWbwList(wbwRes);
-          setSelectedVerseNum(1);
+          if (initialSessionRef.current && !targetSurahId && initialSessionRef.current.surahId === currentSurah) {
+            setSelectedVerseNum(initialSessionRef.current.verseNum);
+          } else {
+            setSelectedVerseNum(1);
+          }
+          initialSessionRef.current = null;
           logEzber('SURAH_LOAD_OK','info',{surah:currentSurah,detail:{mode:'mobile'}});
         }
       } catch (err) {
@@ -130,10 +150,23 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   }, [playbackSpeed]);
 
   useEffect(() => {
+    const stopFromOtherWindow = () => {
+      stopAudio();
+      window.dispatchEvent(new Event(EZBER_STOP_AUDIO_EVENT));
+    };
+    const release = coordinateEzberWindows(stopFromOtherWindow);
     return () => {
+      release();
       stopAudio();
     };
   }, []);
+
+  useEffect(() => {
+    if (isPlayingRef.current || loading || !ayahs.length) return;
+    saveMobileEzberSession({ surahId: currentSurah, verseNum: selectedVerseNum,
+      reciter: selectedReciter, playbackSpeed, positionSeconds: lastPositionRef.current,
+      wasPlaying: false });
+  }, [currentSurah, selectedVerseNum, selectedReciter, playbackSpeed, loading, ayahs.length]);
 
   // Besmele Temizleme (Fatiha hariç, Fatiha'da 1. ayet Besmele'dir)
   const cleanVerseText = (text: string, verseNum: number): string => {
@@ -149,6 +182,13 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   };
 
   const stopAudio = () => {
+    const player = audioRef.current;
+    const position = player && Number.isFinite(player.currentTime) ? player.currentTime : lastPositionRef.current;
+    resumeOffsetRef.current = 0;
+    if (isPlayingRef.current) {
+      lastPositionRef.current = position;
+      saveMobileEzberSession({surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:sessionSpeedRef.current,positionSeconds:position,wasPlaying:false});
+    }
     ++playbackRequestRef.current;
     if (isPlayingRef.current) logEzber('PLAY_STOP','info',{surah:currentSurah,verse:currentlyPlayingVerseNumRef.current??undefined,detail:{mode:'mobile'}});
     if (loopTimeoutRef.current) {
@@ -181,6 +221,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     }
     clearInterval(tickIntervalRef.current);
 
+    claimEzberAudio();
     const requestId = ++playbackRequestRef.current;
     const ayah = ayahs.find((a) => a.numberInSurah === verseNum);
     if (!ayah || !ayah.audio) {
@@ -209,6 +250,9 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     isPlayingRef.current = true;
     setActiveWordIdx(null);
 
+    lastPositionRef.current = 0;
+    lastSavedSecondRef.current = -1;
+    saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciter,playbackSpeed:targetSpeed,positionSeconds:0,wasPlaying:true});
     player.defaultPlaybackRate = targetSpeed;
     player.src = ayah.audio;
     player.playbackRate = targetSpeed;
@@ -222,6 +266,10 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
       player.defaultPlaybackRate = playbackSpeedRef.current;
       player.playbackRate = playbackSpeedRef.current;
+      if (resumeOffsetRef.current > 0 && Number.isFinite(player.duration)) {
+        try { player.currentTime = Math.min(resumeOffsetRef.current, Math.max(0, player.duration - 0.25)); } catch {}
+        resumeOffsetRef.current = 0;
+      }
       player.play().then(() => {
         if (requestId === playbackRequestRef.current) player.playbackRate = playbackSpeedRef.current;
       }).catch((err) => {
@@ -242,6 +290,11 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         }
 
         const cur = player.currentTime;
+        lastPositionRef.current = cur;
+        if (Math.floor(cur) % 5 === 0 && lastSavedSecondRef.current !== Math.floor(cur)) {
+          lastSavedSecondRef.current = Math.floor(cur);
+          saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciterRef.current,playbackSpeed:playbackSpeedRef.current,positionSeconds:cur,wasPlaying:true});
+        }
         const dur = player.duration || 1;
         const ratio = Math.max(0, Math.min(1, cur / dur));
         const idx = Math.min(words.length - 1, Math.floor(ratio * words.length));
@@ -290,7 +343,12 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   };
 
   const startPlayback = (vNum = selectedVerseNum) => {
+    const saved = readMobileEzberSession();
+    const offset = resumeAvailable && saved?.surahId === currentSurah && saved.verseNum === vNum
+      ? saved.positionSeconds : 0;
     stopAudio();
+    resumeOffsetRef.current = offset;
+    setResumeAvailable(false);
     currentLoopRef.current = 1;
     setCurrentLoop(1);
     setIsPlaying(true);
@@ -582,6 +640,12 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
             );
           })}
         </div>
+      )}
+
+      {resumeAvailable && !isPlaying && !loading && (
+        <p role="status" className={`mx-auto mb-3 max-w-2xl rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-emerald-600/40 bg-emerald-950/30 text-emerald-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+          Önceki dinleme {selectedVerseNum}. ayette kaldı. Önceki ses oturumu kapatıldı; aşağıdaki Oynat düğmesiyle kaldığın yerden devam edebilirsin.
+        </p>
       )}
 
       {/* SABİT ALT KONTROL ÇUBUĞU (Sticky Floating Bottom Dock) */}
