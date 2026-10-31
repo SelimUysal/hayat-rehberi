@@ -1665,10 +1665,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           
           {/* Üst Menü & Kontroller (Odak Modunda Gizlenir) */}
           {!isFocusMode && (
-            <div className="relative z-50 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 bg-black/60 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 rounded-2xl sm:rounded-3xl border border-white/15 shadow-xl w-full animate-in fade-in duration-300">
+            <div className="relative z-50 grid grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[auto_minmax(0,1fr)_auto] items-start xl:items-center gap-x-3 gap-y-2.5 bg-black/60 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 rounded-2xl sm:rounded-3xl border border-white/15 shadow-xl w-full animate-in fade-in duration-300">
               
               {/* Sure Seçimi & Hafız Seçimi */}
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap min-w-0">
+              <div className="flex items-center gap-2 flex-wrap min-w-0 xl:flex-nowrap">
                 <div className="relative z-50 min-w-[150px] sm:min-w-[190px]">
                   <SurahSearchSelect
                     selectedSurahId={currentSurahId}
@@ -1706,9 +1706,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 </div>
               </div>
 
-              {/* Sağ Butonlar: Kelime Takibi, Odak Modu, Meal Göster/Gizle, Siyah Ekran, Yer İmi */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>
+              {/* Geniş ekranda orta, dar ekranda ikinci sırada: dinleme kontrolleri */}
+              <div className="col-span-2 row-start-2 xl:col-span-1 xl:row-start-1 xl:col-start-2 flex flex-wrap items-center justify-start xl:justify-end gap-1.5 sm:gap-2 min-w-0">
                 <button type="button" onClick={() => setKeepScreenAwake(v => !v)} aria-pressed={keepScreenAwake}
                   aria-label={`${screenAwakeLabel}: ${screenAwakeAccessibility}`}
                   title={screenAwakeTitle}
@@ -1795,6 +1794,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   <Moon className="w-3.5 h-3.5 text-amber-400" />
                   <span className="hidden sm:inline">Gece Saati</span>
                 </button>
+              </div>
+
+              {/* Yardım ayrı tutulur; dar ekranda sağ üstte, genişte en sağda. */}
+              <div className="col-start-2 row-start-1 xl:col-start-3 flex justify-end self-start xl:self-center">
+                <TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>
               </div>
 
             </div>
