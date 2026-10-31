@@ -6283,47 +6283,65 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 </div>
               </div>
 
-              {/* Orta seviye sûreler, duaların hemen altında ayrı bir liste. */}
-              <section className={`rounded-2xl p-4 shadow-sm border ${isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200'}`}>
-                <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 px-2 flex items-center gap-1.5 ${isDark ? 'text-[#8c826e]' : 'text-slate-500'}`}>
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+              {/* Orta seviye sûreler — mevcut sûre listesiyle ortak görsel yapı */}
+              <div
+                className={`rounded-2xl p-4 shadow-sm border ${
+                  isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200'
+                }`}
+              >
+                <h3
+                  className={`text-xs font-bold uppercase tracking-wider mb-3 px-2 flex items-center gap-1.5 ${
+                    isDark ? 'text-[#8c826e]' : 'text-slate-400'
+                  }`}
+                >
+                  <BookOpen className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
                   <span>Orta Seviye Sûreler ({INTERMEDIATE_NAMAZ_SURAH_IDS.size})</span>
                 </h3>
-                <div className="space-y-1.5 max-h-[420px] overflow-y-auto custom-scrollbar pr-1" aria-label="Orta seviye sûreler">
-                  {NAMAZ_ITEMS.filter(item =>
-                    INTERMEDIATE_NAMAZ_SURAH_IDS.has(item.id) &&
-                    item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())
-                  ).map(item => {
+                <div className="space-y-1.5 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+                  {NAMAZ_ITEMS.filter((item) => INTERMEDIATE_NAMAZ_SURAH_IDS.has(item.id) && item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map((item) => {
                     const isCur = item.id === selectedId;
                     const isMem = memorizedIds.includes(item.id);
                     return (
-                      <div key={item.id} id={`namaz-item-${item.id}`}
-                        role="button" tabIndex={0}
-                        aria-current={isCur ? 'page' : undefined}
+                      <div
+                        key={item.id}
+                        id={`namaz-item-${item.id}`}
                         onClick={() => selectNamazItem(item.id)}
                         onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectNamazItem(item.id); } }}
-                        className={`min-h-[44px] flex items-center justify-between gap-2 p-2.5 rounded-xl text-xs md:text-sm font-medium cursor-pointer border transition-all ${
+                        role="button" tabIndex={0} aria-current={isCur ? 'page' : undefined}
+                        className={`flex items-center justify-between p-2.5 rounded-xl text-xs md:text-sm font-medium transition-all cursor-pointer border ${
                           isCur
-                            ? isDark ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996] font-bold' : 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold'
-                            : isDark ? 'bg-[#181510] text-[#f1ecdd] border-[#2e271e] hover:border-[#3fb996]/40' : 'bg-white text-slate-700 border-slate-100 hover:border-slate-300'
-                        }`}>
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <button type="button"
-                            aria-label={`${item.title} ${isMem ? 'ezberlendi işaretini kaldır' : 'ezberledim olarak işaretle'}`}
-                            aria-pressed={isMem}
-                            onClick={e => toggleMemorized(item.id, e)}
-                            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg"
+                            ? isDark
+                              ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996] font-bold shadow-xs'
+                              : 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold shadow-xs'
+                            : isDark
+                            ? 'bg-[#181510] text-[#f1ecdd] border-[#2e271e] hover:border-[#3fb996]/40 hover:bg-[#252018]'
+                            : 'bg-white text-slate-700 border-slate-100 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            onClick={(e) => toggleMemorized(item.id, e)}
+                            className={`transition-colors cursor-pointer ${
+                              isDark ? 'text-[#8c826e] hover:text-[#3fb996]' : 'text-slate-300 hover:text-emerald-600'
+                            }`}
+                            title={isMem ? 'Ezberlendi olarak işaretlendi' : 'Ezberledim olarak işaretle'}
                           >
-                            {isMem ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Circle className="w-4 h-4 text-slate-400" />}
+                            {isMem ? (
+                              <CheckCircle2 className={`w-4 h-4 ${isDark ? 'text-[#3fb996] fill-[#1c3630]' : 'text-emerald-600 fill-emerald-100'}`} />
+                            ) : (
+                              <Circle className="w-4 h-4" />
+                            )}
                           </button>
-                          <span className="truncate">{item.title}</span>
+                          <span>{item.title}</span>
                         </div>
-                        <span className={`shrink-0 text-[11px] ${isDark ? 'text-[#8c826e]' : 'text-slate-400'}`}>{item.surahNumber}. Sûre</span>
+                        <span className={`text-[11px] font-normal ${isDark ? 'text-[#8c826e]' : 'text-slate-400'}`}>
+                          {item.surahNumber}. Sure
+                        </span>
                       </div>
                     );
                   })}
                 </div>
-              </section>
+              </div>
 
               {/* Namaz Rehberi & Tüyolar Grubu */}
               <div
