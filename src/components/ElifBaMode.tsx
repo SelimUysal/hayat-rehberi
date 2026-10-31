@@ -1641,19 +1641,17 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                         <span>{item.title}</span>
                       </span>
                       <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyDirectLink(basicInfoHash(key), item.title);
-                          }}
+                        <AppRouteLink
+                          href={basicInfoHash(key)}
+                          onClick={(e) => e.stopPropagation()}
+                          navigate={() => copyDirectLink(basicInfoHash(key), item.title)}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
                           title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`}
                         >
                           <Link2 className="w-3.5 h-3.5" />
-                        </button>
+                        </AppRouteLink>
                         <ChevronDown
                           className={`w-4 h-4 transition-transform duration-200 ${
                             isOpen ? 'rotate-180' : ''
@@ -1882,19 +1880,17 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                         <span>{item.title}</span>
                       </span>
                       <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyDirectLink(basicInfoHash(key), item.title);
-                          }}
+                        <AppRouteLink
+                          href={basicInfoHash(key)}
+                          onClick={(e) => e.stopPropagation()}
+                          navigate={() => copyDirectLink(basicInfoHash(key), item.title)}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
                           title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`}
                         >
                           <Link2 className="w-3.5 h-3.5" />
-                        </button>
+                        </AppRouteLink>
                         <ChevronDown
                           className={`w-4 h-4 transition-transform duration-200 ${
                             isOpen ? 'rotate-180' : ''
@@ -2043,19 +2039,17 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                         <span>{item.title}</span>
                       </span>
                       <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyDirectLink(basicInfoHash(key), item.title);
-                          }}
+                        <AppRouteLink
+                          href={basicInfoHash(key)}
+                          onClick={(e) => e.stopPropagation()}
+                          navigate={() => copyDirectLink(basicInfoHash(key), item.title)}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isDark ? 'hover:bg-[#3a3226] text-[#b9b09a]' : 'hover:bg-slate-100 text-slate-500'
                           }`}
                           title="Bu başlığın bağlantısını kopyala" aria-label={`${item.title} bağlantısını kopyala`}
                         >
                           <Link2 className="w-3.5 h-3.5" />
-                        </button>
+                        </AppRouteLink>
                         <ChevronDown
                           className={`w-4 h-4 transition-transform duration-200 ${
                             isOpen ? 'rotate-180' : ''
