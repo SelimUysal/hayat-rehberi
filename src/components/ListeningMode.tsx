@@ -295,12 +295,21 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const { enabled: keepScreenAwake, setEnabled: setKeepScreenAwake, status: wakeStatus } = useListeningWakeLock(isPlaying);
-  const screenAwakeLabel = !keepScreenAwake ? 'Ekranı Açık Tut'
-    : wakeStatus === 'active' ? 'Ekran Açık: Etkin'
-    : wakeStatus === 'unsupported' ? 'Ekran: Desteklenmiyor'
-    : wakeStatus === 'blocked' ? 'Ekran: İzin Verilmedi'
-    : wakeStatus === 'requesting' ? 'Ekran: İzin İsteniyor'
-    : 'Ekran: Oynatma Bekleniyor';
+  // Keep the button label stable. State is conveyed by its pressed styling;
+  // short badges are shown only when extra feedback actually helps.
+  const screenAwakeLabel = 'Ekran açık kalsın';
+  const screenAwakeBadge = !keepScreenAwake ? null
+    : wakeStatus === 'active' ? 'Etkin'
+    : wakeStatus === 'requesting' ? 'Açılıyor'
+    : wakeStatus === 'blocked' ? 'İzin yok'
+    : wakeStatus === 'unsupported' ? 'Destek yok'
+    : null;
+  const screenAwakeAccessibility = !keepScreenAwake ? 'Kapalı'
+    : wakeStatus === 'active' ? 'Etkin'
+    : wakeStatus === 'waiting' ? 'Dinleme başlayınca etkinleşir'
+    : wakeStatus === 'requesting' ? 'Ekran açık tutma isteği yapılıyor'
+    : wakeStatus === 'blocked' ? 'Cihaz ekran açık tutma iznini vermedi'
+    : 'Tarayıcı bu özelliği desteklemiyor';
   const screenAwakeTitle = wakeStatus === 'unsupported' ? 'Tarayıcınız ekranı açık tutma özelliğini desteklemiyor. Ses çalmaya devam edebilir.'
     : wakeStatus === 'blocked' ? 'Cihaz, tarayıcı veya pil tasarrufu ekranı açık tutma isteğini reddetti.'
     : 'Dinleme sürerken ekranı açık tutmayı dene. Oynatma durursa veya uygulamadan çıkarsanız izin bırakılır.';
@@ -1551,10 +1560,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               </div>
 
               <button type="button" onClick={() => setKeepScreenAwake(v => !v)} aria-pressed={keepScreenAwake}
+                aria-label={`${screenAwakeLabel}: ${screenAwakeAccessibility}`}
                 title={screenAwakeTitle}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border cursor-pointer transition-all ${keepScreenAwake ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200' : 'border-white/10 bg-white/10 text-slate-300 hover:bg-white/20'}`}>
                 <MonitorSmartphone className="w-4 h-4" />
                 <span>{screenAwakeLabel}</span>
+                {screenAwakeBadge && <span aria-hidden="true" className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${wakeStatus === 'blocked' || wakeStatus === 'unsupported' ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200'}`}>{screenAwakeBadge}</span>}
               </button>
               {/* Gece Saati Moduna Özel Kelime Takibi Butonu */}
               <button
@@ -1698,10 +1709,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               {/* Sağ Butonlar: Kelime Takibi, Odak Modu, Meal Göster/Gizle, Siyah Ekran, Yer İmi */}
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <button type="button" onClick={() => setKeepScreenAwake(v => !v)} aria-pressed={keepScreenAwake}
+                  aria-label={`${screenAwakeLabel}: ${screenAwakeAccessibility}`}
                   title={screenAwakeTitle}
                   className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer transition-all ${keepScreenAwake ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
                   <MonitorSmartphone className="w-4 h-4" />
                   <span>{screenAwakeLabel}</span>
+                {screenAwakeBadge && <span aria-hidden="true" className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${wakeStatus === 'blocked' || wakeStatus === 'unsupported' ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200'}`}>{screenAwakeBadge}</span>}
                 </button>
                 {/* Normal Moda Özel Kelime Takibi Butonu */}
                 <button
