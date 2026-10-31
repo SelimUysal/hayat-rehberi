@@ -29,6 +29,8 @@ import { SurahSearchSelect } from './SurahSearchSelect';
 import { nextSurahInListeningLoop } from '../utils/listeningPlaybackGuards';
 import { recordListeningDiagnostic as logListen, classifyListeningError } from '../utils/listeningDiagnostics';
 import { ListeningDiagnosticsPanel } from './ListeningDiagnosticsPanel';
+import { ListeningBookmarksDialog } from './ListeningBookmarksDialog';
+import { readManualListeningBookmarks, writeManualListeningBookmarks, createManualListeningBookmark, editManualListeningBookmark, type ManualListeningBookmark, type ListeningBookmarkPosition } from '../utils/listeningBookmarks';
 import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { useListeningWakeLock } from '../utils/useListeningWakeLock';
 
@@ -296,6 +298,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return 'ar.mahermuaiqly';
   });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [manualBookmarks, setManualBookmarks] = useState<ManualListeningBookmark[]>(readManualListeningBookmarks);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [bookmarkCandidate, setBookmarkCandidate] = useState<ListeningBookmarkPosition | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const { enabled: keepScreenAwake, setEnabled: setKeepScreenAwake, status: wakeStatus } = useListeningWakeLock(isPlaying);
   // Keep the button label stable. State is conveyed by its pressed styling;
@@ -534,6 +539,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const sleepTargetEndTimeRef = useRef<number | null>(null);
   const isSleepStoppingRef = useRef<boolean>(false);
   const bookmarkIntervalRef = useRef<any>(null);
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'quran_listening_manual_bookmarks_v1') setManualBookmarks(readManualListeningBookmarks());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   useEffect(() => {
     try {
@@ -1400,24 +1412,67 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
   };
 
-  // Kaldığı Yerden Devam Et
-  const resumeFromBookmark = () => {
+  // Manuel yer imleri otomatik kaldığın yer kaydından bağımsızdır.
+  const openManualBookmarks = () => {
+    const player = audioRef.current;
+    const second = player && player.src && !player.paused &&
+      Number.isFinite(player.currentTime) && player.currentTime >= 0
+      ? player.currentTime : savedCurrentTimeRef.current || 0;
+    setBookmarkCandidate({
+      surahId: currentSurahIdRef.current, ayahIndex: currentAyahIndexRef.current,
+      currentTime: Math.max(0, second), reciter: selectedReciterRef.current,
+    });
+    setManualBookmarks(readManualListeningBookmarks());
+    setBookmarksOpen(true);
+  };
+  const addManualBookmark = (name: string, note: string): boolean => {
+    if (!bookmarkCandidate) return false;
+    const next = createManualListeningBookmark(manualBookmarks, bookmarkCandidate, name, note);
+    if (!next || !writeManualListeningBookmarks(next)) return false;
+    setManualBookmarks(next);
+    return true;
+  };
+  const updateManualBookmark = (id: string, name: string, note: string, replacePosition: boolean): boolean => {
+    if (replacePosition && !bookmarkCandidate) return false;
+    const next = editManualListeningBookmark(manualBookmarks, id, name, note,
+      replacePosition ? bookmarkCandidate! : undefined);
+    if (!next || !writeManualListeningBookmarks(next)) return false;
+    setManualBookmarks(next);
+    return true;
+  };
+  const deleteManualBookmark = (id: string): boolean => {
+    if (!manualBookmarks.some(b => b.id === id)) return false;
+    const next = manualBookmarks.filter(b => b.id !== id);
+    if (!writeManualListeningBookmarks(next)) return false;
+    setManualBookmarks(next);
+    return true;
+  };
+  const listenFromManualBookmark = (bookmark: ManualListeningBookmark) => {
     interruptCycle();
-    const b = getSavedBookmark();
-    if (b) {
-      if (b.surahId !== currentSurahId) {
-        stopPlayback(false);
-        persistBookmark(b.surahId, b.ayahIndex, b.currentTime || 0, b.reciter);
-        currentAyahIndexRef.current = b.ayahIndex;
-        setCurrentAyahIndex(b.ayahIndex);
-        shouldAutoPlayNextSurahRef.current = true;
-        currentSurahIdRef.current = b.surahId;
-        setCurrentSurahId(b.surahId);
-        currentAyahIndexRef.current = b.ayahIndex;
-        setCurrentAyahIndex(b.ayahIndex);
-      } else {
-        playAyahAt(b.ayahIndex, b.currentTime || 0);
+    stopPlayback(false);
+    const needsFetch = bookmark.surahId !== currentSurahIdRef.current ||
+      bookmark.reciter !== selectedReciterRef.current || ayahsRef.current.length === 0;
+    persistBookmark(bookmark.surahId, bookmark.ayahIndex, bookmark.currentTime, bookmark.reciter);
+    currentSurahIdRef.current = bookmark.surahId;
+    currentAyahIndexRef.current = bookmark.ayahIndex;
+    selectedReciterRef.current = bookmark.reciter;
+    setCurrentAyahIndex(bookmark.ayahIndex);
+    setBookmarksOpen(false);
+    if (needsFetch) {
+      shouldAutoPlayNextSurahRef.current = true;
+      if (bookmark.surahId !== currentSurahId) {
+        setAyahs([]);
+        ayahsRef.current = [];
+        setCurrentSurahId(bookmark.surahId);
       }
+      if (bookmark.reciter !== selectedReciter) {
+        setSelectedReciter(bookmark.reciter);
+      } else if (bookmark.surahId === currentSurahId && ayahsRef.current.length === 0) {
+        setIsPlaying(true);
+        isPlayingRef.current = true;
+      }
+    } else {
+      playAyahAt(bookmark.ayahIndex, bookmark.currentTime);
     }
   };
 
@@ -1489,7 +1544,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         isBlackScreenMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'
       }`}
     >
-
+      {bookmarksOpen && (
+        <ListeningBookmarksDialog
+          bookmarks={manualBookmarks} position={bookmarkCandidate}
+          onClose={() => setBookmarksOpen(false)} onAdd={addManualBookmark}
+          onEdit={updateManualBookmark} onDelete={deleteManualBookmark}
+          onListen={listenFromManualBookmark}
+        />
+      )}
 
       {/* Odak Modu Aktifken Sağ Üst Köşede Minimalist Çıkış Butonu */}
       {isFocusMode && (
@@ -1886,12 +1948,16 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 </button>
 
                 <button
-                  onClick={resumeFromBookmark}
-                  className="min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer border border-emerald-500/40"
-                  title="Kaldığım Yerden Devam Et"
+                  type="button"
+                  onClick={openManualBookmarks}
+                  aria-haspopup="dialog"
+                  aria-expanded={bookmarksOpen}
+                  className="min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer border border-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"
+                  title="Özel yer imlerini kaydet, düzenle, dinle veya sil"
                 >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>Kaldığım Yer</span>
+                  <Bookmark className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Yer İmlerim</span>
+                  {manualBookmarks.length > 0 && <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] tabular-nums">{manualBookmarks.length}</span>}
                 </button>
 
                 <button
