@@ -23,6 +23,9 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { HayatRehberiLogo } from './HayatRehberiLogo';
+import { AppRouteLink } from './AppRouteLink';
+import { makeMainTabHash } from '../utils/mainDeepLinks';
+import { makeTakvimHash } from '../utils/takvimDeepLinks';
 
 export type TabType =
   | 'elifba'
@@ -143,6 +146,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     setActiveTab(tab);
     setHubOpen(false);
   };
+
+  const hrefFor = (tab: TabType) => tab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(tab);
 
   // Tüm 13 Modül Tanımı
   const allModules: NavItem[] = [
@@ -318,9 +323,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             
             {/* 1. SOL: Logo & Marka */}
             <div className="flex items-center gap-3 shrink-0">
-              <button
-                onClick={onGoHome}
-                type="button"
+              <AppRouteLink
+                href={makeTakvimHash('daily')}
+                navigate={onGoHome}
                 aria-label="Ana sayfa: Bugünkü namaz vakitleri"
                 className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
                 title="Ana Sayfa (Vakitler)"
@@ -349,7 +354,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     Kur'an-ı Kerim, Namaz & Maneviyat
                   </p>
                 </div>
-              </button>
+              </AppRouteLink>
             </div>
 
             {/* 2. ORTA: Masaüstü 5 Ana Sekme + 'Tüm Bölümler' Butonu */}
@@ -358,10 +363,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 return (
-                  <button
+                  <AppRouteLink
                     key={tab.id}
+                    href={hrefFor(tab.id)}
                     id={`nav-tab-${tab.id}`}
-                    onClick={() => handleSelectTab(tab.id)}
+                    navigate={() => handleSelectTab(tab.id)}
                     className={`relative flex items-center gap-2 px-3 py-1.5 xl:px-3.5 xl:py-2 text-xs xl:text-sm font-semibold transition-all rounded-xl cursor-pointer ${
                       isActive
                         ? isDarkMode
@@ -378,7 +384,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         : isDarkMode ? 'text-[#8f8570]' : 'text-stone-400'
                     }`} />
                     <span>{tab.shortLabel}</span>
-                  </button>
+                  </AppRouteLink>
                 );
               })}
 
@@ -603,9 +609,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                           const isCurrent = activeTab === item.id;
 
                           return (
-                            <button
+                            <AppRouteLink
                               key={item.id}
-                              onClick={() => handleSelectTab(item.id)}
+                              href={hrefFor(item.id)}
+                              navigate={() => handleSelectTab(item.id)}
                               className={`group flex items-start gap-3 p-3 rounded-2xl text-left transition-all border cursor-pointer ${
                                 isCurrent
                                   ? isDarkMode
@@ -649,7 +656,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   {item.desc}
                                 </p>
                               </div>
-                            </button>
+                            </AppRouteLink>
                           );
                         })}
                       </div>
@@ -685,8 +692,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <div className="grid grid-cols-5 h-14 items-center">
             {/* 1. Vakitler */}
-            <button
-              onClick={() => handleSelectTab('takvim')}
+            <AppRouteLink
+              href={hrefFor('takvim')}
+              navigate={() => handleSelectTab('takvim')}
               className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
                 activeTab === 'takvim'
                   ? isDarkMode ? 'text-emerald-400 font-bold' : 'text-emerald-700 font-bold'
@@ -695,11 +703,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Calendar className="w-4 h-4 mb-0.5" />
               <span className="text-[10px]">Vakitler</span>
-            </button>
+            </AppRouteLink>
 
             {/* 2. Mushaf */}
-            <button
-              onClick={() => handleSelectTab('mushaf')}
+            <AppRouteLink
+              href={hrefFor('mushaf')}
+              navigate={() => handleSelectTab('mushaf')}
               className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
                 (activeTab as string) === 'mushaf'
                   ? isDarkMode ? 'text-emerald-400 font-bold' : 'text-emerald-700 font-bold'
@@ -708,11 +717,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BookOpen className="w-4 h-4 mb-0.5" />
               <span className="text-[10px]">Mushaf</span>
-            </button>
+            </AppRouteLink>
 
             {/* 3. Namaz */}
-            <button
-              onClick={() => handleSelectTab('namaz')}
+            <AppRouteLink
+              href={hrefFor('namaz')}
+              navigate={() => handleSelectTab('namaz')}
               className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
                 activeTab === 'namaz'
                   ? isDarkMode ? 'text-emerald-400 font-bold' : 'text-emerald-700 font-bold'
@@ -721,11 +731,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Layers className="w-4 h-4 mb-0.5" />
               <span className="text-[10px]">Namaz</span>
-            </button>
+            </AppRouteLink>
 
             {/* 4. Ezber */}
-            <button
-              onClick={() => handleSelectTab('ezber')}
+            <AppRouteLink
+              href={hrefFor('ezber')}
+              navigate={() => handleSelectTab('ezber')}
               className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
                 activeTab === 'ezber'
                   ? isDarkMode ? 'text-emerald-400 font-bold' : 'text-emerald-700 font-bold'
@@ -734,7 +745,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BookMarked className="w-4 h-4 mb-0.5" />
               <span className="text-[10px]">Ezber</span>
-            </button>
+            </AppRouteLink>
 
             {/* 5. Tüm Menü */}
             <button

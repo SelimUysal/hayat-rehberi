@@ -25,6 +25,7 @@ import { getNamazTargetFromUrl, makeNamazItemHash, parseNamazHash } from './util
 import { makeTakvimHash, parseTakvimHash } from './utils/takvimDeepLinks';
 import { getMainTabFromHash, makeMainTabHash } from './utils/mainDeepLinks';
 import { navigateToAppHash } from './utils/appNavigation';
+import { parseSurahHash, makeSurahHash } from './utils/surahDeepLinks';
 
 export function App() {
   const prayerAdhan = usePrayerAdhanSound();
@@ -103,9 +104,18 @@ export function App() {
     navigateToAppHash(entryHash, 'replace');
   }, []);
 
-  const [mushafTarget, setMushafTarget] = useState<{ surahId?: number; page?: number; mode?: 'mushaf' | 'computer'; timestamp?: number } | null>(null);
-  const [ezberTargetSurahId, setEzberTargetSurahId] = useState<number | null>(null);
-  const [listenTargetSurahId, setListenTargetSurahId] = useState<number | undefined>(undefined);
+  const [mushafTarget, setMushafTarget] = useState<{ surahId?: number; page?: number; mode?: 'mushaf' | 'computer'; timestamp?: number } | null>(() => {
+    const route = parseSurahHash(window.location.hash);
+    return route?.tab === 'mushaf' ? {surahId: route.surahId, mode: route.mode} : null;
+  });
+  const [ezberTargetSurahId, setEzberTargetSurahId] = useState<number | null>(() => {
+    const route = parseSurahHash(window.location.hash);
+    return route?.tab === 'ezber' ? route.surahId : null;
+  });
+  const [listenTargetSurahId, setListenTargetSurahId] = useState<number | undefined>(() => {
+    const route = parseSurahHash(window.location.hash);
+    return route?.tab === 'listen' ? route.surahId : undefined;
+  });
   const [listenTargetReciterId, setListenTargetReciterId] = useState<string | undefined>(undefined);
   const [listenTimestamp, setListenTimestamp] = useState<number | undefined>(undefined);
   const [namazTargetId, setNamazTargetId] = useState<string | undefined>(() => getNamazTargetFromUrl());
@@ -122,6 +132,15 @@ export function App() {
         setTakvimTimestamp(Date.now());
         setActiveTab('takvim');
         try { localStorage.setItem('quran_active_tab', 'takvim'); } catch {}
+        return;
+      }
+      const surahRoute = parseSurahHash(window.location.hash);
+      if (surahRoute) {
+        setActiveTab(surahRoute.tab);
+        if (surahRoute.tab === 'mushaf') setMushafTarget({surahId: surahRoute.surahId, mode: surahRoute.mode, timestamp: Date.now()});
+        if (surahRoute.tab === 'ezber') setEzberTargetSurahId(surahRoute.surahId);
+        if (surahRoute.tab === 'listen') {setListenTargetSurahId(surahRoute.surahId); setListenTimestamp(Date.now());}
+        try { localStorage.setItem('quran_active_tab', surahRoute.tab); } catch {}
         return;
       }
       const route = parseNamazHash(window.location.hash);
@@ -321,6 +340,9 @@ export function App() {
           localStorage.setItem('mushaf_target_mode', params.mushafMode);
         } catch {}
       }
+    }
+    if (params?.surahId && (tab === 'mushaf' || tab === 'listen' || tab === 'ezber')) {
+      requestedHash = makeSurahHash(tab, params.surahId, tab === 'mushaf' ? params.mushafMode : undefined);
     }
     if (params?.reciterId) {
       setListenTargetReciterId(params.reciterId);

@@ -41,6 +41,7 @@ import {
   exportHadislerToExcel
 } from '../services/hadisService';
 import { HadisCardItem } from './hadis/HadisCardItem';
+import { AppRouteLink } from './AppRouteLink';
 import { HadisQuizView, HadisStatsView } from './hadis/HadisQuizAndStatsView';
 
 export type HadisTheme = 'dark' | 'emerald';
@@ -1557,9 +1558,9 @@ export const HadisMode: React.FC<HadisModeProps> = ({
               {filteredHadisler.map((item, idx) => {
                 const selectedOrder = getSelectedOrderForId(item.id);
                 return (
-                  <button
+                  <AppRouteLink href={`#hadis/${item.id}`} navigate={() => selectHadisIndex(idx)}
                     key={item.id}
-                    onClick={() => selectHadisIndex(idx)}
+                    
                     className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
                       activeHadis?.id === item.id
                         ? isDark
@@ -1586,7 +1587,7 @@ export const HadisMode: React.FC<HadisModeProps> = ({
                     <p style={inlineMealStyle} className="line-clamp-2 font-medium">
                       {item.meali}
                     </p>
-                  </button>
+                  </AppRouteLink>
                 );
               })}
             </div>
@@ -1776,9 +1777,9 @@ export const HadisMode: React.FC<HadisModeProps> = ({
             {/* İlerleme Çubukları */}
             <div className="flex items-center gap-1">
               {filteredHadisler.slice(0, 16).map((h, idx) => (
-                <button
+                <AppRouteLink href={`#hadis/${h.id}`} navigate={() => selectHadisIndex(idx)}
                   key={h.id}
-                  onClick={() => selectHadisIndex(idx)}
+                  
                   className={`h-1.5 flex-1 rounded-full transition-all cursor-pointer ${
                     idx === safeFocusedIndex
                       ? 'bg-emerald-500'

@@ -1671,6 +1671,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               <div className="flex items-center gap-2 flex-wrap min-w-0 xl:flex-nowrap">
                 <div className="relative z-50 min-w-[150px] sm:min-w-[190px]">
                   <SurahSearchSelect
+                    linkTab="listen"
                     selectedSurahId={currentSurahId}
                     onSelectSurah={handleSelectSurah}
                     buttonLabelPrefix="Sure:"
