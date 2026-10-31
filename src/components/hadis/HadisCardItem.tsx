@@ -12,6 +12,7 @@ import {
   Link2
 } from 'lucide-react';
 import { HadisItem } from '../../services/hadisService';
+import { AppRouteLink } from '../AppRouteLink';
 
 interface HadisCardItemProps {
   item: HadisItem;
@@ -299,7 +300,7 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
           </div>
           <div className="flex items-center flex-wrap gap-1.5">
             {renderSelectForListButton()}
-            <button type="button" onClick={handleCopyLink} title="Hadis bağlantısını kopyala" aria-label={`Hadis ${item.id} bağlantısını kopyala`} className="p-1.5 rounded-lg border border-emerald-500/40 text-emerald-500"><Link2 className="w-3.5 h-3.5" /></button>
+            <AppRouteLink href={`#hadis/${item.id}`} navigate={handleCopyLink}   title="Hadis bağlantısını kopyala" aria-label={`Hadis ${item.id} bağlantısını kopyala`} className="p-1.5 rounded-lg border border-emerald-500/40 text-emerald-500"><Link2 className="w-3.5 h-3.5" /></AppRouteLink>
             <button
               onClick={() => onToggleFavorite(item.id)}
               className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
@@ -491,11 +492,11 @@ export const HadisCardItem: React.FC<HadisCardItemProps> = ({
           {/* Sağ Üst "Listeye Seç" / "Seçildi (#X)" Butonu */}
           {renderSelectForListButton()}
 
-          <button type="button" onClick={handleCopyLink} aria-label={`Hadis ${item.id} bağlantısını kopyala`}
+          <AppRouteLink href={`#hadis/${item.id}`} navigate={handleCopyLink}   aria-label={`Hadis ${item.id} bağlantısını kopyala`}
             title="Bu hadisin doğrudan bağlantısını kopyala"
             className={`p-1.5 rounded-lg border cursor-pointer ${isDark ? 'bg-[#1b1f27] border-[#384152] text-[#cbd5e1]' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
             <Link2 className="w-3.5 h-3.5" />
-          </button>
+          </AppRouteLink>
           {/* Sesli Arapça Dinle */}
           <button
             aria-label="Arapça hadisi seslendir"
