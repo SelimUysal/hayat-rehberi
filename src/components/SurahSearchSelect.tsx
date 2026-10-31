@@ -2,9 +2,13 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, Check, BookOpen } from 'lucide-react';
 import { SURAHS } from '../data/surahs';
 import { SurahMeta } from '../types';
+import { AppRouteLink } from './AppRouteLink';
+import { makeSurahHash } from '../utils/surahDeepLinks';
+import { navigateToAppHash } from '../utils/appNavigation';
 
 interface SurahSearchSelectProps {
   selectedSurahId: number;
+  linkTab: 'ezber' | 'listen';
   onSelectSurah: (surahId: number) => void;
   className?: string;
   buttonLabelPrefix?: string;
@@ -121,6 +125,7 @@ function calculateMatchScore(query: string, surah: SurahMeta): number {
 export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
   selectedSurahId,
   onSelectSurah,
+  linkTab,
   className = "",
   buttonLabelPrefix = "Sure Seç:",
   theme = 'light'
@@ -170,6 +175,7 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
 
   const handleSelect = (id: number) => {
     onSelectSurah(id);
+    navigateToAppHash(makeSurahHash(linkTab, id));
     setIsOpen(false);
     setSearchTerm("");
   };
@@ -265,10 +271,10 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
               {popularSurahs.map(pop => {
                 const isSelected = selectedSurahId === pop.id;
                 return (
-                  <button
+                  <AppRouteLink href={makeSurahHash(linkTab, pop.id)} navigate={() => handleSelect(pop.id)}
                     key={pop.id}
-                    type="button"
-                    onClick={() => handleSelect(pop.id)}
+                    
+                    
                     className={`text-xs px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
                       isSelected
                         ? isDark
@@ -280,7 +286,7 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
                     }`}
                   >
                     {pop.label}
-                  </button>
+                  </AppRouteLink>
                 );
               })}
             </div>
@@ -292,10 +298,10 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
               filteredSurahs.map(surah => {
                 const isSelected = surah.id === selectedSurahId;
                 return (
-                  <button
+                  <AppRouteLink href={makeSurahHash(linkTab, surah.id)} navigate={() => handleSelect(surah.id)}
                     key={surah.id}
-                    type="button"
-                    onClick={() => handleSelect(surah.id)}
+                    
+                    
                     className={`w-full flex items-center justify-between px-3 py-2 text-left rounded-xl transition-colors cursor-pointer ${
                       isSelected
                         ? isDark
@@ -341,7 +347,7 @@ export const SurahSearchSelect: React.FC<SurahSearchSelectProps> = ({
                       </div>
                     </div>
                     {isSelected && <Check className={`w-4 h-4 flex-shrink-0 ${isDark ? "text-emerald-400" : "text-emerald-600"}`} />}
-                  </button>
+                  </AppRouteLink>
                 );
               })
             ) : (
