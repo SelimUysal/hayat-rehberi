@@ -38,3 +38,37 @@ test('full surah starts from verse one only on explicit user request',()=>{
  assert.ok(s.includes("else pauseAudio();"));
  assert.ok(s.includes("setPausedSession(null)"));
 });
+
+test('mobile dock shows one primary action for each playback state', () => {
+ const src=fs.readFileSync('src/components/MobileMode.tsx','utf8');
+ const dock=src.slice(src.indexOf('Duruma göre tek ana kontrol'),src.indexOf('Sağ: İmleçli Hız Slider'));
+ assert.ok(dock.includes('isPlaying || remoteSession ? ('));
+ assert.ok(dock.includes('canResume && pausedPlayback ? ('));
+ assert.ok(dock.includes('completedSurah === currentSurah ? ('));
+ assert.ok(dock.includes('Dinlemeye Devam Et'));
+ assert.ok(dock.includes('Baştan Dinle'));
+ assert.ok(dock.includes('Seçili Ayeti Çal'));
+ assert.ok(dock.includes('Tüm Sureyi Çal'));
+ assert.ok(dock.includes('Sureyi Yeniden Dinle'));
+ assert.ok(dock.includes('onClick={resumeAudio}'));
+ assert.ok(dock.includes('onClick={startFullSurahPlayback}'));
+ assert.ok(dock.includes('formatPlaybackSecond(pausedPlayback.positionSeconds)'));
+ assert.ok(dock.includes("pausedPlayback.mode === 'full'"));
+ assert.ok(dock.includes('role="progressbar"'));
+});
+test('explicit single-ayah play restarts the selected ayah, while Resume restores seconds and full mode', () => {
+ const src=fs.readFileSync('src/components/MobileMode.tsx','utf8');
+ const single=src.slice(src.indexOf('  const startPlayback ='),src.indexOf('  const startFullSurahPlayback ='));
+ const resume=src.slice(src.indexOf('  const resumeAudio ='),src.indexOf('  // Ayeti Çal ve Döngüye Al'));
+ assert.ok(single.includes('resumeOffsetRef.current = 0'));
+ assert.ok(!single.includes('readMobileEzberSession()'));
+ assert.ok(resume.includes('resumeOffsetRef.current = paused.positionSeconds'));
+ assert.ok(resume.includes("playVerse(paused.verseNum, paused.mode ?? 'verse')"));
+ assert.ok(resume.includes('player.play()'));
+});
+test('finishing a full surah offers replay instead of a stale resume', () => {
+ const src=fs.readFileSync('src/components/MobileMode.tsx','utf8');
+ assert.ok(src.includes('setCompletedSurah(currentSurah)'));
+ assert.ok(src.includes('setCompletedSurah(null)'));
+ assert.ok(src.includes('>Sureyi Yeniden Dinle</span>'));
+});
