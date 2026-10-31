@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { nextSurahInListeningLoop } from '../src/utils/listeningPlaybackGuards';
+import { nextSurahInListeningLoop, previousAyahInListeningSequence } from '../src/utils/listeningPlaybackGuards';
 
 test('successive surahs advance and Nâs loops back to Fâtiha', () => {
   assert.equal(nextSurahInListeningLoop(1), 2);
@@ -13,4 +13,12 @@ test('recitation can circle the full Quran indefinitely', () => {
   let current = 1;
   for (let i = 0; i < 114 * 5; ++i) current = nextSurahInListeningLoop(current);
   assert.equal(current, 1);
+});
+
+test('previous ayah supports earlier surah boundaries without wrapping before Fâtiha', () => {
+  assert.deepEqual(previousAyahInListeningSequence(2, 0), { surahId: 1, ayahIndex: 6 });
+  assert.deepEqual(previousAyahInListeningSequence(3, 0), { surahId: 2, ayahIndex: 285 });
+  assert.deepEqual(previousAyahInListeningSequence(2, 4), { surahId: 2, ayahIndex: 3 });
+  assert.equal(previousAyahInListeningSequence(1, 0), null);
+  assert.equal(previousAyahInListeningSequence(0, 0), null);
 });

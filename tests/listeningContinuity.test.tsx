@@ -118,7 +118,7 @@ Object.defineProperty(globalThis, 'fetch', {
   writable: true,
   value: async (url: string) => {
     const id = Number(String(url).split('/surah/')[1]?.split('/')[0] || 1);
-    const count = id === 114 ? 2 : 3;
+    const count = id === 1 ? 7 : id === 114 ? 2 : 3;
     const ayahs = Array.from({ length: count }, (_, i) => ({
       number: i + 1,
       numberInSurah: i + 1,
@@ -172,7 +172,7 @@ async function mountListening(surahId: number, ayahIndex = 0) {
 test('real player continues across ayahs and into the next surah after native pause-before-ended', async () => {
   const page = await mountListening(1, 0);
   try {
-    for (const expected of ['1/2', '1/3', '2/1', '2/2']) {
+    for (const expected of ['1/2', '1/3', '1/4', '1/5', '1/6', '1/7', '2/1', '2/2']) {
       await React.act(async () => {
         currentAudio().finishWithEarlyNativePause();
       });
@@ -254,6 +254,52 @@ test('user pause during or after handoff silences all players', async () => {
     await React.act(async () => mediaActions.get('pause')?.());
     assert.equal(FakeAudio.all.filter((audio) => !audio.paused).length, 0);
     assert.equal(navigator.mediaSession.playbackState, 'paused');
+  } finally {
+    await page.cleanup();
+  }
+});
+
+test('the right arrow at Bakara ayah 1 goes to Fâtiha ayah 7 and can navigate forward again', async () => {
+  const page = await mountListening(2, 0);
+  try {
+    const previous = () => page.container.querySelector('button[title="Önceki Ayet"]') as HTMLButtonElement | null;
+    const next = () => page.container.querySelector('button[title^="Sonraki Ayet"]') as HTMLButtonElement | null;
+    assert.ok(previous(), 'previous button should be shown');
+    assert.equal(previous()?.disabled, false, 'previous should work at the first ayah of Bakara');
+
+    await React.act(async () => { previous()?.click(); });
+    assert.equal(currentAudio().src, 'https://audio.test/1/7.mp3');
+    const saved = JSON.parse(localStorage.getItem('quran_listening_bookmark') || '{}');
+    assert.equal(saved.surahId, 1);
+    assert.equal(saved.ayahIndex, 6);
+
+    await React.act(async () => { previous()?.click(); });
+    assert.equal(currentAudio().src, 'https://audio.test/1/6.mp3');
+
+    await React.act(async () => { next()?.click(); });
+    assert.equal(currentAudio().src, 'https://audio.test/1/7.mp3');
+    await React.act(async () => { next()?.click(); });
+    assert.equal(currentAudio().src, 'https://audio.test/2/1.mp3');
+  } finally {
+    await page.cleanup();
+  }
+});
+
+test('Fâtiha first ayah has no earlier ayah while Android previous-track navigates across surahs', async () => {
+  const start = await mountListening(1, 0);
+  try {
+    const previous = start.container.querySelector('button[title="Önceki Ayet"]') as HTMLButtonElement | null;
+    assert.equal(previous?.disabled, true);
+  } finally {
+    await start.cleanup();
+  }
+
+  const page = await mountListening(2, 0);
+  try {
+    const previousTrack = mediaActions.get('previoustrack');
+    assert.equal(typeof previousTrack, 'function');
+    await React.act(async () => { previousTrack?.(); });
+    assert.equal(currentAudio().src, 'https://audio.test/1/7.mp3');
   } finally {
     await page.cleanup();
   }

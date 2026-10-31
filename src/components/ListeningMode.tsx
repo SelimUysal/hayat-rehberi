@@ -26,7 +26,7 @@ import { AMBIENCE_SLIDES } from '../data/ambienceImages';
 import { Ayah } from '../types';
 import { fetchSurahData } from '../services/quranApi';
 import { SurahSearchSelect } from './SurahSearchSelect';
-import { nextSurahInListeningLoop } from '../utils/listeningPlaybackGuards';
+import { nextSurahInListeningLoop, previousAyahInListeningSequence } from '../utils/listeningPlaybackGuards';
 import { recordListeningDiagnostic as logListen, classifyListeningError } from '../utils/listeningDiagnostics';
 import { ListeningDiagnosticsPanel } from './ListeningDiagnosticsPanel';
 import { ListeningBookmarksDialog } from './ListeningBookmarksDialog';
@@ -540,6 +540,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   ayahsRef.current = ayahs;
 
   const shouldAutoPlayNextSurahRef = useRef<boolean>(false);
+  const previousNavigationRef = useRef<() => void>(() => {});
   const sleepTimerIntervalRef = useRef<any>(null);
   const sleepTargetEndTimeRef = useRef<number | null>(null);
   const isSleepStoppingRef = useRef<boolean>(false);
@@ -1051,12 +1052,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         savedCurrentTimeRef.current = 0;
         playAyahAt(currentAyahIndexRef.current + 1, 0);
       },
-      previoustrack: () => {
-        if (currentAyahIndexRef.current > 0) {
-          savedCurrentTimeRef.current = 0;
-          playAyahAt(currentAyahIndexRef.current - 1, 0);
-        }
-      },
+      previoustrack: () => previousNavigationRef.current(),
       seekto: (details) => {
         const player = audioRef.current;
         if (!player?.src || !Number.isFinite(player.duration) || player.duration <= 0) return;
@@ -1381,13 +1377,32 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
 
   const handlePrevAyah = () => {
+    const previous = previousAyahInListeningSequence(currentSurahIdRef.current, currentAyahIndexRef.current);
+    if (!previous) return;
     cancelAB();
     interruptCycle();
-    if (currentAyahIndex > 0) {
+
+    if (previous.surahId === currentSurahIdRef.current) {
       savedCurrentTimeRef.current = 0;
-      playAyahAt(currentAyahIndex - 1, 0);
+      playAyahAt(previous.ayahIndex, 0);
+      return;
     }
+
+    // At the first ayah, go to the previous surah's LAST ayah, not its first.
+    // Stop the old player before loading the other surah so stale callbacks cannot advance it.
+    stopPlayback(false);
+    currentSurahIdRef.current = previous.surahId;
+    currentAyahIndexRef.current = previous.ayahIndex;
+    setCurrentAyahIndex(previous.ayahIndex);
+    persistBookmark(previous.surahId, previous.ayahIndex, 0);
+    setAyahs([]);
+    ayahsRef.current = [];
+    setTranslations([]);
+    shouldAutoPlayNextSurahRef.current = true;
+    setCurrentSurahId(previous.surahId);
   };
+  // The OS/media notification uses the same backward navigation as the visible right arrow.
+  previousNavigationRef.current = handlePrevAyah;
 
   // Uyku zamanlayıcısı menüsü açıkken dışarıya dokunmak veya ESC ile kapat.
   useEffect(() => {
@@ -1867,7 +1882,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               </button>
               <button
                 onClick={handlePrevAyah}
-                className="p-2.5 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 cursor-pointer"
+                disabled={currentSurahId === 1 && currentAyahIndex === 0}
+                className="p-2.5 sm:p-3 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 text-slate-300 cursor-pointer"
                 title="Önceki Ayet"
               >
                 <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -2187,7 +2203,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
                   <button
                     onClick={handlePrevAyah}
-                    disabled={currentAyahIndex <= 0}
+                    disabled={currentSurahId === 1 && currentAyahIndex === 0}
                     className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white transition-colors cursor-pointer"
                     title="Önceki Ayet"
                   >
