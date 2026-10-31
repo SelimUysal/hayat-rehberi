@@ -55,7 +55,7 @@ test('manual bookmarks validate surah/verse and tolerate corrupted local storage
   assert.deepEqual(readManualListeningBookmarks(),[]);
   assert.equal(editManualListeningBookmark([], 'unknown', 'New', ''),null);
   assert.equal(formatListeningBookmarkTime(72.8),'01:12');
-  assert.equal(bookmarkLabel({surahId:67,ayahIndex:2,currentTime:0,reciter:'ar.mahermuaiqly'}),'Mülk · 3. ayet');
+  assert.equal(bookmarkLabel({surahId:67,ayahIndex:2,currentTime:0,reciter:'ar.mahermuaiqly'}),'Mülk (Tebâreke) · 3. ayet');
  });
 });
 
