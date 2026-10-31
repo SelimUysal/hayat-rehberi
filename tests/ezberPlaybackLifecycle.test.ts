@@ -31,7 +31,7 @@ test('reopened Mobile Ezber restores selection but never silently autoplays', ()
   assert.ok(code.includes('const [resumeAvailable, setResumeAvailable]'));
   assert.ok(code.includes('resumeOffsetRef.current = paused.positionSeconds'));
   assert.ok(code.includes('player.currentTime = Math.min(resumeOffsetRef.current'));
-  assert.ok(code.includes('Dinlemeye Devam Et'));
+  assert.ok(code.includes('Sureye Devam Et') && code.includes('Ayet Tekrarına Devam Et'));
   assert.ok(code.includes('coordinateEzberWindows(stopFromOtherWindow, state =>'));
 });
 
