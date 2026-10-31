@@ -32,6 +32,7 @@ import {
   Copy
 } from 'lucide-react';
 import { NAMAZ_ITEMS, VIRTUAL_NEW_ITEMS, ALL_NAMAZ_ITEMS } from '../data/namazData';
+import { INTERMEDIATE_NAMAZ_SURAH_IDS } from '../data/intermediateNamazSurahs';
 import { MUSLUMAN_SUALLERI_DATA } from '../data/muslumanSualleriData';
 import { NamazItem } from '../types';
 import { getNamazTargetFromUrl, getNamazSectionForId, getDefaultNamazItemId, makeNamazItemHash, makeNamazSectionHash, parseNamazHash, NamazSection } from '../utils/namazDeepLinks';
@@ -305,15 +306,14 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
 
   const allItems = ALL_NAMAZ_ITEMS;
 
-  const [mobileCategory, setMobileCategory] = useState<'sure' | 'dua' | 'yeni'>(() => {
+  const [mobileCategory, setMobileCategory] = useState<'sure' | 'orta' | 'dua' | 'yeni'>(() => {
     const curId = selectedId;
     if (VIRTUAL_NEW_ITEMS.some((v) => v.id === curId)) {
       return 'yeni';
     }
     const foundDua = NAMAZ_ITEMS.find((n) => n.id === curId);
-    if (foundDua && foundDua.category === 'dua') {
-      return 'dua';
-    }
+    if (foundDua && foundDua.category === 'dua') return 'dua';
+    if (INTERMEDIATE_NAMAZ_SURAH_IDS.has(curId)) return 'orta';
     return 'sure';
   });
 
@@ -331,7 +331,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       } else {
         const foundItem = NAMAZ_ITEMS.find((n) => n.id === selectedId);
         if (foundItem) {
-          setMobileCategory(foundItem.category === 'dua' ? 'dua' : 'sure');
+          setMobileCategory(foundItem.category === 'dua' ? 'dua' : INTERMEDIATE_NAMAZ_SURAH_IDS.has(foundItem.id) ? 'orta' : 'sure');
         }
       }
     }
@@ -347,7 +347,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       } else {
         const foundItem = NAMAZ_ITEMS.find((n) => n.id === cleaned);
         if (foundItem) {
-          setMobileCategory(foundItem.category === 'dua' ? 'dua' : 'sure');
+          setMobileCategory(foundItem.category === 'dua' ? 'dua' : INTERMEDIATE_NAMAZ_SURAH_IDS.has(foundItem.id) ? 'orta' : 'sure');
         }
       }
       try {
@@ -5642,7 +5642,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
             
             {/* Mobil Kategori Seçici: Sureler vs Dualar vs Maneviyat */}
             <div
-              className={`grid grid-cols-3 gap-1.5 p-1 rounded-2xl border ${
+              className={`grid grid-cols-4 gap-1 p-1 rounded-2xl border ${
                 isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-slate-100 border-slate-200'
               }`}
             >
@@ -5663,7 +5663,24 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span>Sure ({NAMAZ_ITEMS.filter(i => i.category === 'sure').length})</span>
+                <span>Sûre ({NAMAZ_ITEMS.filter(i => i.category === 'sure' && !INTERMEDIATE_NAMAZ_SURAH_IDS.has(i.id)).length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileCategory('orta');
+                  selectNamazItem('kadir');
+                }}
+                aria-pressed={mobileCategory === 'orta'}
+                className={`min-h-[44px] py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  mobileCategory === 'orta'
+                    ? isDark ? 'bg-[#1c3630] text-[#3fb996] border border-[#3fb996]/50 shadow-xs' : 'bg-emerald-700 text-white shadow-xs'
+                    : isDark ? 'text-[#b9b09a] hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Orta ({INTERMEDIATE_NAMAZ_SURAH_IDS.size})</span>
               </button>
 
               <button
@@ -5710,7 +5727,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
             <label htmlFor="namaz-mobile-search" className="sr-only">Sure, dua veya rehber ara</label>
             <input id="namaz-mobile-search" type="search" value={contentSearch} onChange={e => setContentSearch(e.target.value)} placeholder="Sure, dua veya rehber ara…" className={`w-full rounded-xl border p-3 text-sm ${isDark ? 'bg-[#211d16] border-[#3a3226] text-white' : 'bg-white border-slate-200'}`} />
             <div className="flex items-center gap-2 max-w-full overflow-x-auto pb-2 pt-1 scrollbar-none">
-              {allItems.filter(i => i.category === mobileCategory && i.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map(item => {
+              {allItems.filter(i => (mobileCategory === 'orta' ? INTERMEDIATE_NAMAZ_SURAH_IDS.has(i.id) : i.category === mobileCategory && (mobileCategory !== 'sure' || !INTERMEDIATE_NAMAZ_SURAH_IDS.has(i.id))) && i.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map(item => {
                 const isCur = item.id === selectedId;
                 const isMem = memorizedIds.includes(item.id);
                 const isSual = item.id === 'musluman-sualleri';
@@ -6159,7 +6176,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   </button>
                 </h3>
                 <div className="space-y-1.5 max-h-[340px] overflow-y-auto custom-scrollbar pr-1">
-                  {NAMAZ_ITEMS.filter((item) => item.category === 'sure' && item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map((item) => {
+                  {NAMAZ_ITEMS.filter((item) => item.category === 'sure' && !INTERMEDIATE_NAMAZ_SURAH_IDS.has(item.id) && item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())).map((item) => {
                     const isCur = item.id === selectedId;
                     const isMem = memorizedIds.includes(item.id);
                     return (
@@ -6265,6 +6282,48 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   })}
                 </div>
               </div>
+
+              {/* Orta seviye sûreler, duaların hemen altında ayrı bir liste. */}
+              <section className={`rounded-2xl p-4 shadow-sm border ${isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-white border-slate-200'}`}>
+                <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 px-2 flex items-center gap-1.5 ${isDark ? 'text-[#8c826e]' : 'text-slate-500'}`}>
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                  <span>Orta Seviye Sûreler ({INTERMEDIATE_NAMAZ_SURAH_IDS.size})</span>
+                </h3>
+                <div className="space-y-1.5 max-h-[420px] overflow-y-auto custom-scrollbar pr-1" aria-label="Orta seviye sûreler">
+                  {NAMAZ_ITEMS.filter(item =>
+                    INTERMEDIATE_NAMAZ_SURAH_IDS.has(item.id) &&
+                    item.title.toLocaleLowerCase('tr-TR').includes(contentSearch.toLocaleLowerCase('tr-TR').trim())
+                  ).map(item => {
+                    const isCur = item.id === selectedId;
+                    const isMem = memorizedIds.includes(item.id);
+                    return (
+                      <div key={item.id} id={`namaz-item-${item.id}`}
+                        role="button" tabIndex={0}
+                        aria-current={isCur ? 'page' : undefined}
+                        onClick={() => selectNamazItem(item.id)}
+                        onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectNamazItem(item.id); } }}
+                        className={`min-h-[44px] flex items-center justify-between gap-2 p-2.5 rounded-xl text-xs md:text-sm font-medium cursor-pointer border transition-all ${
+                          isCur
+                            ? isDark ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996] font-bold' : 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold'
+                            : isDark ? 'bg-[#181510] text-[#f1ecdd] border-[#2e271e] hover:border-[#3fb996]/40' : 'bg-white text-slate-700 border-slate-100 hover:border-slate-300'
+                        }`}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <button type="button"
+                            aria-label={`${item.title} ${isMem ? 'ezberlendi işaretini kaldır' : 'ezberledim olarak işaretle'}`}
+                            aria-pressed={isMem}
+                            onClick={e => toggleMemorized(item.id, e)}
+                            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg"
+                          >
+                            {isMem ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Circle className="w-4 h-4 text-slate-400" />}
+                          </button>
+                          <span className="truncate">{item.title}</span>
+                        </div>
+                        <span className={`shrink-0 text-[11px] ${isDark ? 'text-[#8c826e]' : 'text-slate-400'}`}>{item.surahNumber}. Sûre</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
 
               {/* Namaz Rehberi & Tüyolar Grubu */}
               <div

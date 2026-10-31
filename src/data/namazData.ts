@@ -1,4 +1,5 @@
 import { NamazItem } from '../types';
+import { INTERMEDIATE_NAMAZ_SURAHS } from './intermediateNamazSurahs';
 
 export const NAMAZ_ITEMS: NamazItem[] = [
   // ======================== DUALAR ========================
@@ -868,7 +869,8 @@ export const NAMAZ_ITEMS: NamazItem[] = [
         audioUrl: 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/6236.mp3'
       }
     ]
-  }
+  },
+  ...INTERMEDIATE_NAMAZ_SURAHS
 ];
 
 export const VIRTUAL_NEW_ITEMS: NamazItem[] = [
