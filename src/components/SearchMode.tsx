@@ -17,6 +17,7 @@ import { SURAH_PAGE_MAP } from '../data/smartNavigationMap';
 import { AppRouteLink } from './AppRouteLink';
 import { makeMainTabHash } from '../utils/mainDeepLinks';
 import { makeNamazItemHash } from '../utils/namazDeepLinks';
+import { makeSurahHash } from '../utils/surahDeepLinks';
 import { fuzzyMatch } from '../utils/fuzzySearch';
 import { detectSecretSearchCommand } from '../utils/security';
 import { NamazItem } from '../types';
@@ -1083,14 +1084,14 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                         
                         <div className="flex items-center gap-1.5">
                           {surahId && (
-                            <button
-                              onClick={() => onNavigateToTab('mushaf', { surahId, page: SURAH_PAGE_MAP[surahId] || 1 })}
+                            <AppRouteLink
+                              href={makeSurahHash('mushaf', surahId)} navigate={() => onNavigateToTab('mushaf', { surahId, page: SURAH_PAGE_MAP[surahId] || 1 })}
                               className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-bold cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
                               title="Mushaf-ı Şerif'te Oku"
                             >
                               <BookOpen className="w-3 h-3" />
                               <span>Mushaf</span>
-                            </button>
+                            </AppRouteLink>
                           )}
                           
                           {/* DOĞRUDAN NAMAZ SAYFASINDA BU ÖĞEYİ AÇMA BUTONU */}
@@ -1277,8 +1278,8 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                       <div className={`grid grid-cols-1 ${namazItemId ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-2.5 pt-3 border-t border-slate-100`}>
                         
                         {/* 1. Gerçek Mushaf Butonu */}
-                        <button
-                          onClick={() => onNavigateToTab('mushaf', { surahId: surah.id, page: pageNumber, mushafMode: 'mushaf' })}
+                        <AppRouteLink
+                          href={makeSurahHash('mushaf', surah.id, 'mushaf')} navigate={() => onNavigateToTab('mushaf', { surahId: surah.id, page: pageNumber, mushafMode: 'mushaf' })}
                           className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-gradient-to-r hover:from-emerald-800 hover:to-teal-800 hover:border-emerald-700 text-left transition-all duration-200 group cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between active:scale-98"
                           title="Hattat Osman Taha Hattıyla Orijinal Mushaf Sayfasında Aç"
                         >
@@ -1299,11 +1300,11 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                               Osman Taha hattı orijinal sayfa
                             </div>
                           </div>
-                        </button>
+                        </AppRouteLink>
 
                         {/* 2. Bilgisayar Hatlı Butonu */}
-                        <button
-                          onClick={() => onNavigateToTab('mushaf', { surahId: surah.id, page: pageNumber, mushafMode: 'computer' })}
+                        <AppRouteLink
+                          href={makeSurahHash('mushaf', surah.id, 'computer')} navigate={() => onNavigateToTab('mushaf', { surahId: surah.id, page: pageNumber, mushafMode: 'computer' })}
                           className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-gradient-to-r hover:from-emerald-800 hover:to-teal-800 hover:border-emerald-700 text-left transition-all duration-200 group cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between active:scale-98"
                           title="Bilgisayar Yazısıyla Satır Satır ve Mealli Oku"
                         >
@@ -1324,11 +1325,11 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                               Satır satır metin ve Türkçe meal
                             </div>
                           </div>
-                        </button>
+                        </AppRouteLink>
 
                         {/* 3. Ezber Asistanı Butonu */}
-                        <button
-                          onClick={() => onNavigateToTab('ezber', { surahId: surah.id })}
+                        <AppRouteLink
+                          href={makeSurahHash('ezber', surah.id)} navigate={() => onNavigateToTab('ezber', { surahId: surah.id })}
                           className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-gradient-to-r hover:from-emerald-800 hover:to-teal-800 hover:border-emerald-700 text-left transition-all duration-200 group cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between active:scale-98"
                           title="Ezber Asistanında Sesli Tekrar ve Ezberleme"
                         >
@@ -1349,7 +1350,7 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                               Sesli tekrar ve ezberleme modu
                             </div>
                           </div>
-                        </button>
+                        </AppRouteLink>
 
                         {/* 4. Namaz Sûresi Olarak Aç Butonu (Eğer Namaz Modülünde Varsa) */}
                         {namazItemId && (
@@ -1615,13 +1616,13 @@ export const SearchMode: React.FC<SearchModeProps> = ({ onNavigateToTab }) => {
                         <span className="text-[11px] text-slate-500">
                           Diyanet İşleri Meali
                         </span>
-                        <button
-                          onClick={() => onNavigateToTab('mushaf', { surahId: ayah.surah.number })}
+                        <AppRouteLink
+                          href={makeSurahHash('mushaf', ayah.surah.number)} navigate={() => onNavigateToTab('mushaf', { surahId: ayah.surah.number })}
                           className="px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <span>Mushaf'ta Gör</span>
                           <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
+                        </AppRouteLink>
                       </div>
                     </div>
                   ))}
