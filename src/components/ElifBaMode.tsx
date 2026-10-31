@@ -1067,10 +1067,10 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                 {LETTERS.map((letter) => {
                   const done = isLetterDone(letter.name);
                   return (
-                    <button
+                    <AppRouteLink href={`#elifba/harfler/${encodeURIComponent(letter.name)}`} navigate={() => setSelectedLetter(letter)}
                       key={letter.name}
                       id={`letter-btn-${letter.name}`}
-                      onClick={() => setSelectedLetter(letter)}
+                      
                       className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer relative group flex flex-col items-center justify-center ${
                         done
                           ? isDark
@@ -1096,7 +1096,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
                       >
                         {letter.name}
                       </span>
-                    </button>
+                    </AppRouteLink>
                   );
                 })}
               </div>
