@@ -21,7 +21,7 @@ test('mobile ayah follow resynchronizes on Android app foreground without new pl
   assert.ok(segment.includes('syncFollowRef.current?.()'));
   assert.ok(segment.includes('resumeFollowTimerRef.current?.()'));
   assert.ok(segment.includes("scrollIntoView"));
-  assert.ok(!segment.includes('playVerse('),'foreground must not restart audio');
+  assert.ok(!segment.includes('player.play('),'foreground must not restart audio');
   assert.ok(!segment.includes('new Audio('),'foreground must not duplicate player');
 });
 test('native ended transition survives background timer throttling and avoids double advance', () => {
