@@ -17,7 +17,9 @@ import {
   Repeat,
   Maximize2,
   Minimize2,
-  MonitorSmartphone
+  MonitorSmartphone,
+  ListChecks,
+  RotateCcw
 } from 'lucide-react';
 import { SURAHS, RECITERS } from '../data/surahs';
 import { AMBIENCE_SLIDES } from '../data/ambienceImages';
@@ -341,6 +343,55 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
   });
   const [showTranslation, setShowTranslation] = useState<boolean>(false); // Varsayılan gizli
+
+  // Opt-in, local-only complete Quran listening tracker.
+  const trackerKey = 'quran_listening_full_cycle_v1';
+  type CycleState = { enabled: boolean; total: number; surah: number; ayah: number; completedSurahs: number };
+  const emptyCycle = (enabled = false): CycleState => ({ enabled, total: 0, surah: 1, ayah: 0, completedSurahs: 0 });
+  const [cycle, setCycle] = useState<CycleState>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(trackerKey) || 'null');
+      if (saved && typeof saved.enabled === 'boolean' &&
+          Number.isSafeInteger(saved.total) && saved.total >= 0 &&
+          Number.isInteger(saved.surah) && saved.surah >= 1 && saved.surah <= 114 &&
+          Number.isInteger(saved.ayah) && saved.ayah >= 0 &&
+          Number.isInteger(saved.completedSurahs) && saved.completedSurahs >= 0 && saved.completedSurahs <= 113) {
+        return saved;
+      }
+    } catch { /* storage unavailable */ }
+    return emptyCycle();
+  });
+  const cycleRef = useRef(cycle);
+  const [cycleMenuOpen, setCycleMenuOpen] = useState(false);
+  const updateCycle = (next: CycleState) => {
+    cycleRef.current = next;
+    setCycle(next);
+    try { localStorage.setItem(trackerKey, JSON.stringify(next)); } catch { /* private mode */ }
+  };
+  const interruptCycle = () => {
+    const old = cycleRef.current;
+    if (old.enabled && (old.completedSurahs > 0 || old.ayah > 0)) {
+      updateCycle({ ...old, surah: 1, ayah: 0, completedSurahs: 0 });
+    }
+  };
+  const recordCompletedAyah = (surah: number, idx: number, length: number, startedAt: number, player: HTMLAudioElement) => {
+    const old = cycleRef.current;
+    if (!old.enabled) return;
+    // A new cycle must begin at the first second of Al-Fatiha.
+    const validEnd = Number.isFinite(player.duration) && player.duration > 0 &&
+      player.currentTime >= player.duration - 0.15;
+    if (!validEnd || startedAt > 0.15 || old.surah !== surah || old.ayah !== idx) {
+      interruptCycle();
+      return;
+    }
+    if (idx + 1 < length) {
+      updateCycle({ ...old, ayah: idx + 1 });
+    } else if (surah === 114) {
+      updateCycle({ ...old, total: old.total + 1, surah: 1, ayah: 0, completedSurahs: 0 });
+    } else {
+      updateCycle({ ...old, surah: surah + 1, ayah: 0, completedSurahs: surah });
+    }
+  };
 
   // Veri
   const [ayahs, setAyahs] = useState<Ayah[]>([]);
@@ -809,6 +860,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         triggerSleepStop();
         return;
       }
+      // Only automatically finished ayahs count. Skip/manual navigation never counts.
+      recordCompletedAyah(currentSurahIdRef.current, idx, list.length, startTime, player);
       hasAdvancedToNext = true;
       logListen('AYAH_ADVANCE', 'info', { surah: currentSurahIdRef.current, ayah: idx + 1 });
       playAyahAt(idx + 1, 0, list);
@@ -1244,11 +1297,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
 
   const handleNextAyah = () => {
+    interruptCycle();
     savedCurrentTimeRef.current = 0;
     playAyahAt(currentAyahIndex + 1, 0);
   };
 
   const handlePrevAyah = () => {
+    interruptCycle();
     if (currentAyahIndex > 0) {
       savedCurrentTimeRef.current = 0;
       playAyahAt(currentAyahIndex - 1, 0);
@@ -1297,6 +1352,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Kaldığı Yerden Devam Et
   const resumeFromBookmark = () => {
+    interruptCycle();
     const b = getSavedBookmark();
     if (b) {
       if (b.surahId !== currentSurahId) {
@@ -1316,6 +1372,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
 
   const handleSelectSurah = (surahId: number) => {
+    interruptCycle();
     stopPlayback(false);
     setCurrentAyahIndex(0);
     currentAyahIndexRef.current = 0;
@@ -1796,6 +1853,40 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   <span>Gece Saati</span>
                 </button>
               </div>
+
+                <div className="relative min-w-0">
+                  <button type="button" onClick={() => setCycleMenuOpen(v => !v)}
+                    aria-expanded={cycleMenuOpen} aria-label="Kur'an dinleme sayacı"
+                    className={`min-h-11 w-full rounded-xl border px-2 py-2 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${cycle.enabled ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
+                    <ListChecks className="w-4 h-4 shrink-0" />
+                    <span>Sayaç {cycle.enabled ? cycle.total : ''}</span>
+                  </button>
+                  {cycleMenuOpen && (
+                    <div className="absolute z-[80] right-0 top-full mt-2 w-[min(84vw,300px)] rounded-2xl border border-white/20 bg-slate-950 p-4 text-white shadow-2xl space-y-3" role="region" aria-label="Kur'an dinleme sayacı ayarları">
+                      <div className="flex justify-between items-center gap-2">
+                        <strong className="text-sm">Kur'an Dinleme Sayacı</strong>
+                        <button type="button" className="text-slate-300 text-xs underline" onClick={() => setCycleMenuOpen(false)}>Kapat</button>
+                      </div>
+                      <p className="text-xs text-slate-400">Fâtiha'dan Nâs'a kadar otomatik, eksiksiz dinlenen turlar sayılır. Veriler yalnızca bu tarayıcıda tutulur.</p>
+                      <label className="flex justify-between items-center gap-3 text-sm">
+                        <span>Takibi etkinleştir</span>
+                        <input type="checkbox" checked={cycle.enabled} onChange={e => updateCycle(emptyCycle(e.target.checked))} className="accent-emerald-500 w-4 h-4" />
+                      </label>
+                      {cycle.enabled && (
+                        <>
+                          <div className="text-2xl font-bold text-emerald-300">{cycle.total} <span className="text-xs font-normal text-slate-300">tam tur</span></div>
+                          <div className="text-xs text-slate-300">Devam eden tur: {cycle.completedSurahs}/114 sûre tamamlandı</div>
+                          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${cycle.completedSurahs / 114 * 100}%` }} /></div>
+                          <p className="text-[11px] text-slate-400">Elle âyet/sûre atlanırsa yalnızca tamamlanmamış turun ilerlemesi sıfırlanır.</p>
+                          <button type="button" onClick={() => { if (window.confirm('Tamamlanan turlar ve mevcut ilerleme silinsin mi?')) updateCycle(emptyCycle(true)); }}
+                            className="min-h-10 w-full rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-xs font-semibold flex justify-center items-center gap-2 cursor-pointer">
+                            <RotateCcw className="w-3.5 h-3.5" /> Tüm sayacı sıfırla
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
 
               {/* Yardım ayrı tutulur; dar ekranda sağ üstte, genişte en sağda. */}
               <div className="col-start-2 row-start-1 flex justify-end self-start">
