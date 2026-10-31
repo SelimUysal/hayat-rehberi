@@ -3,7 +3,7 @@ import type { TabType } from '../components/Navbar';
 /** Main Hayat Rehberi routes. Hash routing works on GitHub Pages without server rewrites. */
 const MAIN_TABS: readonly TabType[] = [
   'elifba', 'namaz', 'kaza', 'mushaf', 'ezber', 'takvim', 'osmanli',
-  'hadis', 'esma', 'listen', 'search', 'support', 'worldclock'
+  'hadis', 'esma', 'listen', 'radio', 'search', 'support', 'worldclock'
 ];
 
 const ALIASES: Record<string, TabType> = {

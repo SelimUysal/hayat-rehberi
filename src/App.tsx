@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar, TabType } from './components/Navbar';
+import { SadaQuranRadio } from './components/SadaQuranRadio';
 import { AppUpdateNotice } from './components/AppUpdateNotice';
 import { ElifBaMode, ElifbaTab } from './components/ElifBaMode';
 import { NamazMode } from './components/NamazMode';
@@ -79,6 +80,7 @@ export function App() {
         'hadis',
         'esma',
         'listen',
+        'radio',
         'search',
         'support',
         'worldclock'
@@ -512,6 +514,7 @@ export function App() {
             targetTimestamp={listenTimestamp}
           />
         )}
+        {activeTab === 'radio' && <SadaQuranRadio />}
         {activeTab === 'search' && <SearchMode onNavigateToTab={handleNavigate} />}
         {activeTab === 'support' && (
           <SupportAndFeedback 
