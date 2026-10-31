@@ -14,6 +14,8 @@ export interface SavedMobileEzberSession {
   playbackSpeed: number;
   positionSeconds: number;
   wasPlaying: boolean;
+  /** The last playback mode, retained across an app restart. */
+  mode?: 'verse' | 'full';
 }
 
 export interface LiveEzberSession extends SavedMobileEzberSession {
@@ -56,6 +58,7 @@ export function readMobileEzberSession(): SavedMobileEzberSession | null {
       positionSeconds: typeof value.positionSeconds === 'number' && Number.isFinite(value.positionSeconds) &&
         value.positionSeconds >= 0 && value.positionSeconds < 3600 ? value.positionSeconds : 0,
       wasPlaying: value.wasPlaying === true,
+      mode: value.mode === 'full' ? 'full' : 'verse',
     };
   } catch {
     return null;
