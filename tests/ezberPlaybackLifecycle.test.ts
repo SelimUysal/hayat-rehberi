@@ -43,3 +43,27 @@ test('voice recorder auto-play timeout is cancelled on unmount and new audio own
   assert.ok(recorder.includes('window.addEventListener(EZBER_STOP_AUDIO_EVENT'));
   assert.ok(recorder.includes('mediaRecorderRef.current.stop()'));
 });
+
+test('live session coordination shares state without stealing audio on reopening', async () => {
+  const { readFileSync }=await import('node:fs');
+  const coordinator=readFileSync('src/utils/ezberSession.ts','utf8');
+  assert.ok(coordinator.includes("requestEzberLiveState()"));
+  assert.ok(coordinator.includes("publishEzberLiveState"));
+  assert.ok(coordinator.includes("onRemoteState(msg.state)"));
+  assert.ok(coordinator.includes("msg.kind === 'request'"));
+  assert.ok(!coordinator.includes("claimEzberAudio();\n  return ()"),'a new window must not automatically steal another active player');
+});
+
+test('Ezber stays mounted when switching tabs and returns to live verse on foreground', async () => {
+  const { readFileSync }=await import('node:fs');
+  const app=readFileSync('src/App.tsx','utf8');
+  const mobile=readFileSync('src/components/MobileMode.tsx','utf8');
+  assert.ok(app.includes("ezberVisited && <div hidden={activeTab !== 'ezber'}>"));
+  assert.ok(app.includes("<EzberAsistani active={activeTab === 'ezber'}"));
+  assert.ok(mobile.includes("setIsPlaying(!audioRef.current.paused)"));
+  assert.ok(mobile.includes("currentlyPlayingVerseNumRef.current"));
+  assert.ok(mobile.includes("scrollIntoView({behavior:'smooth',block:'center'})"));
+  assert.ok(mobile.includes("remoteSession?.verseNum"));
+  assert.ok(mobile.includes("stopRemoteEzberAudio()"));
+  assert.ok(mobile.includes("claimEzberAudio()"));
+});

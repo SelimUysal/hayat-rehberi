@@ -16,6 +16,17 @@ export interface SavedMobileEzberSession {
   wasPlaying: boolean;
 }
 
+export interface LiveEzberSession extends SavedMobileEzberSession {
+  mode: 'verse' | 'full';
+  updatedAt: number;
+}
+
+type Message =
+  | { kind: 'request'; sender: string }
+  | { kind: 'state'; sender: string; state: LiveEzberSession }
+  | { kind: 'claim' | 'stop' | 'ended'; sender: string }
+  | { kind: 'speed'; sender: string; speed: number };
+
 function validVerse(surahId: number, verseNum: number): boolean {
   const surah = SURAHS.find(item => item.id === surahId);
   return !!surah && Number.isInteger(verseNum) && verseNum >= 1 &&
@@ -54,42 +65,80 @@ export function saveMobileEzberSession(session: SavedMobileEzberSession): void {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(session));
   } catch {
-    // Storage may be denied; playback must work without persistence.
+    // Storage may be unavailable. Playback must not depend on persistence.
   }
 }
 
+function validLiveState(value: unknown): value is LiveEzberSession {
+  if (!value || typeof value !== 'object') return false;
+  const state = value as Partial<LiveEzberSession>;
+  return typeof state.surahId === 'number' && typeof state.verseNum === 'number' &&
+    validVerse(state.surahId, state.verseNum) &&
+    typeof state.reciter === 'string' && RECITERS.some(r => r.id === state.reciter) &&
+    typeof state.playbackSpeed === 'number' && Number.isFinite(state.playbackSpeed) &&
+    state.playbackSpeed >= 0.5 && state.playbackSpeed <= 3 &&
+    typeof state.positionSeconds === 'number' && Number.isFinite(state.positionSeconds) &&
+    state.positionSeconds >= 0 && state.positionSeconds < 3600 &&
+    state.wasPlaying === true &&
+    (state.mode === 'verse' || state.mode === 'full') &&
+    typeof state.updatedAt === 'number' && Number.isFinite(state.updatedAt) &&
+    Math.abs(Date.now() - state.updatedAt) < 15000;
+}
+
+function broadcast(message: Message): void {
+  try { activeChannel?.postMessage(message); } catch {}
+  // A storage event is used as fallback when BroadcastChannel is unavailable.
+  try { localStorage.setItem(SESSION_SIGNAL_KEY, JSON.stringify(message)); } catch {}
+}
+
 /**
- * Only one tab/window owns active Ezber audio. On Android a home-screen PWA
- * and an ordinary Chrome tab can be alive simultaneously. A new Ezber screen
- * announces itself so any older window releases its stream, avoiding a
- * "fresh" screen over audio from the old session.
+ * Coordinate playback between a home-screen PWA and a Chrome tab without
+ * stealing the audio on merely opening another screen. The old window remains
+ * the audio owner; the new window mirrors its live position and controls.
+ * Ownership transfers only when the user explicitly starts local playback.
  *
- * No document visibility handler: hiding the same app must NOT stop a
- * deliberately ongoing background recitation.
+ * Keeping a tab in the background does NOT stop its live audio.
  */
-export function coordinateEzberWindows(stopPreviousPlayback: () => void): () => void {
+export function coordinateEzberWindows(
+  stopPreviousPlayback: () => void,
+  onRemoteState: (state: LiveEzberSession | null) => void = () => {},
+  getLocalState: () => LiveEzberSession | null = () => null,
+  onRemoteSpeed: (speed: number) => void = () => {},
+): () => void {
   if (typeof window === 'undefined') return () => {};
   let channel: BroadcastChannel | null = null;
-  const onClaim = (claim: unknown) => {
-    if (!claim || typeof claim !== 'object') return;
-    const value = claim as { kind?: unknown; id?: unknown };
-    if (value.kind === 'claim' && typeof value.id === 'string' && value.id !== WINDOW_ID) {
+  const onMessage = (incoming: unknown) => {
+    if (!incoming || typeof incoming !== 'object') return;
+    const msg = incoming as Partial<Message>;
+    if (msg.sender === WINDOW_ID || typeof msg.sender !== 'string') return;
+    if (msg.kind === 'request') {
+      const local = getLocalState();
+      if (local && validLiveState(local)) broadcast({kind: 'state', sender: WINDOW_ID, state: local});
+    } else if (msg.kind === 'state') {
+      if (validLiveState(msg.state)) onRemoteState(msg.state);
+    } else if (msg.kind === 'claim' || msg.kind === 'stop') {
       stopPreviousPlayback();
+      if (msg.kind === 'claim') onRemoteState(null);
+    } else if (msg.kind === 'ended') {
+      onRemoteState(null);
+    } else if (msg.kind === 'speed' && typeof msg.speed === 'number' &&
+               Number.isFinite(msg.speed) && msg.speed >= 0.5 && msg.speed <= 3) {
+      if (getLocalState()) onRemoteSpeed(msg.speed);
     }
   };
   const onStorage = (event: StorageEvent) => {
     if (event.key !== SESSION_SIGNAL_KEY || !event.newValue) return;
-    try { onClaim(JSON.parse(event.newValue)); } catch {}
+    try { onMessage(JSON.parse(event.newValue)); } catch {}
   };
   window.addEventListener('storage', onStorage);
-  if (typeof BroadcastChannel !== 'undefined') {
-    try {
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
       channel = new BroadcastChannel(CHANNEL_NAME);
       activeChannel = channel;
-      channel.onmessage = event => onClaim(event.data);
-    } catch {}
-  }
-  claimEzberAudio();
+      channel.onmessage = event => onMessage(event.data);
+    }
+  } catch {}
+  requestEzberLiveState();
   return () => {
     window.removeEventListener('storage', onStorage);
     if (channel) {
@@ -100,9 +149,23 @@ export function coordinateEzberWindows(stopPreviousPlayback: () => void): () => 
   };
 }
 
-/** Called on entering Ezber and whenever new playback begins. */
+export function requestEzberLiveState(): void {
+  broadcast({kind: 'request', sender: WINDOW_ID});
+}
+export function publishEzberLiveState(state: LiveEzberSession): void {
+  if (validLiveState(state)) broadcast({kind: 'state', sender: WINDOW_ID, state});
+}
 export function claimEzberAudio(): void {
-  const claim = { kind: 'claim', id: WINDOW_ID };
-  try { activeChannel?.postMessage(claim); } catch {}
-  try { localStorage.setItem(SESSION_SIGNAL_KEY, JSON.stringify(claim)); } catch {}
+  broadcast({kind: 'claim', sender: WINDOW_ID});
+}
+export function stopRemoteEzberAudio(): void {
+  broadcast({kind: 'stop', sender: WINDOW_ID});
+}
+export function notifyEzberAudioEnded(): void {
+  broadcast({kind: 'ended', sender: WINDOW_ID});
+}
+export function changeRemoteEzberSpeed(speed: number): void {
+  if (Number.isFinite(speed) && speed >= 0.5 && speed <= 3) {
+    broadcast({kind: 'speed', sender: WINDOW_ID, speed});
+  }
 }
