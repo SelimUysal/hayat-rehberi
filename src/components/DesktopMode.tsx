@@ -697,6 +697,7 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
         }`}>
           <div className="flex flex-wrap items-center gap-3.5 sm:gap-4">
             <SurahSearchSelect
+                    linkTab="ezber"
               selectedSurahId={currentSurah}
               onSelectSurah={(id) => {
                 stopAudio();
