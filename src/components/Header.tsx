@@ -2,6 +2,7 @@ import React from 'react';
 import { Coordinates, CalculatedDay } from '../types/prayer';
 import { Compass, Calendar as CalendarIcon, Clock, MapPinned, Target, Globe, Landmark, Link2, Check, Volume2, VolumeX } from 'lucide-react';
 import { makeTakvimHash } from '../utils/takvimDeepLinks';
+import { AppRouteLink } from './AppRouteLink';
 import {
   SpecialGoalItem,
   loadSpecialGoalsFromStorage,
@@ -323,9 +324,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Navigasyon Sekmeleri (Mobil ve Masaüstü Uyumlu Yatay Kaydırılabilir Bar) */}
         <div className="flex items-center gap-1 min-w-0 border-t border-slate-100">
         <nav className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2 py-1.5 overflow-x-auto scrollbar-none">
-          <button
+          <AppRouteLink href={makeTakvimHash('daily')} navigate={() => onTabChange('daily')}
             id="tab-daily"
-            onClick={() => onTabChange('daily')}
+            
             className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'daily'
                 ? 'bg-emerald-700 text-white shadow-sm'
@@ -335,11 +336,11 @@ export const Header: React.FC<HeaderProps> = ({
             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span className="hidden sm:inline">Bugünkü Vakitler</span>
             <span className="inline sm:hidden">Bugün</span>
-          </button>
+          </AppRouteLink>
 
-          <button
+          <AppRouteLink href={makeTakvimHash('monthly')} navigate={() => onTabChange('monthly')}
             id="tab-monthly"
-            onClick={() => onTabChange('monthly')}
+            
             className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'monthly'
                 ? 'bg-emerald-700 text-white shadow-sm'
@@ -349,11 +350,11 @@ export const Header: React.FC<HeaderProps> = ({
             <CalendarIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span className="hidden sm:inline">Aylık Vakit Takvimi</span>
             <span className="inline sm:hidden">Aylık Takvim</span>
-          </button>
+          </AppRouteLink>
 
-          <button
+          <AppRouteLink href={makeTakvimHash('qibla')} navigate={() => onTabChange('qibla')}
             id="tab-qibla"
-            onClick={() => onTabChange('qibla')}
+            
             className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'qibla'
                 ? 'bg-emerald-700 text-white shadow-sm'
@@ -363,11 +364,11 @@ export const Header: React.FC<HeaderProps> = ({
             <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span className="hidden sm:inline">Kıble Pusulası ({todayData.qiblaAngle}°)</span>
             <span className="inline sm:hidden">Kıble ({todayData.qiblaAngle}°)</span>
-          </button>
+          </AppRouteLink>
 
-          <button
+          <AppRouteLink href={makeTakvimHash('mosques')} navigate={() => onTabChange('mosques')}
             id="tab-mosques"
-            onClick={() => onTabChange('mosques')}
+            
             className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'mosques'
                 ? 'bg-emerald-700 text-white shadow-sm'
@@ -376,12 +377,12 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <MapPinned className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span>Yakındaki Camiler</span>
-          </button>
+          </AppRouteLink>
 
           {/* Yakındaki Camiler Butonunun Hemen Sağ Tarafında: Özel Hedefler & Geri Sayım */}
-          <button
+          <AppRouteLink href={makeTakvimHash('goals')} navigate={() => onTabChange('goals')}
             id="tab-goals"
-            onClick={() => onTabChange('goals')}
+            
             className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'goals'
                 ? 'bg-emerald-700 text-white shadow-sm'
@@ -399,7 +400,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ({activeGoalsCount})
               </span>
             )}
-          </button>
+          </AppRouteLink>
 
           {onOpenWorldClock && (
             <button
