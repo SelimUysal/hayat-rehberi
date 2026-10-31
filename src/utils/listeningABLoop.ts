@@ -35,6 +35,24 @@ export function compareABPoints(a: ABPoint, b: ABPoint): number {
   return a.surahId - b.surahId || a.ayahIndex - b.ayahIndex || a.seconds - b.seconds;
 }
 
+/**
+ * A user may select the two bookmarks in either order. Always play forward
+ * in Quran order (surah, ayah, then seconds), never wrap through the Mushaf.
+ *
+ * For the exact same bookmark at a nonzero second, repeat from that second
+ * to the end of the ayah. Our existing playback convention represents an
+ * end-of-ayah boundary with end.seconds === 0.
+ */
+export function orderABPoints(first: ABPoint, second: ABPoint): { start: ABPoint; end: ABPoint; swapped: boolean } {
+  const swapped = compareABPoints(first, second) > 0;
+  const start = swapped ? second : first;
+  const end = swapped ? first : second;
+  if (compareABPoints(first, second) === 0 && start.seconds > 0) {
+    return { start, end: { ...end, seconds: 0 }, swapped: false };
+  }
+  return { start, end, swapped };
+}
+
 /** End seconds=0 means end of that ayah, not its first millisecond. */
 export function validateABRange(start: ABPoint, end: ABPoint): string | null {
   if (!validABPoint(start) || !validABPoint(end)) return 'Sure, ayet veya saniye geçersiz.';

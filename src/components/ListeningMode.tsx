@@ -30,7 +30,7 @@ import { nextSurahInListeningLoop } from '../utils/listeningPlaybackGuards';
 import { recordListeningDiagnostic as logListen, classifyListeningError } from '../utils/listeningDiagnostics';
 import { ListeningDiagnosticsPanel } from './ListeningDiagnosticsPanel';
 import { ListeningBookmarksDialog } from './ListeningBookmarksDialog';
-import { readABLoop, saveABLoop, validateABRange, completeABIteration, isABEndAyah, inABRange, type ABLoopState, type ABPoint } from '../utils/listeningABLoop';
+import { readABLoop, saveABLoop, orderABPoints, validateABRange, completeABIteration, isABEndAyah, inABRange, type ABLoopState, type ABPoint } from '../utils/listeningABLoop';
 import { readManualListeningBookmarks, writeManualListeningBookmarks, createManualListeningBookmark, editManualListeningBookmark, type ManualListeningBookmark, type ListeningBookmarkPosition } from '../utils/listeningBookmarks';
 import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { useListeningWakeLock } from '../utils/useListeningWakeLock';
@@ -1481,8 +1481,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }else playAyahAt(point.ayahIndex,point.seconds);
   };
   const startABLoop = (a:ManualListeningBookmark,b:ManualListeningBookmark,repeatLimit:number|null):string|null=>{
-    const start:ABPoint={surahId:a.surahId,ayahIndex:a.ayahIndex,seconds:a.currentTime};
-    const end:ABPoint={surahId:b.surahId,ayahIndex:b.ayahIndex,seconds:b.currentTime};
+    const first:ABPoint={surahId:a.surahId,ayahIndex:a.ayahIndex,seconds:a.currentTime};
+    const second:ABPoint={surahId:b.surahId,ayahIndex:b.ayahIndex,seconds:b.currentTime};
+    // Point selection order does not determine reading order.
+    const {start,end}=orderABPoints(first,second);
     const error=validateABRange(start,end);
     if(error)return error;
     if(repeatLimit!==null&&(!Number.isInteger(repeatLimit)||repeatLimit<1||repeatLimit>10000))return 'Tekrar sayısı geçersiz.';
