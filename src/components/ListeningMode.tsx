@@ -363,6 +363,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   });
   const cycleRef = useRef(cycle);
   const [cycleMenuOpen, setCycleMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!cycleMenuOpen) return;
+    const dismiss = (event: KeyboardEvent) => { if (event.key === 'Escape') setCycleMenuOpen(false); };
+    window.addEventListener('keydown', dismiss);
+    return () => window.removeEventListener('keydown', dismiss);
+  }, [cycleMenuOpen]);
   const startedCycleAyahRef = useRef<string | null>(null);
   const updateCycle = (next: CycleState) => {
     cycleRef.current = next;
@@ -1860,20 +1866,22 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 </button>
               </div>
 
-                <div className="relative min-w-0">
+              {/* Yardım ayrı tutulur; dar ekranda sağ üstte, genişte en sağda. */}
+              <div className="col-start-2 row-start-1 flex items-center justify-end self-start gap-2">
+                <div className="relative shrink-0">
                   <button type="button" onClick={() => setCycleMenuOpen(v => !v)}
                     aria-expanded={cycleMenuOpen} aria-label="Kur'an dinleme sayacı"
-                    className={`min-h-11 w-full rounded-xl border px-2 py-2 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${cycle.enabled ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
+                    className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${cycle.enabled ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
                     <ListChecks className="w-4 h-4 shrink-0" />
-                    <span>Sayaç {cycle.enabled ? cycle.total : ''}</span>
+                    <span>Sayaç{cycle.enabled ? ` · ${cycle.total}` : ''}</span>
                   </button>
                   {cycleMenuOpen && (
-                    <div className="absolute z-[80] right-0 top-full mt-2 w-[min(84vw,300px)] rounded-2xl border border-white/20 bg-slate-950 p-4 text-white shadow-2xl space-y-3" role="region" aria-label="Kur'an dinleme sayacı ayarları">
+                    <><button type="button" aria-label="Sayaç panelini kapat" onClick={() => setCycleMenuOpen(false)} className="fixed inset-0 z-[75] cursor-default bg-black/20" /><div className="fixed z-[80] bottom-0 inset-x-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border border-white/20 bg-slate-950 p-4 text-white shadow-2xl space-y-3 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[300px] sm:max-h-[min(75vh,500px)] sm:rounded-2xl" role="region" aria-label="Kur'an dinleme sayacı ayarları">
                       <div className="flex justify-between items-center gap-2">
                         <strong className="text-sm">Kur'an Dinleme Sayacı</strong>
                         <button type="button" className="text-slate-300 text-xs underline" onClick={() => setCycleMenuOpen(false)}>Kapat</button>
                       </div>
-                      <p className="text-xs text-slate-400">Fâtiha'dan Nâs'a kadar otomatik, eksiksiz dinlenen turlar sayılır. Veriler yalnızca bu tarayıcıda tutulur.</p>
+                      <p className="text-xs text-slate-400">Eksiksiz dinlenen turlar sayılır. Kayıtlar yalnızca bu cihazda saklanır.</p>
                       <label className="flex justify-between items-center gap-3 text-sm">
                         <span>Takibi etkinleştir</span>
                         <input type="checkbox" checked={cycle.enabled} onChange={e => { startedCycleAyahRef.current = null; updateCycle({ ...cycleRef.current, enabled: e.target.checked, surah: 1, ayah: 0, completedSurahs: 0 }); }} className="accent-emerald-500 w-4 h-4" />
@@ -1883,7 +1891,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                           <div className="text-2xl font-bold text-emerald-300">{cycle.total} <span className="text-xs font-normal text-slate-300">tam tur</span></div>
                           <div className="text-xs text-slate-300">Devam eden tur: {cycle.completedSurahs}/114 sûre tamamlandı</div>
                           <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${cycle.completedSurahs / 114 * 100}%` }} /></div>
-                          <p className="text-[11px] text-slate-400">Elle âyet/sûre atlanırsa yalnızca tamamlanmamış turun ilerlemesi sıfırlanır.</p>
+                          
                           <button type="button" onClick={() => { if (window.confirm('Tamamlanan turlar ve mevcut ilerleme silinsin mi?')) { startedCycleAyahRef.current = null; updateCycle(emptyCycle(true)); } }}
                             className="min-h-10 w-full rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-xs font-semibold flex justify-center items-center gap-2 cursor-pointer">
                             <RotateCcw className="w-3.5 h-3.5" /> Tüm sayacı sıfırla
@@ -1891,11 +1899,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                         </>
                       )}
                     </div>
-                  )}
+                  </>)}
                 </div>
-
-              {/* Yardım ayrı tutulur; dar ekranda sağ üstte, genişte en sağda. */}
-              <div className="col-start-2 row-start-1 flex justify-end self-start">
                 <TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>
               </div>
 
