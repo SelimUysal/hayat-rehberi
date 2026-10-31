@@ -692,7 +692,10 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                     <button
                       key={spd}
                       type="button"
-                      onClick={() => setPlaybackSpeed(spd)}
+                      onClick={() => {
+                        setPlaybackSpeed(spd);
+                        setShowSpeedPopover(false);
+                      }}
                       className={`py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                         Math.abs(playbackSpeed - spd) < 0.05
                           ? isDark

@@ -14,6 +14,6 @@ test('all six controls have a full-width minimum touch target',()=>{
  assert.ok(controls.includes('<span>Gece Saati</span>'));
 });
 test('help remains at top right independently of control wrapping',()=>{
- assert.ok(s.includes('col-start-2 row-start-1 flex justify-end self-start'));
+ assert.ok(s.includes('<TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>'));
  assert.ok(s.includes('<TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>'));
 });

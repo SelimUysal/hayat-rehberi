@@ -17,3 +17,17 @@ test('Ezber errors preserve safe technical category only', () => {
   assert.equal(ezberErrorName({name:'NotAllowedError',message:'private'}),'NotAllowedError');
   assert.equal(ezberErrorName({name:'My private API URL'}),'UnknownError');
 });
+
+test('Mobile Ezber speed presets apply the selected speed and close only their popover', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync('src/components/MobileMode.tsx', 'utf8');
+  const popoverStart = source.indexOf('{showSpeedPopover && (');
+  const triggerStart = source.indexOf('onClick={() => setShowSpeedPopover(!showSpeedPopover)}');
+  const drawerStart = source.indexOf('{/* Okuma Hızı Slider */}', triggerStart);
+  assert.ok(popoverStart >= 0 && triggerStart > popoverStart && drawerStart > triggerStart);
+  const popover = source.slice(popoverStart, triggerStart);
+  assert.match(popover, /\[0\.75, 1\.0, 1\.5, 2\.0\]/);
+  assert.match(popover, /onClick=\{\(\) => \{\s*setPlaybackSpeed\(spd\);\s*setShowSpeedPopover\(false\);\s*\}\}/);
+  assert.ok(source.slice(drawerStart).includes('onClick={() => setPlaybackSpeed(spd)}'), 'the separate settings drawer must retain its own speed selection');
+  assert.ok(source.includes('audioRef.current.playbackRate = playbackSpeed;'), 'speed selection must still update the active audio player');
+});
