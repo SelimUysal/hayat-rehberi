@@ -974,7 +974,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                 <div className="flex items-center justify-between gap-2 text-[11px]">
                   <span className="min-w-0 truncate font-bold">{currentSurahMeta?.name || 'Sure'}</span>
                   <span className={`shrink-0 tabular-nums ${isDark ? 'text-[#b9b09a]' : 'text-slate-500'}`}>
-                    {displayedVerse} / {ayahs.length} ayet
+                    {(remoteSession?.mode ?? playMode) === 'full' ? 'Tüm Sure' : 'Tek Ayet'} · {displayedVerse} / {ayahs.length} ayet
                   </span>
                 </div>
                 <div
@@ -1005,14 +1005,16 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                 </button>
               </div>
             ) : canResume && pausedPlayback ? (
-              <div className={`rounded-xl border p-2.5 space-y-2 min-w-0 ${
+              <div className={`min-w-0 space-y-2 rounded-xl border p-2.5 ${
                 isDark ? 'border-emerald-700/50 bg-[#181e19]' : 'border-emerald-200 bg-emerald-50/70'
               }`} aria-label="Duraklatılmış dinleme">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold">{currentSurahMeta?.name || 'Sure'} · {pausedPlayback.verseNum}. ayet</p>
+                    <p className="truncate text-xs font-bold">
+                      {currentSurahMeta?.name || 'Sure'} · {pausedPlayback.verseNum}. ayet
+                    </p>
                     <p className={`mt-0.5 text-[11px] ${isDark ? 'text-[#b9b09a]' : 'text-slate-600'}`}>
-                      {formatPlaybackSecond(pausedPlayback.positionSeconds)} konumunda · {pausedPlayback.mode === 'full' ? 'Tüm sure' : 'Tek ayet'}
+                      {formatPlaybackSecond(pausedPlayback.positionSeconds)} konumunda · {pausedPlayback.mode === 'full' ? 'Tüm sure dinlemesi' : 'Tek ayet tekrarı'}
                     </p>
                   </div>
                   <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${
@@ -1023,59 +1025,78 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   type="button"
                   onClick={resumeAudio}
                   className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 cursor-pointer"
-                  title="Aynı ayetten ve saniyeden devam et"
+                  title={pausedPlayback.mode === 'full'
+                    ? 'Kaldığın saniyeden başlayıp surenin sonraki ayetlerini sırayla dinle'
+                    : 'Kaldığın saniyeden aynı ayeti tekrar ederek dinle'}
                 >
                   <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden="true" />
-                  <span>Dinlemeye Devam Et</span>
+                  <span>{pausedPlayback.mode === 'full' ? 'Sureye Devam Et' : 'Ayet Tekrarına Devam Et'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => pausedPlayback.mode === 'full'
-                    ? startFullSurahPlayback()
-                    : startPlayback(pausedPlayback.verseNum)}
-                  className={`flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
-                    isDark ? 'text-[#b9b09a] hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-emerald-100 hover:text-emerald-900'
-                  }`}
-                  title={pausedPlayback.mode === 'full' ? 'Sureyi birinci ayetten başlat' : 'Ayeti baştan başlat'}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Baştan Dinle</span>
-                </button>
+                <p className={`text-center text-[10px] leading-relaxed ${
+                  isDark ? 'text-[#b9b09a]' : 'text-slate-600'
+                }`}>
+                  {pausedPlayback.mode === 'full'
+                    ? 'Aynı saniyeden devam eder, ardından diğer ayetlere geçer.'
+                    : 'Aynı saniyeden devam eder, seçtiğin tekrar sayısını korur.'}
+                </p>
+                <div className="grid grid-cols-2 gap-2" role="group" aria-label="Farklı dinleme başlat">
+                  <button
+                    type="button"
+                    onClick={() => startPlayback(selectedVerseNum)}
+                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                      isDark ? 'border-[#3a3226] bg-[#211d16] text-[#f1ecdd] hover:border-emerald-600'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-400'
+                    }`}
+                    title="Seçili ayeti ilk saniyeden başlayarak tekrar et"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>Seçili Ayeti Baştan Çal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startFullSurahPlayback}
+                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                      isDark ? 'border-[#3a3226] bg-[#211d16] text-[#f1ecdd] hover:border-emerald-600'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-400'
+                    }`}
+                    title="Tüm sureyi birinci ayetten başlayarak sırayla dinle"
+                  >
+                    <Layers className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>Tüm Sureyi Baştan Çal</span>
+                  </button>
+                </div>
               </div>
-            ) : completedSurah === currentSurah ? (
-              <button
-                type="button"
-                onClick={startFullSurahPlayback}
-                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 cursor-pointer"
-                title="Tamamlanan sureyi yeniden birinci ayetten dinle"
-              >
-                <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>Sureyi Yeniden Dinle</span>
-              </button>
             ) : (
-              <div className="grid w-full min-w-0 grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => startPlayback(selectedVerseNum)}
-                  className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 cursor-pointer"
-                  title={`${selectedVerseNum}. ayeti baştan çal`}
-                >
-                  <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden="true" />
-                  <span>Seçili Ayeti Çal</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={startFullSurahPlayback}
-                  className={`flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
-                    isDark
-                      ? 'border-[#3fb996]/40 bg-[#1c3630] text-[#3fb996] hover:bg-[#23453d]'
-                      : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  }`}
-                  title="Tüm sureyi birinci ayetten başlat"
-                >
-                  <Layers className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>Tüm Sureyi Çal</span>
-                </button>
+              <div className="min-w-0 space-y-2">
+                {completedSurah === currentSurah && (
+                  <p className={`text-center text-xs font-semibold ${
+                    isDark ? 'text-[#3fb996]' : 'text-emerald-700'
+                  }`} role="status">Sure tamamlandı · Yeniden dinlemek için bir mod seç</p>
+                )}
+                <div className="grid w-full min-w-0 grid-cols-2 gap-2" role="group" aria-label="Dinleme türünü seç">
+                  <button
+                    type="button"
+                    onClick={() => startPlayback(selectedVerseNum)}
+                    className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 cursor-pointer"
+                    title={`${selectedVerseNum}. ayeti baştan başlayarak tekrar et`}
+                  >
+                    <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden="true" />
+                    <span>Seçili Ayeti Çal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startFullSurahPlayback}
+                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                      isDark
+                        ? 'border-[#3fb996]/40 bg-[#1c3630] text-[#3fb996] hover:bg-[#23453d]'
+                        : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                    title="Tüm sureyi birinci ayetten başlayarak sırayla dinle"
+                  >
+                    <Layers className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>Tüm Sureyi Çal</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

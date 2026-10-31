@@ -39,21 +39,22 @@ test('full surah starts from verse one only on explicit user request',()=>{
  assert.ok(s.includes("setPausedSession(null)"));
 });
 
-test('mobile dock shows one primary action for each playback state', () => {
+test('paused dock makes both separate modes and context-specific resume explicit', () => {
  const src=fs.readFileSync('src/components/MobileMode.tsx','utf8');
  const dock=src.slice(src.indexOf('Duruma göre tek ana kontrol'),src.indexOf('Sağ: İmleçli Hız Slider'));
- assert.ok(dock.includes('isPlaying || remoteSession ? ('));
- assert.ok(dock.includes('canResume && pausedPlayback ? ('));
- assert.ok(dock.includes('completedSurah === currentSurah ? ('));
- assert.ok(dock.includes('Dinlemeye Devam Et'));
- assert.ok(dock.includes('Baştan Dinle'));
+ const paused=dock.slice(dock.indexOf('canResume && pausedPlayback ? ('),dock.indexOf(') : (\n              <div className="min-w-0 space-y-2">'));
+ assert.ok(paused.includes("pausedPlayback.mode === 'full' ? 'Sureye Devam Et' : 'Ayet Tekrarına Devam Et'"));
+ assert.ok(paused.includes('onClick={resumeAudio}'));
+ assert.ok(paused.includes('onClick={() => startPlayback(selectedVerseNum)}'));
+ assert.ok(paused.includes('onClick={startFullSurahPlayback}'));
+ assert.ok(paused.includes('Seçili Ayeti Baştan Çal'));
+ assert.ok(paused.includes('Tüm Sureyi Baştan Çal'));
+ assert.ok(paused.includes('formatPlaybackSecond(pausedPlayback.positionSeconds)'));
+ assert.ok(paused.includes("pausedPlayback.mode === 'full' ? 'Tüm sure dinlemesi' : 'Tek ayet tekrarı'"));
+ assert.ok(paused.includes('seçtiğin tekrar sayısını korur'));
+ assert.ok(paused.includes('ardından diğer ayetlere geçer'));
  assert.ok(dock.includes('Seçili Ayeti Çal'));
  assert.ok(dock.includes('Tüm Sureyi Çal'));
- assert.ok(dock.includes('Sureyi Yeniden Dinle'));
- assert.ok(dock.includes('onClick={resumeAudio}'));
- assert.ok(dock.includes('onClick={startFullSurahPlayback}'));
- assert.ok(dock.includes('formatPlaybackSecond(pausedPlayback.positionSeconds)'));
- assert.ok(dock.includes("pausedPlayback.mode === 'full'"));
  assert.ok(dock.includes('role="progressbar"'));
 });
 test('explicit single-ayah play restarts the selected ayah, while Resume restores seconds and full mode', () => {
@@ -66,9 +67,19 @@ test('explicit single-ayah play restarts the selected ayah, while Resume restore
  assert.ok(resume.includes("playVerse(paused.verseNum, paused.mode ?? 'verse')"));
  assert.ok(resume.includes('player.play()'));
 });
-test('finishing a full surah offers replay instead of a stale resume', () => {
+test('completed surah still offers both single ayah and full surah starts', () => {
  const src=fs.readFileSync('src/components/MobileMode.tsx','utf8');
  assert.ok(src.includes('setCompletedSurah(currentSurah)'));
  assert.ok(src.includes('setCompletedSurah(null)'));
- assert.ok(src.includes('>Sureyi Yeniden Dinle</span>'));
+ assert.ok(src.includes('Sure tamamlandı · Yeniden dinlemek için bir mod seç'));
+ const dock=src.slice(src.indexOf('Duruma göre tek ana kontrol'),src.indexOf('Sağ: İmleçli Hız Slider'));
+ assert.ok(dock.includes('onClick={() => startPlayback(selectedVerseNum)}'));
+ assert.ok(dock.includes('onClick={startFullSurahPlayback}'));
+});
+test('the active playing badge reflects selected verse repetition versus whole-surah listening',()=>{
+ const src=fs.readFileSync('src/components/MobileMode.tsx','utf8');
+ assert.ok(src.includes("(remoteSession?.mode ?? playMode) === 'full' ? 'Tüm Sure' : 'Tek Ayet'"));
+ assert.ok(src.includes("if (playModeRef.current === 'full')"));
+ assert.ok(src.includes("playVerse(nextNum, 'full')"));
+ assert.ok(src.includes("playVerse(verseNum, 'verse')"));
 });
