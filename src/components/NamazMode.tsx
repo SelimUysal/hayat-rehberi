@@ -37,6 +37,7 @@ import { MUSLUMAN_SUALLERI_DATA } from '../data/muslumanSualleriData';
 import { NamazItem } from '../types';
 import { getNamazTargetFromUrl, getNamazSectionForId, getDefaultNamazItemId, makeNamazItemHash, makeNamazSectionHash, parseNamazHash, NamazSection } from '../utils/namazDeepLinks';
 import { navigateToAppHash } from '../utils/appNavigation';
+import { AppRouteLink } from './AppRouteLink';
 import { recordNamazIssue as diagnostic, safeNamazErrorName } from '../utils/namazDiagnostics';
 import { resolveNamazAudioUrl } from '../utils/namazAudioPath';
 import { NamazDiagnosticsPanel } from './NamazDiagnosticsPanel';
@@ -5734,9 +5735,10 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 const isSpecial = item.id === 'ibadetlerin-sihati-icin';
                 const isPratik = item.id === 'pratik-namaz-rehberi';
                 return (
-                  <button
+                  <AppRouteLink
                     key={item.id}
-                    onClick={() => selectNamazItem(item.id)}
+                    href={makeNamazItemHash(item.id)}
+                    navigate={() => selectNamazItem(item.id)}
                     className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
                       isSual && !isCur
                         ? isDark
@@ -5763,8 +5765,8 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                     {isSpecial && <Sparkles className="w-3.5 h-3.5 text-amber-500" />}
                     {isPratik && <Sparkles className="w-3.5 h-3.5 text-teal-500" />}
                     {isMem && <CheckCircle2 className="w-3.5 h-3.5 text-amber-300 fill-current" />}
-                    <span>{item.title}</span>
-                  </button>
+                    <AppRouteLink href={makeNamazItemHash(item.id)} navigate={() => selectNamazItem(item.id)} onClick={event => event.stopPropagation()} className="hover:underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">{item.title}</AppRouteLink>
+                  </AppRouteLink>
                 );
               })}
             </div>
@@ -6210,7 +6212,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                               <Circle className="w-4 h-4" />
                             )}
                           </button>
-                          <span>{item.title}</span>
+                          <AppRouteLink href={makeNamazItemHash(item.id)} navigate={() => selectNamazItem(item.id)} onClick={event => event.stopPropagation()} className="hover:underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">{item.title}</AppRouteLink>
                         </div>
                         <span className={`text-[11px] font-normal ${isDark ? 'text-[#8c826e]' : 'text-slate-400'}`}>
                           {item.surahNumber}. Sure
@@ -6274,7 +6276,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                               <Circle className="w-4 h-4" />
                             )}
                           </button>
-                          <span>{item.title}</span>
+                          <AppRouteLink href={makeNamazItemHash(item.id)} navigate={() => selectNamazItem(item.id)} onClick={event => event.stopPropagation()} className="hover:underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">{item.title}</AppRouteLink>
                         </div>
                         <ChevronRight className={`w-4 h-4 ${isDark ? 'text-[#8c826e]' : 'text-slate-400'}`} />
                       </div>
@@ -6332,7 +6334,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                               <Circle className="w-4 h-4" />
                             )}
                           </button>
-                          <span>{item.title}</span>
+                          <AppRouteLink href={makeNamazItemHash(item.id)} navigate={() => selectNamazItem(item.id)} onClick={event => event.stopPropagation()} className="hover:underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">{item.title}</AppRouteLink>
                         </div>
                         <span className={`text-[11px] font-normal ${isDark ? 'text-[#8c826e]' : 'text-slate-400'}`}>
                           {item.surahNumber}. Sure
