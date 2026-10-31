@@ -366,6 +366,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
               📱 Mobil Odaklı Okuma Modu
             </span>
             <SurahSearchSelect
+                    linkTab="ezber"
               selectedSurahId={currentSurah}
               onSelectSurah={(id) => {
                 stopAudio();
