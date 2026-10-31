@@ -31,3 +31,17 @@ test('Mobile Ezber speed presets apply the selected speed and close only their p
   assert.ok(source.slice(drawerStart).includes('onClick={() => setPlaybackSpeed(spd)}'), 'the separate settings drawer must retain its own speed selection');
   assert.ok(source.includes('audioRef.current.playbackRate = playbackSpeed;'), 'speed selection must still update the active audio player');
 });
+
+test('Mobile Ezber slider keeps updating while dragging and closes only after release', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync('src/components/MobileMode.tsx', 'utf8');
+  const popover = source.slice(source.indexOf('{showSpeedPopover && ('), source.indexOf('onClick={() => setShowSpeedPopover(!showSpeedPopover)}'));
+  const slider = popover.slice(popover.indexOf('<input'), popover.indexOf('<div className="grid grid-cols-4'));
+  assert.ok(slider.includes('onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}'));
+  assert.ok(slider.includes('onPointerUp={() => setShowSpeedPopover(false)}'), 'mouse and pointer drag release dismisses popover');
+  assert.ok(slider.includes('onTouchEnd={() => setShowSpeedPopover(false)}'), 'touch drag release dismisses popover');
+  assert.ok(slider.includes('onBlur={() => setShowSpeedPopover(false)}'), 'keyboard/tab selection dismisses on leaving slider');
+  assert.ok(slider.includes("e.key === 'Enter'"), 'keyboard Enter confirms speed');
+  assert.ok(!slider.includes('onInput={() => setShowSpeedPopover(false)}'), 'do not unmount range thumb mid-drag');
+  assert.ok(!slider.includes('onChange={() => setShowSpeedPopover(false)}'), 'do not unmount range thumb mid-drag');
+});
