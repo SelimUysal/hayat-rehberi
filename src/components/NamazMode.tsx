@@ -5647,12 +5647,9 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                 isDark ? 'bg-[#211d16] border-[#3a3226]' : 'bg-slate-100 border-slate-200'
               }`}
             >
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileCategory('sure');
-                  selectNamazSection('sureler');
-                }}
+              <AppRouteLink href={makeNamazSectionHash('sureler')} navigate={() => { setMobileCategory('sure'); selectNamazSection('sureler'); }}>
+                
+                
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'sure'
                     ? isDark
@@ -5665,14 +5662,11 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Sûre ({NAMAZ_ITEMS.filter(i => i.category === 'sure' && !INTERMEDIATE_NAMAZ_SURAH_IDS.has(i.id)).length})</span>
-              </button>
+              </AppRouteLink>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileCategory('orta');
-                  selectNamazItem('kadir');
-                }}
+              <AppRouteLink href={makeNamazItemHash('kadir')} navigate={() => { setMobileCategory('orta'); selectNamazItem('kadir'); }}>
+                
+                
                 aria-pressed={mobileCategory === 'orta'}
                 className={`min-h-[44px] py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'orta'
@@ -5682,14 +5676,11 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Orta ({INTERMEDIATE_NAMAZ_SURAH_IDS.size})</span>
-              </button>
+              </AppRouteLink>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileCategory('dua');
-                  selectNamazSection('dualar');
-                }}
+              <AppRouteLink href={makeNamazSectionHash('dualar')} navigate={() => { setMobileCategory('dua'); selectNamazSection('dualar'); }}>
+                
+                
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'dua'
                     ? isDark
@@ -5702,14 +5693,11 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Dua ({NAMAZ_ITEMS.filter(i => i.category === 'dua').length})</span>
-              </button>
+              </AppRouteLink>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileCategory('yeni');
-                  selectNamazSection('rehber');
-                }}
+              <AppRouteLink href={makeNamazSectionHash('rehber')} navigate={() => { setMobileCategory('yeni'); selectNamazSection('rehber'); }}>
+                
+                
                 className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                   mobileCategory === 'yeni'
                     ? isDark
@@ -5722,7 +5710,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Bilgi ({VIRTUAL_NEW_ITEMS.length})</span>
-              </button>
+              </AppRouteLink>
             </div>
 
             <label htmlFor="namaz-mobile-search" className="sr-only">Sure, dua veya rehber ara</label>
