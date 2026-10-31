@@ -10,7 +10,7 @@ test('toolbar keeps selections above a regular controls grid',()=>{
 test('all six controls have a full-width minimum touch target',()=>{
  const controls=s.slice(s.indexOf('{/* Geniş ekranda orta'),s.indexOf('{/* Yardım ayrı tutulur'));
  assert.equal((controls.match(/min-h-11 min-w-0 w-full justify-center/g)||[]).length,6);
- assert.ok(controls.includes('<span>Kaldığım Yer</span>'));
+ assert.ok(controls.includes('<span>Yer İmlerim</span>'));
  assert.ok(controls.includes('<span>Gece Saati</span>'));
 });
 test('help remains at top right independently of control wrapping',()=>{
