@@ -12,9 +12,10 @@ export type EzberTheme = 'dark' | 'emerald';
 
 interface EzberAsistaniProps {
   targetSurahId?: number | null;
+  active?: boolean;
 }
 
-export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId }) => {
+export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId, active = true }) => {
   const [subMode, setSubMode] = useState<EzberSubMode>(() => {
     try {
       const saved = localStorage.getItem('quran_ezber_view_submode') as EzberSubMode;
@@ -184,7 +185,7 @@ export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId }) =
           </div>
         ) : (
           <div className="animate-in fade-in duration-150">
-            <MobileMode targetSurahId={targetSurahId} themeMode={themeMode} />
+            <MobileMode targetSurahId={targetSurahId} themeMode={themeMode} active={active} />
           </div>
         )}
       </div>

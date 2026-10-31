@@ -100,6 +100,9 @@ export function App() {
   // İlk yüklenen bölümün URL'sini geçmişte sakla. Aksi hâlde, örneğin
   // kaydedilmiş Mushaf ekranından Namaz'a geçip Geri'ye basınca önceki
   // kaydın bir bölüm adresi olmayabilir.
+  const [ezberVisited, setEzberVisited] = useState(activeTab === 'ezber');
+  useEffect(() => { if (activeTab === 'ezber') setEzberVisited(true); }, [activeTab]);
+
   useEffect(() => {
     if (window.location.hash) return; // Paylaşılan alt sayfa bağlantılarına dokunma.
     const entryHash = activeTab === 'takvim' ? makeTakvimHash('daily') : makeMainTabHash(activeTab);
@@ -469,7 +472,7 @@ export function App() {
         {activeTab === 'namaz' && <NamazMode targetId={namazTargetId} targetTimestamp={namazTimestamp} />}
         {activeTab === 'kaza' && <KazaMode targetAction={kazaTargetAction} targetTimestamp={kazaTimestamp} />}
         {activeTab === 'mushaf' && <MushafMode targetSurah={mushafTarget?.surahId} targetPage={mushafTarget?.page} targetMode={mushafTarget?.mode} timestamp={mushafTarget?.timestamp} isDark={isDark} />}
-        {activeTab === 'ezber' && <EzberAsistani targetSurahId={ezberTargetSurahId} />}
+        {ezberVisited && <div hidden={activeTab !== 'ezber'}><EzberAsistani active={activeTab === 'ezber'} targetSurahId={ezberTargetSurahId} /></div>}
         {activeTab === 'takvim' && (
           <PrayerErrorBoundary>
           <PrayerApp

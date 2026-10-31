@@ -21,14 +21,15 @@ import { SurahSearchSelect } from './SurahSearchSelect';
 import { QuickSurahBookmarks } from './QuickSurahBookmarks';
 import { EzberVoiceRecorder } from './EzberVoiceRecorder';
 import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
-import { readMobileEzberSession, saveMobileEzberSession, coordinateEzberWindows, claimEzberAudio, EZBER_STOP_AUDIO_EVENT } from '../utils/ezberSession';
+import { readMobileEzberSession, saveMobileEzberSession, coordinateEzberWindows, claimEzberAudio, EZBER_STOP_AUDIO_EVENT, requestEzberLiveState, publishEzberLiveState, stopRemoteEzberAudio, type LiveEzberSession } from '../utils/ezberSession';
 
 interface MobileModeProps {
   targetSurahId?: number | null;
   themeMode?: 'dark' | 'emerald';
+  active?: boolean;
 }
 
-export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode = 'dark' }) => {
+export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode = 'dark', active = true }) => {
   const isDark = themeMode === 'dark';
   // Durumlar
   const initialSessionRef = useRef(readMobileEzberSession());
@@ -86,6 +87,11 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const lastPositionRef = useRef(initialSession?.positionSeconds ?? 0);
   const resumeOffsetRef = useRef(0);
   const [resumeAvailable, setResumeAvailable] = useState(!targetSurahId && !!initialSession?.wasPlaying);
+  const [remoteSession, setRemoteSession] = useState<LiveEzberSession|null>(null);
+  const remoteRef = useRef<LiveEzberSession|null>(null);
+  const ownsAudioRef = useRef(false);
+  const modeRef = useRef<'verse'|'full'>('verse');
+  const lastBroadcastRef = useRef(-1);
   currentSurahRef.current = currentSurah;
   selectedVerseNumRef.current = selectedVerseNum;
   selectedReciterRef.current = selectedReciter;
@@ -154,15 +160,45 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       stopAudio();
       window.dispatchEvent(new Event(EZBER_STOP_AUDIO_EVENT));
     };
-    const release = coordinateEzberWindows(stopFromOtherWindow);
+    const release = coordinateEzberWindows(stopFromOtherWindow, state => {
+      remoteRef.current = state; setRemoteSession(state);
+      if(state){setCurrentSurah(state.surahId);setSelectedReciter(state.reciter);setPlaybackSpeed(state.playbackSpeed);setSelectedVerseNum(state.verseNum);setResumeAvailable(false);}
+      else setResumeAvailable(true);
+    },()=>{
+      const player=audioRef.current;
+      if(!ownsAudioRef.current||player.paused||!player.currentSrc)return null;
+      return {surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current??selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:playbackSpeedRef.current,positionSeconds:player.currentTime||0,wasPlaying:true,mode:modeRef.current,updatedAt:Date.now()};
+    },speed=>{playbackSpeedRef.current=speed;setPlaybackSpeed(speed);audioRef.current.playbackRate=speed;});
     return () => {
       release();
       stopAudio();
     };
   }, []);
 
+  useEffect(()=>{
+    if(!active||loading)return;
+    if(ownsAudioRef.current){setIsPlaying(!audioRef.current.paused);setCurrentlyPlayingVerseNum(currentlyPlayingVerseNumRef.current);}
+    else requestEzberLiveState();
+    const verse=currentlyPlayingVerseNumRef.current??remoteRef.current?.verseNum??selectedVerseNumRef.current;
+    const timer=setTimeout(()=>document.getElementById('mobile-verse-'+verse)?.scrollIntoView({behavior:'smooth',block:'center'}),250);
+    return ()=>clearTimeout(timer);
+  },[active,loading]);
+  useEffect(()=>{
+    if(!active || loading || !remoteSession) return;
+    const timer=setTimeout(()=>{
+      document.getElementById('mobile-verse-'+remoteSession.verseNum)?.scrollIntoView({behavior:'smooth',block:'center'});
+    },160);
+    return ()=>clearTimeout(timer);
+  },[active,loading,remoteSession?.verseNum]);
+
+  useEffect(()=>{
+    if(!remoteSession)return;
+    const timer=setInterval(()=>{if(Date.now()-remoteSession.updatedAt>12000){remoteRef.current=null;setRemoteSession(null);setResumeAvailable(true);}},2000);
+    return ()=>clearInterval(timer);
+  },[remoteSession]);
+
   useEffect(() => {
-    if (isPlayingRef.current || loading || !ayahs.length) return;
+    if (isPlayingRef.current || remoteRef.current || loading || !ayahs.length) return;
     saveMobileEzberSession({ surahId: currentSurah, verseNum: selectedVerseNum,
       reciter: selectedReciter, playbackSpeed, positionSeconds: lastPositionRef.current,
       wasPlaying: false });
@@ -189,6 +225,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       lastPositionRef.current = position;
       saveMobileEzberSession({surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:sessionSpeedRef.current,positionSeconds:position,wasPlaying:false});
     }
+    ownsAudioRef.current=false;
     ++playbackRequestRef.current;
     if (isPlayingRef.current) logEzber('PLAY_STOP','info',{surah:currentSurah,verse:currentlyPlayingVerseNumRef.current??undefined,detail:{mode:'mobile'}});
     if (loopTimeoutRef.current) {
@@ -222,6 +259,9 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     clearInterval(tickIntervalRef.current);
 
     claimEzberAudio();
+    ownsAudioRef.current=true;
+    remoteRef.current=null;setRemoteSession(null);
+    modeRef.current=mode;
     const requestId = ++playbackRequestRef.current;
     const ayah = ayahs.find((a) => a.numberInSurah === verseNum);
     if (!ayah || !ayah.audio) {
@@ -252,6 +292,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
     lastPositionRef.current = 0;
     lastSavedSecondRef.current = -1;
+    lastBroadcastRef.current=-1;
     saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciter,playbackSpeed:targetSpeed,positionSeconds:0,wasPlaying:true});
     player.defaultPlaybackRate = targetSpeed;
     player.src = ayah.audio;
@@ -291,6 +332,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
         const cur = player.currentTime;
         lastPositionRef.current = cur;
+        if(Math.floor(cur)!==lastBroadcastRef.current){lastBroadcastRef.current=Math.floor(cur);publishEzberLiveState({surahId:currentSurah,verseNum,reciter:selectedReciterRef.current,playbackSpeed:playbackSpeedRef.current,positionSeconds:cur,wasPlaying:true,mode,updatedAt:Date.now()});}
         if (Math.floor(cur) % 5 === 0 && lastSavedSecondRef.current !== Math.floor(cur)) {
           lastSavedSecondRef.current = Math.floor(cur);
           saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciterRef.current,playbackSpeed:playbackSpeedRef.current,positionSeconds:cur,wasPlaying:true});
@@ -648,6 +690,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         </p>
       )}
 
+      {remoteSession && <p role="status" className="mx-auto max-w-2xl rounded-xl bg-emerald-950/70 p-3 mb-3 text-emerald-100 text-xs">Dinleme başka bir sekmede devam ediyor: {remoteSession.verseNum}. ayet. Durdurabilir veya oynatmayı bu ekrana devralabilirsin.</p>}
       {/* SABİT ALT KONTROL ÇUBUĞU (Sticky Floating Bottom Dock) */}
       <div className={`fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 z-40 w-full max-w-[100vw] min-w-0 backdrop-blur-md border-t shadow-2xl px-2 py-2 sm:px-4 sm:py-3 transition-colors ${
         isDark ? 'bg-[#211d16]/95 border-[#3a3226] text-[#f1ecdd]' : 'bg-white/95 border-slate-200 text-slate-800'
@@ -688,13 +731,13 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
           {/* Orta: Ana Oynat / Durdur Butonları */}
           <div className="col-span-2 row-start-2 w-full min-w-0 flex items-center justify-center sm:row-auto sm:col-auto sm:flex-1 sm:max-w-[290px]">
-            {isPlaying ? (
+            {isPlaying || remoteSession ? (
               <button
-                onClick={stopAudio}
+                onClick={() => {if(remoteSession){stopRemoteEzberAudio();remoteRef.current=null;setRemoteSession(null);setResumeAvailable(true);}else stopAudio();}}
                 className="w-full py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Square className="w-4 h-4 fill-current" />
-                <span>Durdur ({currentlyPlayingVerseNum ? `${currentlyPlayingVerseNum}. Ayet` : 'Oynatılıyor'})</span>
+                <span>Durdur ({remoteSession?.verseNum ?? currentlyPlayingVerseNum ?? selectedVerseNum}. Ayet)</span>
               </button>
             ) : (
               <div className="flex items-center gap-1.5 w-full min-w-0">
