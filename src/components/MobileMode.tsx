@@ -1126,6 +1126,12 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   step="0.1"
                   value={playbackSpeed}
                   onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+                  onPointerUp={() => setShowSpeedPopover(false)}
+                  onTouchEnd={() => setShowSpeedPopover(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setShowSpeedPopover(false);
+                  }}
+                  onBlur={() => setShowSpeedPopover(false)}
                   className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${
                     isDark ? 'bg-[#2a241b]' : 'bg-slate-200'
                   }`}
