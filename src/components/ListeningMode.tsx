@@ -445,6 +445,30 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
   const [surahFetchAttempt, setSurahFetchAttempt] = useState(0);
+  const surahRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const surahRetryCountRef = useRef(0);
+  // Bağlantı geri döndüğünde bekleyen zamanlayıcıları atlayıp hemen dene.
+  useEffect(() => {
+    const onOnline = () => {
+      if (!isPlayingRef.current || isSleepStoppingRef.current) return;
+      if (surahRetryRef.current !== null) {
+        clearTimeout(surahRetryRef.current);
+        surahRetryRef.current = null;
+        setSurahFetchAttempt(n => n + 1);
+      }
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+        reconnectPlaybackRef.current();
+      }
+    };
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      if (surahRetryRef.current !== null) clearTimeout(surahRetryRef.current);
+    };
+  }, []);
+
   const [audioEpoch, setAudioEpoch] = useState(0);
 
   // Referanslar
@@ -1100,6 +1124,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       try {
         const res = await fetchSurahData(currentSurahId, selectedReciter);
         if (!isCancelled) {
+          surahRetryCountRef.current = 0;
+          if (surahRetryRef.current !== null) {
+            clearTimeout(surahRetryRef.current);
+            surahRetryRef.current = null;
+          }
+          setIsRecovering(false);
+          setAudioError(null);
           logListen('SURAH_LOADED', 'info', { surah: currentSurahId });
           setAyahs(res.ayahs);
           setTranslations(res.translations);
@@ -1118,17 +1149,20 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         if (!isCancelled) {
           logListen('SURAH_LOAD_FAILED', 'error', { surah: currentSurahId, details: { ...classifyListeningError(err), online: navigator.onLine } });
           console.error('Dinleme modu veri hatası:', err);
-          shouldAutoPlayNextSurahRef.current = false;
-          setAudioError('Sure verisi alınamadı. Bağlantı geri geldiğinde yeniden denenecek.');
+          // Do not discard the automatic-next-surah intent while offline.
+          setAudioError('Sûre yüklenemedi. Bağlantı düzelince otomatik yeniden denenecek.');
           if (isPlayingRef.current) {
             setIsRecovering(true);
-            // API tekrar denemesi; sonraki sureye geçiş niyeti korunur.
-            setTimeout(() => {
-              if (!isCancelled && isPlayingRef.current) {
+            const retryNumber = ++surahRetryCountRef.current;
+            const retryDelay = Math.min(30000, 2000 * Math.pow(2, Math.min(retryNumber - 1, 4)));
+            if (surahRetryRef.current !== null) clearTimeout(surahRetryRef.current);
+            surahRetryRef.current = setTimeout(() => {
+              surahRetryRef.current = null;
+              if (!isCancelled && isPlayingRef.current && !isSleepStoppingRef.current) {
                 logListen('SURAH_LOAD_RETRY', 'warning', diagnosticContext());
                 setSurahFetchAttempt((n) => n + 1);
               }
-            }, 5000);
+            }, retryDelay);
           }
         }
       } finally {
@@ -1138,6 +1172,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     load();
     return () => {
       isCancelled = true;
+      if (surahRetryRef.current !== null) {
+        clearTimeout(surahRetryRef.current);
+        surahRetryRef.current = null;
+      }
     };
   }, [currentSurahId, selectedReciter, surahFetchAttempt, playAyahAt]);
 
