@@ -1665,11 +1665,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           
           {/* Üst Menü & Kontroller (Odak Modunda Gizlenir) */}
           {!isFocusMode && (
-            <div className="relative z-50 grid grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[auto_minmax(0,1fr)_auto] items-start xl:items-center gap-x-3 gap-y-2.5 bg-black/60 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 rounded-2xl sm:rounded-3xl border border-white/15 shadow-xl w-full animate-in fade-in duration-300">
+            <div className="relative z-50 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2.5 bg-black/60 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 rounded-2xl sm:rounded-3xl border border-white/15 shadow-xl w-full animate-in fade-in duration-300">
               
               {/* Sure Seçimi & Hafız Seçimi */}
-              <div className="flex items-center gap-2 flex-wrap min-w-0 xl:flex-nowrap">
-                <div className="relative z-50 min-w-[150px] sm:min-w-[190px]">
+              <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-2.5 sm:gap-3">
+                <div className="relative z-50 w-full min-w-0 max-w-[310px] sm:w-[min(100%,270px)]">
                   <SurahSearchSelect
                     linkTab="listen"
                     selectedSurahId={currentSurahId}
@@ -1680,7 +1680,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 </div>
 
                 {/* Hafız Seçimi */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 max-w-full items-center gap-1.5">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 hidden lg:inline">Hafız:</span>
                   <select
                     value={selectedReciter}
@@ -1695,7 +1695,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                       }
                       persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, savedCurrentTimeRef.current || 0, newReciter);
                     }}
-                    className="bg-slate-900/90 text-white border border-white/20 rounded-xl px-2.5 py-2 text-xs md:text-sm font-semibold focus:outline-none cursor-pointer max-w-[150px] sm:max-w-[210px] truncate"
+                    className="bg-slate-900/90 text-white border border-white/20 rounded-xl px-2.5 py-2 text-xs md:text-sm font-semibold focus:outline-none cursor-pointer w-[min(100%,240px)] min-w-0 max-w-[240px] truncate"
                     title="Okuyan Hafız"
                   >
                     {RECITERS.map((r) => (
@@ -1708,11 +1708,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               </div>
 
               {/* Geniş ekranda orta, dar ekranda ikinci sırada: dinleme kontrolleri */}
-              <div className="col-span-2 row-start-2 xl:col-span-1 xl:row-start-1 xl:col-start-2 flex flex-wrap items-center justify-start xl:justify-end gap-1.5 sm:gap-2 min-w-0">
+              <div className="col-span-2 row-start-2 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                 <button type="button" onClick={() => setKeepScreenAwake(v => !v)} aria-pressed={keepScreenAwake}
                   aria-label={`${screenAwakeLabel}: ${screenAwakeAccessibility}`}
                   title={screenAwakeTitle}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer transition-all ${keepScreenAwake ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
+                  className={`min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer transition-all ${keepScreenAwake ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
                   <MonitorSmartphone className="w-4 h-4" />
                   <span>{screenAwakeLabel}</span>
                 {screenAwakeBadge && <span aria-hidden="true" className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${wakeStatus === 'blocked' || wakeStatus === 'unsupported' ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200'}`}>{screenAwakeBadge}</span>}
@@ -1722,7 +1722,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   type="button"
                   onClick={toggleWordTracking}
                   aria-pressed={isWordTrackingEnabled}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border ${
+                  className={`min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border ${
                     isWordTrackingEnabled
                       ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
                       : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-800'
@@ -1748,7 +1748,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                     toggleFocusMode();
                   }}
                   aria-pressed={isFocusMode}
-                  className="px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                  className="min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
                   title="Odak Modu (Tüm Arayüzü Gizle, Sadece Ayetleri Göster)"
                 >
                   <Maximize2 className="w-3.5 h-3.5 text-emerald-300" />
@@ -1758,7 +1758,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                 {/* Meal Butonu (Varsayılan Olarak Gizli) */}
                 <button
                   onClick={() => setShowTranslation(!showTranslation)}
-                  className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border ${
+                  className={`min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border ${
                     showTranslation
                       ? 'bg-amber-500/20 text-amber-200 border-amber-500/40'
                       : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-800'
@@ -1780,25 +1780,25 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
                 <button
                   onClick={resumeFromBookmark}
-                  className="px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer border border-emerald-500/40"
+                  className="min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer border border-emerald-500/40"
                   title="Kaldığım Yerden Devam Et"
                 >
                   <Bookmark className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Kaldığım Yer</span>
+                  <span>Kaldığım Yer</span>
                 </button>
 
                 <button
                   onClick={() => setIsBlackScreenMode(true)}
-                  className="px-2.5 sm:px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer border border-white/10"
+                  className="min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-colors cursor-pointer border border-white/10"
                   title="Gece / Siyah Ekran Saat Modu"
                 >
                   <Moon className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Gece Saati</span>
+                  <span>Gece Saati</span>
                 </button>
               </div>
 
               {/* Yardım ayrı tutulur; dar ekranda sağ üstte, genişte en sağda. */}
-              <div className="col-start-2 row-start-1 xl:col-start-3 flex justify-end self-start xl:self-center">
+              <div className="col-start-2 row-start-1 flex justify-end self-start">
                 <TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>
               </div>
 
