@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import React from 'react';
-import { createRoot } from 'react-dom/client';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {url:'https://example.test',pretendToBeVisual:true});
 for (const key of ['window','document','navigator','localStorage','Event','HTMLElement']) {
@@ -10,6 +8,8 @@ for (const key of ['window','document','navigator','localStorage','Event','HTMLE
 }
 Object.defineProperty(globalThis,'IS_REACT_ACT_ENVIRONMENT',{configurable:true,value:true});
 
+const React = await import('react');
+const { createRoot } = await import('react-dom/client');
 const {useListeningWakeLock} = await import('../src/utils/useListeningWakeLock');
 
 type View = ReturnType<typeof useListeningWakeLock>;
