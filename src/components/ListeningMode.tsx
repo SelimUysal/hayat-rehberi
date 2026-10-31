@@ -363,6 +363,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   });
   const cycleRef = useRef(cycle);
   const [cycleMenuOpen, setCycleMenuOpen] = useState(false);
+  const startedCycleAyahRef = useRef<string | null>(null);
   const updateCycle = (next: CycleState) => {
     cycleRef.current = next;
     setCycle(next);
@@ -370,6 +371,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
   const interruptCycle = () => {
     const old = cycleRef.current;
+    startedCycleAyahRef.current = null;
     if (old.enabled && (old.completedSurahs > 0 || old.ayah > 0)) {
       updateCycle({ ...old, surah: 1, ayah: 0, completedSurahs: 0 });
     }
@@ -380,10 +382,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     // A new cycle must begin at the first second of Al-Fatiha.
     const validEnd = Number.isFinite(player.duration) && player.duration > 0 &&
       player.currentTime >= player.duration - 0.15;
-    if (!validEnd || startedAt > 0.15 || old.surah !== surah || old.ayah !== idx) {
+    if (!validEnd || startedCycleAyahRef.current !== `${surah}:${idx}` || old.surah !== surah || old.ayah !== idx) {
       interruptCycle();
       return;
     }
+    startedCycleAyahRef.current = null;
     if (idx + 1 < length) {
       updateCycle({ ...old, ayah: idx + 1 });
     } else if (surah === 114) {
@@ -735,6 +738,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       return;
     }
 
+    if (cycleRef.current.enabled && startTime <= 0.15 && cycleRef.current.surah === currentSurahIdRef.current && cycleRef.current.ayah === idx) {
+      startedCycleAyahRef.current = `${currentSurahIdRef.current}:${idx}`;
+    }
     setCurrentAyahIndex(idx);
     currentAyahIndexRef.current = idx;
     persistBookmark(currentSurahIdRef.current, idx, startTime);
@@ -1870,7 +1876,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                       <p className="text-xs text-slate-400">Fâtiha'dan Nâs'a kadar otomatik, eksiksiz dinlenen turlar sayılır. Veriler yalnızca bu tarayıcıda tutulur.</p>
                       <label className="flex justify-between items-center gap-3 text-sm">
                         <span>Takibi etkinleştir</span>
-                        <input type="checkbox" checked={cycle.enabled} onChange={e => updateCycle(emptyCycle(e.target.checked))} className="accent-emerald-500 w-4 h-4" />
+                        <input type="checkbox" checked={cycle.enabled} onChange={e => { startedCycleAyahRef.current = null; updateCycle({ ...cycleRef.current, enabled: e.target.checked, surah: 1, ayah: 0, completedSurahs: 0 }); }} className="accent-emerald-500 w-4 h-4" />
                       </label>
                       {cycle.enabled && (
                         <>
@@ -1878,7 +1884,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                           <div className="text-xs text-slate-300">Devam eden tur: {cycle.completedSurahs}/114 sûre tamamlandı</div>
                           <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${cycle.completedSurahs / 114 * 100}%` }} /></div>
                           <p className="text-[11px] text-slate-400">Elle âyet/sûre atlanırsa yalnızca tamamlanmamış turun ilerlemesi sıfırlanır.</p>
-                          <button type="button" onClick={() => { if (window.confirm('Tamamlanan turlar ve mevcut ilerleme silinsin mi?')) updateCycle(emptyCycle(true)); }}
+                          <button type="button" onClick={() => { if (window.confirm('Tamamlanan turlar ve mevcut ilerleme silinsin mi?')) { startedCycleAyahRef.current = null; updateCycle(emptyCycle(true)); } }}
                             className="min-h-10 w-full rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-xs font-semibold flex justify-center items-center gap-2 cursor-pointer">
                             <RotateCcw className="w-3.5 h-3.5" /> Tüm sayacı sıfırla
                           </button>
