@@ -30,6 +30,7 @@ import { nextSurahInListeningLoop } from '../utils/listeningPlaybackGuards';
 import { recordListeningDiagnostic as logListen, classifyListeningError } from '../utils/listeningDiagnostics';
 import { ListeningDiagnosticsPanel } from './ListeningDiagnosticsPanel';
 import { ListeningBookmarksDialog } from './ListeningBookmarksDialog';
+import { readABLoop, saveABLoop, validateABRange, completeABIteration, isABEndAyah, inABRange, type ABLoopState, type ABPoint } from '../utils/listeningABLoop';
 import { readManualListeningBookmarks, writeManualListeningBookmarks, createManualListeningBookmark, editManualListeningBookmark, type ManualListeningBookmark, type ListeningBookmarkPosition } from '../utils/listeningBookmarks';
 import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { useListeningWakeLock } from '../utils/useListeningWakeLock';
@@ -367,6 +368,10 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return emptyCycle();
   });
   const cycleRef = useRef(cycle);
+  const [abLoop, setABLoop] = useState<ABLoopState>(readABLoop);
+  const abLoopRef = useRef(abLoop);
+  const updateAB = (next:ABLoopState)=>{abLoopRef.current=next;setABLoop(next);saveABLoop(next);};
+  const cancelAB = ()=>{if(abLoopRef.current.active)updateAB({...abLoopRef.current,active:false});};
   const [cycleMenuOpen, setCycleMenuOpen] = useState(false);
   useEffect(() => {
     if (!cycleMenuOpen) return;
@@ -389,7 +394,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
   const recordCompletedAyah = (surah: number, idx: number, length: number, player: HTMLAudioElement) => {
     const old = cycleRef.current;
-    if (!old.enabled) return;
+    if (!old.enabled || abLoopRef.current.active) return;
     // A new cycle must begin at the first second of Al-Fatiha.
     const validEnd = Number.isFinite(player.duration) && player.duration > 0 &&
       player.currentTime >= player.duration - 0.15;
@@ -886,7 +891,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       if (!Number.isFinite(duration) || duration <= 0) return;
       const remaining = duration - player.currentTime;
       if (remaining <= 0 || remaining > 1.5) return;
-      const nextAudio = list[idx + 1]?.audio;
+      // Do not overlap into an ayah beyond the configured B boundary.
+      const nextAudio = abLoopRef.current.active && isABEndAyah(abLoopRef.current,currentSurahIdRef.current,idx) ? undefined : list[idx + 1]?.audio;
       // No early switch if the next audio has not been buffered.
       if (!nextAudio || ![preloadNextAudioRef.current, preloadAfterNextAudioRef.current]
         .some((candidate) => candidate.src === nextAudio && candidate.readyState >= 2)) return;
@@ -909,6 +915,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         return;
       }
       // Only automatically finished ayahs count. Skip/manual navigation never counts.
+      if (abLoopRef.current.active && isABEndAyah(abLoopRef.current,currentSurahIdRef.current,idx)) {
+        const next=completeABIteration(abLoopRef.current);
+        updateAB(next);
+        hasAdvancedToNext=true;
+        if (!next.active) {pausePlayback();return;}
+        jumpToABStart(next.start);
+        return;
+      }
       recordCompletedAyah(currentSurahIdRef.current, idx, list.length, player);
       hasAdvancedToNext = true;
       logListen('AYAH_ADVANCE', 'info', { surah: currentSurahIdRef.current, ayah: idx + 1 });
@@ -942,6 +956,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           persistBookmark(currentSurahIdRef.current, currentAyahIndexRef.current, curTime);
         }
 
+        if(abLoopRef.current.active && isABEndAyah(abLoopRef.current,currentSurahIdRef.current,idx) && abLoopRef.current.end.seconds>0 && curTime>=abLoopRef.current.end.seconds){advanceToNextAyah();return;}
         // Prefer a small, buffered overlap to prevent Android media focus
         // from dropping between ayahs; always retain onended as a fallback.
         scheduleNearEndHandoff();
@@ -1359,12 +1374,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
 
   const handleNextAyah = () => {
+    cancelAB();
     interruptCycle();
     savedCurrentTimeRef.current = 0;
     playAyahAt(currentAyahIndex + 1, 0);
   };
 
   const handlePrevAyah = () => {
+    cancelAB();
     interruptCycle();
     if (currentAyahIndex > 0) {
       savedCurrentTimeRef.current = 0;
@@ -1447,7 +1464,38 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     setManualBookmarks(next);
     return true;
   };
+  const jumpToABStart = (point:ABPoint) => {
+    // Use a shared playback route; allow the data-loading effect to start audio.
+    stopPlayback(false);
+    savedCurrentTimeRef.current = point.seconds;
+    currentAyahIndexRef.current = point.ayahIndex;
+    setCurrentAyahIndex(point.ayahIndex);
+    persistBookmark(point.surahId,point.ayahIndex,point.seconds);
+    const mustLoad = currentSurahIdRef.current!==point.surahId || ayahsRef.current.length===0;
+    if(mustLoad){
+      shouldAutoPlayNextSurahRef.current=true;
+      currentSurahIdRef.current=point.surahId;
+      setAyahs([]);ayahsRef.current=[];
+      if(currentSurahId!==point.surahId)setCurrentSurahId(point.surahId);
+      else {setIsPlaying(true);isPlayingRef.current=true;}
+    }else playAyahAt(point.ayahIndex,point.seconds);
+  };
+  const startABLoop = (a:ManualListeningBookmark,b:ManualListeningBookmark,repeatLimit:number|null):string|null=>{
+    const start:ABPoint={surahId:a.surahId,ayahIndex:a.ayahIndex,seconds:a.currentTime};
+    const end:ABPoint={surahId:b.surahId,ayahIndex:b.ayahIndex,seconds:b.currentTime};
+    const error=validateABRange(start,end);
+    if(error)return error;
+    if(repeatLimit!==null&&(!Number.isInteger(repeatLimit)||repeatLimit<1||repeatLimit>10000))return 'Tekrar sayısı geçersiz.';
+    interruptCycle();
+    const next:ABLoopState={start,end,repeatLimit,active:true,completed:0};
+    updateAB(next);jumpToABStart(start);
+    return null;
+  };
+  const stopABLoop = ()=>{cancelAB();pausePlayback();};
+  const resetABLoop = ()=>updateAB({...abLoopRef.current,completed:0});
+
   const listenFromManualBookmark = (bookmark: ManualListeningBookmark) => {
+    cancelAB();
     interruptCycle();
     stopPlayback(false);
     const needsFetch = bookmark.surahId !== currentSurahIdRef.current ||
@@ -1477,6 +1525,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   };
 
   const handleSelectSurah = (surahId: number) => {
+    cancelAB();
     interruptCycle();
     stopPlayback(false);
     setCurrentAyahIndex(0);
@@ -1549,7 +1598,8 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           bookmarks={manualBookmarks} position={bookmarkCandidate}
           onClose={() => setBookmarksOpen(false)} onAdd={addManualBookmark}
           onEdit={updateManualBookmark} onDelete={deleteManualBookmark}
-          onListen={listenFromManualBookmark}
+          onListen={listenFromManualBookmark} abLoop={abLoop}
+          onABStart={startABLoop} onABStop={stopABLoop} onABReset={resetABLoop}
         />
       )}
 
