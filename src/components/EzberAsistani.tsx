@@ -4,6 +4,7 @@ import { DesktopMode } from './DesktopMode';
 import { MobileMode } from './MobileMode';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import { EzberDiagnosticsPanel } from './EzberDiagnosticsPanel';
+import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { recordEzberEvent as logEzber } from '../utils/ezberDiagnostics';
 
 export type EzberSubMode = 'desktop' | 'mobile';
@@ -74,7 +75,6 @@ export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId }) =
         isDark ? 'dark bg-[#181510] text-[#f1ecdd]' : 'bg-[#FBF9F5] text-slate-800'
       }`}
     >
-      <EzberDiagnosticsPanel />
       {/* Ezber Asistanı Mod ve Tema Seçici Çubuğu */}
       <div
         className={`border-b py-2.5 px-4 sm:px-6 sticky top-16 z-35 backdrop-blur-md ${
@@ -93,6 +93,7 @@ export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId }) =
 
           {/* Görünüm ve Tema Kontrol Düğmeleri */}
           <div className="flex items-center gap-2.5 flex-wrap">
+            <TroubleshootingMenu dark={isDark}><EzberDiagnosticsPanel /></TroubleshootingMenu>
             {/* Görünüm Değiştirici Butonları */}
             <div className="flex items-center gap-1.5">
               <div
