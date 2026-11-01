@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import { 
   Play, 
@@ -383,6 +384,13 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
     }
   });
 
+  useCloudRefresh(['namaz_memorized_ids'], () => {
+    try {
+      const values: unknown = JSON.parse(localStorage.getItem('namaz_memorized_ids') || '[]');
+      const valid = new Set(NAMAZ_ITEMS.map(item => item.id));
+      setMemorizedIds(Array.isArray(values) ? [...new Set(values.filter((id): id is string => typeof id === 'string' && valid.has(id)))] : []);
+    } catch {}
+  });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const getAudio = () => {
     if (!audioRef.current) audioRef.current = new Audio();

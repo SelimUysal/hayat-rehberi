@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import {
@@ -423,6 +424,14 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
       ESMA_NAMES.forEach(item => { if (saved[item.n] === true) valid[item.n] = true; });
       return valid;
     } catch { return {}; }
+  });
+  useCloudRefresh(['esma_learned_names'], () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('esma_learned_names') || '{}');
+      const valid: Record<number,boolean> = {};
+      ESMA_NAMES.forEach(item => {if (saved?.[item.n] === true) valid[item.n] = true;});
+      setLearnedNames(valid);
+    } catch {}
   });
   const [storageWarning, setStorageWarning] = useState(false);
   useEffect(() => {

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
 import { EZBER_STOP_AUDIO_EVENT } from '../utils/ezberSession';
+import { localOwner, recordingDatabaseName } from '../account/deviceScope';
 
 export interface VoiceRecordingItem {
   id: string;
@@ -39,17 +40,16 @@ interface EzberVoiceRecorderProps {
 }
 
 const MAX_RECORDINGS = 5;
-const DB_NAME = 'hayat_rehberi_ezber_recordings_db';
 const STORE_NAME = 'recordings_store';
 
 // IndexedDB Yardımcıları (Son 5 kaydı sayfa yenilense bile korumak için)
-function openRecordingsDB(): Promise<IDBDatabase> {
+function openRecordingsDB(owner: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
       reject(new Error('IndexedDB desteklenmiyor'));
       return;
     }
-    const req = window.indexedDB.open(DB_NAME, 1);
+    const req = window.indexedDB.open(recordingDatabaseName(owner), 1);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -61,9 +61,9 @@ function openRecordingsDB(): Promise<IDBDatabase> {
   });
 }
 
-async function loadSavedRecordingsFromDB(): Promise<VoiceRecordingItem[]> {
+async function loadSavedRecordingsFromDB(owner: string): Promise<VoiceRecordingItem[]> {
   try {
-    const db = await openRecordingsDB();
+    const db = await openRecordingsDB(owner);
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
@@ -98,9 +98,9 @@ async function loadSavedRecordingsFromDB(): Promise<VoiceRecordingItem[]> {
   }
 }
 
-async function syncRecordingsToDB(items: VoiceRecordingItem[]): Promise<void> {
+async function syncRecordingsToDB(items: VoiceRecordingItem[], owner: string): Promise<void> {
   try {
-    const db = await openRecordingsDB();
+    const db = await openRecordingsDB(owner);
     const tx = db.transaction(STORE_NAME, 'readwrite');
     await new Promise<void>((resolve,reject) => {
       tx.oncomplete = () => resolve();
@@ -135,6 +135,9 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
   onStopExternalAudio
 }) => {
   const isDark = theme === 'dark';
+  // Keep the owner captured at mount, including asynchronous recording cleanup
+  // after sign-out. Existing guest recordings retain their original database.
+  const recordingOwner = useRef(localOwner()).current;
 
   const [recordings, setRecordings] = useState<VoiceRecordingItem[]>([]);
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -185,7 +188,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
   // İlk yüklemede IndexedDB'den son 5 kaydı getir
   useEffect(() => {
     let mounted = true;
-    loadSavedRecordingsFromDB().then((loaded) => {
+    loadSavedRecordingsFromDB(recordingOwner).then((loaded) => {
       if (mounted && loaded.length > 0) {
         setRecordings(loaded);
       }
@@ -398,7 +401,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
           //Yeni kaydı en başa ekle; toplam 5 kayıttan fazlasını otomatik sil (sabitlenenleri koru)
           const combined = [newItem, ...prev];
           if (combined.length <= MAX_RECORDINGS) {
-            syncRecordingsToDB(combined);
+            syncRecordingsToDB(combined,recordingOwner);
             return combined;
           }
 
@@ -422,7 +425,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
           }
 
           const nextList = combined.filter((_, idx) => idx !== removeIdx).slice(0, MAX_RECORDINGS);
-          syncRecordingsToDB(nextList);
+          syncRecordingsToDB(nextList,recordingOwner);
           return nextList;
         });
 
@@ -547,7 +550,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
         } catch {}
       }
       const next = prev.filter((r) => r.id !== id);
-      syncRecordingsToDB(next);
+      syncRecordingsToDB(next,recordingOwner);
       return next;
     });
   };
@@ -557,7 +560,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
     e.stopPropagation();
     setRecordings((prev) => {
       const next = prev.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r));
-      syncRecordingsToDB(next);
+      syncRecordingsToDB(next,recordingOwner);
       return next;
     });
   };
@@ -571,7 +574,7 @@ export const EzberVoiceRecorder: React.FC<EzberVoiceRecorderProps> = ({
           URL.revokeObjectURL(r.url);
         } catch {}
       });
-      syncRecordingsToDB([]);
+      syncRecordingsToDB([],recordingOwner);
       return [];
     });
   };

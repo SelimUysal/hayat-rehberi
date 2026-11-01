@@ -36,8 +36,8 @@ jobs:
       - name: Check TypeScript
         run: npm run lint
 
-      - name: Guard Ezber initialization, audio playback and radio regressions
-        run: npx tsx --test tests/ezberDiagnostics.test.ts tests/ezberPlaybackLifecycle.test.ts tests/ezberPauseResume.test.ts tests/ezberForegroundFollow.test.ts tests/sadaquranRadio.test.ts
+      - name: Guard all unit and playback regressions before deployment
+        run: npm run test:unit
 
       - name: Build static site with Vite
         run: npx vite build

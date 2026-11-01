@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import { Plus, Check, X } from 'lucide-react';
 import { SURAHS } from '../data/surahs';
 
@@ -35,6 +36,9 @@ export const QuickSurahBookmarks: React.FC<QuickSurahBookmarksProps> = ({
     } catch {}
   }, [savedIds]);
 
+  useCloudRefresh(['ezber_saved_surahs'], () => {
+    try {setSavedIds(JSON.parse(localStorage.getItem('ezber_saved_surahs') || '[36,67,78,1]'));} catch {}
+  });
   const isCurrentSaved = savedIds.includes(currentSurahId);
 
   const toggleCurrentSurah = () => {

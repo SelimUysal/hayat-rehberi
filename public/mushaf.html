@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mushaf-ı Şerif - Hayat Rehberi</title>
+<script defer src="./account-frame-loader.js"></script>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3602,6 +3603,24 @@
     });
   }
 
+  // Account updates arrive as native same-origin storage events from the parent.
+  // Refresh progress in place; do not reload the iframe or interrupt its audio.
+  window.addEventListener("storage", function(event){
+    if (event.key === "kuran_user_bookmarks_v1") {
+      var incoming = readJSON("kuran_user_bookmarks_v1", []);
+      if (!Array.isArray(incoming)) return;
+      bookmarks = incoming.filter(function(b){return b && Number.isInteger(b.page) && b.page>=1 && b.page<=604 && typeof b.title==="string" && typeof b.note==="string";}).slice(0,25);
+      if (document.getElementById("bookmarkListContainer")) renderBookmarkList();
+      renderQuickBookmarks();
+      updateBookmarkButtons();
+    }
+    if (event.key === READ_PAGES_KEY) {
+      var incomingPages = readJSON(READ_PAGES_KEY, []);
+      if (!Array.isArray(incomingPages)) return;
+      readPages = Array.from(new Set(incomingPages.filter(function(p){return Number.isInteger(p) && p>=1 && p<=604;})));
+      updateReadProgress();
+    }
+  });
   function renderQuickBookmarks(){
     var container = document.getElementById("quickBookmarksContainer");
     if (!container) return;

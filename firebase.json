@@ -1,0 +1,24 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "europe-west3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": { "port": 8088 },
+    "auth": { "port": 9099 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  },
+  "auth": {
+    "authorizedDomains": ["localhost", "selimuysal.github.io", "hayat-rehberi-selimuysal.firebaseapp.com", "hayat-rehberi-selimuysal.web.app"],
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Hayat Rehberi",
+        "supportEmail": "bilgisayar.icin.net@gmail.com"
+      }
+    }
+  }
+}

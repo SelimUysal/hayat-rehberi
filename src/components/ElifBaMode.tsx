@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import { navigateToAppHash } from '../utils/appNavigation';
 import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { AppRouteLink } from './AppRouteLink';
@@ -240,6 +241,9 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
     }
   });
 
+  useCloudRefresh(['elifba_state'], () => {
+    try {setState(JSON.parse(localStorage.getItem('elifba_state') || '{}'));} catch {}
+  });
   const saveState = (newState: Record<string, boolean>) => {
     setState(newState);
     try {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import {
   TECVID_TOPIC_CARDS,
   TECVID_EXAMPLES,
@@ -71,6 +72,9 @@ export const TecvidSection: React.FC<TecvidSectionProps> = ({ theme, viewMode, t
     }
   });
 
+  useCloudRefresh(['tecvid_completed_lessons'], () => {
+    try {setCompletedLessons(JSON.parse(localStorage.getItem('tecvid_completed_lessons') || '{}'));} catch {}
+  });
   const toggleLessonComplete = (lessonIndex: number) => {
     const updated = {
       ...completedLessons,
