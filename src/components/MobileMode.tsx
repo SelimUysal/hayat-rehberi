@@ -350,6 +350,12 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     currentLoopRef.current = 0;
   };
 
+  useEffect(() => {
+    const onRadioStart = () => stopAudio();
+    window.addEventListener('hayat-rehberi:radio-start', onRadioStart);
+    return () => window.removeEventListener('hayat-rehberi:radio-start', onRadioStart);
+  }, []);
+
   // Keep the actual player mounted while paused, so we can resume precisely.
   const pauseAudio = () => {
     const player = audioRef.current;

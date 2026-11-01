@@ -639,6 +639,13 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
     setCurrentLoop(0);
   };
 
+  useEffect(() => {
+    // Stop a possibly hidden desktop Ezber player before SadaQuran starts.
+    const onRadioStart = () => stopAudio();
+    window.addEventListener('hayat-rehberi:radio-start', onRadioStart);
+    return () => window.removeEventListener('hayat-rehberi:radio-start', onRadioStart);
+  }, []);
+
   // Modal İçin Seçili Kelimeleri Bul
   const getSelectedWordsData = (): WordData[] => {
     if (!wbwList || wbwList.length === 0) return [];

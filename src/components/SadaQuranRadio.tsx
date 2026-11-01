@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AlertCircle, ExternalLink, Pause, Play, RadioTower,
-  RotateCcw, ShieldCheck, Square, Volume2, WifiOff
+  AlertCircle, Clock3, ExternalLink, Pause, Play, RadioTower,
+  RotateCcw, ShieldCheck, Square, Volume2, VolumeX, WifiOff
 } from 'lucide-react';
 
 export const SADAQURAN_STATION_URL = 'https://sadaquran.aweradio.app/';
@@ -10,14 +10,48 @@ export const SADAQURAN_STREAM_URL = 'https://manifest.aweradio.app/sadaquran/mus
 
 type PlaybackStatus = 'idle' | 'connecting' | 'playing' | 'paused' | 'error';
 
-export const SadaQuranRadio: React.FC = () => {
+interface SadaQuranRadioProps {
+  isActiveTab: boolean;
+  exclusiveAudio: boolean;
+  onOpen: () => void;
+}
+
+export const SadaQuranRadio: React.FC<SadaQuranRadioProps> = ({ isActiveTab, exclusiveAudio, onOpen }) => {
   const [status, setStatus] = useState<PlaybackStatus>('idle');
   const [error, setError] = useState('');
+  const [volume, setVolume] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem('sadaquran_volume'));
+      if (localStorage.getItem('sadaquran_volume') !== null && Number.isFinite(saved)) {
+        return Math.max(0, Math.min(1, saved));
+      }
+    } catch {}
+    return 1;
+  });
+  const [muted, setMuted] = useState(false);
+  const [sleepUntil, setSleepUntil] = useState<number | null>(null);
+  const [sleepSeconds, setSleepSeconds] = useState(0);
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<import('hls.js').default | null>(null);
   const sessionRef = useRef(0);
   const playbackModeRef = useRef<'native' | 'hls' | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = Math.max(0, Math.min(1, volume));
+    audio.muted = muted;
+    try { localStorage.setItem('sadaquran_volume', String(volume)); } catch {}
+  }, [volume, muted]);
+
+  const selectSleepTimer = (minutes: number) => {
+    setSleepUntil(minutes === 0 ? null : Date.now() + minutes * 60_000);
+  };
+
+  const formattedSleep = sleepSeconds >= 3600
+    ? `${Math.floor(sleepSeconds / 3600)} sa ${String(Math.floor((sleepSeconds % 3600) / 60)).padStart(2, '0')} dk`
+    : `${Math.ceil(sleepSeconds / 60)} dk`;
 
   const cleanupAudio = () => {
     playbackModeRef.current = null;
@@ -46,9 +80,38 @@ export const SadaQuranRadio: React.FC = () => {
   const stop = () => {
     ++sessionRef.current;
     cleanupAudio();
+    setSleepUntil(null);
+    setSleepSeconds(0);
     setError('');
     setStatus('idle');
   };
+
+  // A wall-clock deadline survives throttled background tabs. Recheck on focus.
+  useEffect(() => {
+    if (sleepUntil === null) {
+      setSleepSeconds(0);
+      return;
+    }
+    const check = () => {
+      const remaining = Math.max(0, Math.ceil((sleepUntil - Date.now()) / 1000));
+      setSleepSeconds(remaining);
+      if (remaining === 0) stop();
+    };
+    check();
+    const interval = window.setInterval(check, 1000);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+    };
+  }, [sleepUntil]);
+
+  // Avoid double recitation: Kesintisiz Dinleme and Ezber take priority.
+  useEffect(() => {
+    if (exclusiveAudio) stop();
+  }, [exclusiveAudio]);
 
   const fail = (message: string, session: number) => {
     if (session !== sessionRef.current) return;
@@ -61,6 +124,8 @@ export const SadaQuranRadio: React.FC = () => {
   const connect = async () => {
     if (!online) return;
     const session = ++sessionRef.current;
+    // Hidden Ezber desktop/mobile players can remain mounted on other tabs.
+    window.dispatchEvent(new Event('hayat-rehberi:radio-start'));
     cleanupAudio();
     setError('');
     setStatus('connecting');
@@ -146,9 +211,30 @@ export const SadaQuranRadio: React.FC = () => {
   };
 
   const active = status === 'connecting' || status === 'playing' || status === 'paused';
+  const showMini = !isActiveTab && active;
+
+  const volumeControl = (
+    <div className="flex w-full max-w-xs items-center justify-center gap-3 text-stone-200">
+      <button type="button" onClick={() => setMuted(value => !value)}
+        aria-label={muted ? 'Sesi aç' : 'Sessize al'} aria-pressed={muted}
+        title={muted ? 'Sesi aç' : 'Sessize al'}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-emerald-400">
+        {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+      </button>
+      <label className="hidden flex-1 items-center gap-2 sm:flex">
+        <span className="text-xs text-stone-300">Ses</span>
+        <input type="range" min="0" max="1" step="0.05"
+          value={volume} onChange={(event) => { setVolume(Number(event.target.value)); setMuted(false); }}
+          aria-label="Radyo ses seviyesi" className="w-full cursor-pointer accent-emerald-400" />
+        <span className="w-8 text-right text-xs tabular-nums text-stone-400">{Math.round(volume * 100)}%</span>
+      </label>
+      <span className="text-xs text-stone-400 sm:hidden">Ses için telefon tuşlarını kullanabilirsiniz</span>
+    </div>
+  );
 
   return (
-    <section className="relative isolate flex-1 w-full min-w-0 overflow-x-hidden bg-[#0c1512] text-stone-100" aria-labelledby="sadaquran-title">
+    <>
+    <section className={isActiveTab ? "relative isolate flex-1 w-full min-w-0 overflow-x-hidden bg-[#0c1512] text-stone-100" : "hidden"} aria-labelledby="sadaquran-title">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.18),transparent_70%)]" />
       <div className="relative mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:py-14">
         <div className="mb-7 flex flex-wrap items-start gap-4 sm:gap-5">
@@ -164,8 +250,7 @@ export const SadaQuranRadio: React.FC = () => {
             </div>
             <h1 id="sadaquran-title" className="text-2xl font-extrabold tracking-tight text-white sm:text-4xl">SadaQuran</h1>
             <p className="max-w-2xl text-sm leading-relaxed text-stone-300 sm:text-base">
-              Kur'an-ı Kerim tilavetini canlı yayın akışından dinleyin. Yayın, Kesintisiz Dinleme'den bağımsızdır;
-              radyo herkes için aynı anda aynı yayın akışını sunar.
+              Kur'an-ı Kerim tilavetini herkese ortak sunulan canlı yayın akışından dinleyin.
             </p>
           </div>
         </div>
@@ -208,7 +293,7 @@ export const SadaQuranRadio: React.FC = () => {
             <div className="max-w-lg space-y-2">
               <h2 className="text-lg font-bold text-white">Kur'an-ı Kerim canlı radyo</h2>
               <p className="text-sm leading-relaxed text-stone-300">
-                Aynı canlı yayın akışını kendi oynatıcımızdan dinleyin. Ses yalnızca siz başlattığınızda açılır.
+                Ses yalnızca siz başlattığınızda açılır.
               </p>
             </div>
 
@@ -252,6 +337,23 @@ export const SadaQuranRadio: React.FC = () => {
                 </button>
               )}
             </div>
+            <div className="flex w-full flex-col items-center gap-3">
+              {volumeControl}
+              <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-stone-300">
+                <Clock3 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+                <label htmlFor="sadaquran-sleep">Uyku zamanlayıcısı</label>
+                <select id="sadaquran-sleep" value={sleepUntil === null ? '0' : 'set'}
+                  onChange={(event) => selectSleepTimer(Number(event.target.value))}
+                  className="min-h-10 rounded-xl border border-white/15 bg-[#1c2e26] px-3 text-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-400">
+                  {sleepUntil !== null && <option value="set">Kalan: {formattedSleep}</option>}
+                  <option value="0">Kapalı</option>
+                  <option value="15">15 dakika</option>
+                  <option value="30">30 dakika</option>
+                  <option value="60">60 dakika</option>
+                  <option value="120">120 dakika</option>
+                </select>
+              </div>
+            </div>
             {status === 'error' && (
               <p role="alert" className="flex max-w-lg items-start gap-2 text-left text-xs leading-relaxed text-rose-200">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
@@ -262,7 +364,7 @@ export const SadaQuranRadio: React.FC = () => {
           <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-start gap-2 text-xs leading-relaxed text-stone-400">
               <ShieldCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-              <span>Yayın AWE Radio sunucularından alınır; uygulama içinde kalabilirsiniz. Radyo sekmesinden çıkınca ses durur.</span>
+              <span>AWE Radio altyapısıyla canlı yayın.</span>
             </div>
             <a href={SADAQURAN_STATION_URL} target="_blank" rel="noopener noreferrer"
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20">
@@ -270,10 +372,42 @@ export const SadaQuranRadio: React.FC = () => {
             </a>
           </div>
         </div>
-        <p className="mt-4 text-center text-xs leading-relaxed text-stone-400">
-          Yayın henüz hazırlanıyorsa veya AWE akışı harici sitelere açmıyorsa doğrudan AWE dinleme sayfasını kullanabilirsiniz.
-        </p>
+
       </div>
     </section>
+    {showMini && (
+      <aside role="region" aria-label="SadaQuran mini oynatıcı"
+        className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-[45] mx-auto max-w-xl rounded-2xl border border-emerald-500/30 bg-[#101d18]/95 p-2.5 text-white shadow-[0_14px_45px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:bottom-4">
+        <div className="flex items-center gap-2.5">
+          <button type="button" onClick={onOpen} title="Radyo sayfasına dön" aria-label="SadaQuran radyo sayfasına dön"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 text-left hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-emerald-400">
+            <img src={`${import.meta.env.BASE_URL}sadaquran-radio-cover.avif`}
+              alt="" width="44" height="44" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">SadaQuran</span>
+              <span className="block truncate text-xs text-emerald-200">
+                {status === 'playing' ? 'Canlı dinleniyor' : status === 'paused' ? 'Duraklatıldı' : 'Bağlanıyor…'}
+                {sleepUntil !== null ? ` · ⏱ ${formattedSleep}` : ''}
+              </span>
+            </span>
+          </button>
+          <button type="button" onClick={() => setMuted(value => !value)}
+            aria-label={muted ? 'Sesi aç' : 'Sessize al'} aria-pressed={muted}
+            className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/15 hover:bg-white/10 sm:flex">
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+          <button type="button" onClick={status === 'playing' ? pause : status === 'paused' ? resume : undefined}
+            disabled={status === 'connecting'} aria-label={status === 'playing' ? 'Radyoyu duraklat' : 'Radyoyu devam ettir'}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 disabled:opacity-50">
+            {status === 'playing' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
+          <button type="button" onClick={stop} aria-label="Radyoyu durdur"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/5 hover:bg-white/10">
+            <Square className="h-4 w-4" />
+          </button>
+        </div>
+      </aside>
+    )}
+    </>
   );
 };

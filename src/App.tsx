@@ -517,7 +517,11 @@ export function App() {
             targetTimestamp={listenTimestamp}
           />
         )}
-        {activeTab === 'radio' && <SadaQuranRadio />}
+        <SadaQuranRadio
+          isActiveTab={activeTab === 'radio'}
+          exclusiveAudio={activeTab === 'ezber' || activeTab === 'listen'}
+          onOpen={() => handleTabChange('radio')}
+        />
         {activeTab === 'search' && <SearchMode onNavigateToTab={handleNavigate} />}
         {activeTab === 'support' && (
           <SupportAndFeedback 

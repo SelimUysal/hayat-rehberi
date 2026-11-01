@@ -36,7 +36,7 @@ test('real AWE HLS audio stream and safe external fallback, no iframe',()=>{
 });
 test('radio playback cleans up on unmount and connection problems are explained',()=>{
   const app=read('src/App.tsx');
-  assert.ok(app.includes("{activeTab === 'radio' && <SadaQuranRadio />}"));
+  assert.ok(app.includes("isActiveTab={activeTab === 'radio'}"));
   const code=read('src/components/SadaQuranRadio.tsx');
   assert.ok(code.includes('cleanupAudio();'));
   assert.ok(code.includes('hlsRef.current?.destroy()'));
@@ -54,4 +54,25 @@ test('SadaQuran cover uses the original artwork and animates only during actual 
   assert.ok(code.includes('motion-reduce:animate-none'));
   assert.ok(code.includes('motion-reduce:transform-none'));
   assert.ok(!code.includes('<Headphones'));
+});
+
+test('radio volume, wall-clock sleep timer, persistent mini-player and audio exclusivity',()=>{
+  const radio=read('src/components/SadaQuranRadio.tsx');
+  const app=read('src/App.tsx');
+  assert.ok(radio.includes('audio.volume ='));
+  assert.ok(radio.includes('audio.muted = muted'));
+  assert.ok(radio.includes('sadaquran_volume'));
+  assert.ok(radio.includes('type="range"'));
+  assert.ok(radio.includes('selectSleepTimer'));
+  assert.ok(radio.includes('Date.now() + minutes * 60_000'));
+  assert.ok(radio.includes("document.addEventListener('visibilitychange', check)"));
+  assert.ok(radio.includes('if (remaining === 0) stop()'));
+  assert.ok(radio.includes('role="region" aria-label="SadaQuran mini oynatıcı"'));
+  assert.ok(radio.includes('isActiveTab ?'));
+  assert.ok(app.includes("exclusiveAudio={activeTab === 'ezber' || activeTab === 'listen'}"));
+  assert.ok(app.includes("onOpen={() => handleTabChange('radio')}"));
+  assert.ok(read('src/components/DesktopMode.tsx').includes("hayat-rehberi:radio-start"));
+  assert.ok(read('src/components/MobileMode.tsx').includes("hayat-rehberi:radio-start"));
+  assert.ok(!radio.includes('navigator.mediaSession')); // lock screen deferred
+  assert.ok(!radio.includes('Yayın henüz hazırlanıyorsa'));
 });
