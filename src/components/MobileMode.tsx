@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Ayah, VerseWbw, WordData } from '../types';
 import { SURAHS, RECITERS } from '../data/surahs';
+import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { fetchSurahData, fetchWbwData } from '../services/quranApi';
 import { AnalysisModal } from './AnalysisModal';
 import { SurahSearchSelect } from './SurahSearchSelect';
@@ -355,6 +356,25 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     window.addEventListener('hayat-rehberi:radio-start', onRadioStart);
     return () => window.removeEventListener('hayat-rehberi:radio-start', onRadioStart);
   }, []);
+
+  const mediaPauseRef = useRef<() => void>(() => {});
+  const mediaResumeRef = useRef<() => void>(() => {});
+  // The functions are updated on each render without taking over the
+  // audio element's own onplaying/onpause callbacks.
+  mediaPauseRef.current = pauseAudio;
+  mediaResumeRef.current = resumeAudio;
+  useEffect(() => {
+    const audio = audioRef.current;
+    return bindAudioMediaSession(audio, () => ({
+      title: `${SURAHS.find(item => item.id === currentSurah)?.name || 'Kur’an-ı Kerim'} Suresi · Ezber`,
+      artist: RECITERS.find(item => item.id === selectedReciter)?.name || 'Kur’an-ı Kerim',
+      album: 'Hayat Rehberi · Ezber Asistanı'
+    }), {
+      onPlay: () => mediaResumeRef.current(),
+      onPause: () => mediaPauseRef.current(),
+      onStop: () => stopAudio()
+    });
+  }, [currentSurah, selectedReciter]);
 
   // Keep the actual player mounted while paused, so we can resume precisely.
   const pauseAudio = () => {

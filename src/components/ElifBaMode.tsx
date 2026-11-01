@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { navigateToAppHash } from '../utils/appNavigation';
+import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { AppRouteLink } from './AppRouteLink';
 import { basicInfoHash, resolveBasicInfoKey } from '../utils/elifbaLinks';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
@@ -376,6 +377,7 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   const [zirhUseCustomAudio, setZirhUseCustomAudio] = useState(false);
   const [zirhAudioError, setZirhAudioError] = useState<string | null>(null);
   const zirhObjectUrlRef = useRef<string | null>(null);
+  const zirhMediaCleanupRef = useRef<(() => void) | null>(null);
 
   // IndexedDB'den kullanıcı tarafından yüklenmiş Zırh Duası ses dosyasını yükle
   useEffect(() => {
@@ -442,6 +444,16 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
       : (defaultAudioUrl || import.meta.env.BASE_URL + 'audio/dualar/zirh_duasi.mp3');
     if (!zirhAudioRef.current) {
       zirhAudioRef.current = new Audio();
+      const player = zirhAudioRef.current;
+      zirhMediaCleanupRef.current = bindAudioMediaSession(player, () => ({
+        title: 'Zırh Duası',
+        artist: 'Dua Dinleme',
+        album: 'Hayat Rehberi · Elif-Bâ'
+      }), {
+        onPlay: () => { void player.play().catch(() => {}); },
+        onPause: () => player.pause(),
+        onStop: () => { player.pause(); player.currentTime = 0; }
+      });
     }
     const audio = zirhAudioRef.current;
     audio.pause();
@@ -502,6 +514,8 @@ export const ElifBaMode: React.FC<ElifBaModeProps> = ({
   useEffect(() => {
     return () => {
       if (zirhObjectUrlRef.current) URL.revokeObjectURL(zirhObjectUrlRef.current);
+      zirhMediaCleanupRef.current?.();
+      zirhMediaCleanupRef.current = null;
       if (zirhAudioRef.current) {
         zirhAudioRef.current.pause();
       }

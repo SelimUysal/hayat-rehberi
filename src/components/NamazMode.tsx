@@ -40,6 +40,7 @@ import { navigateToAppHash } from '../utils/appNavigation';
 import { AppRouteLink } from './AppRouteLink';
 import { recordNamazIssue as diagnostic, safeNamazErrorName } from '../utils/namazDiagnostics';
 import { resolveNamazAudioUrl } from '../utils/namazAudioPath';
+import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { NamazDiagnosticsPanel } from './NamazDiagnosticsPanel';
 import { TroubleshootingMenu } from './TroubleshootingMenu';
 
@@ -433,6 +434,21 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
       stopAudio();
     };
   }, [stopAudio]);
+
+  useEffect(() => {
+    const audio = getAudio();
+    return bindAudioMediaSession(audio, () => ({
+      title: activeItem?.title || 'Namaz Sureleri ve Duaları',
+      artist: 'Kur’an-ı Kerim ve Dualar',
+      album: 'Hayat Rehberi · Namaz'
+    }), {
+      // Namaz can be a sentence loop; stop instead of leaving its timers
+      // running with a paused audio node. Play starts the selected item anew.
+      onPlay: () => playFullItem(),
+      onPause: () => stopAudio(),
+      onStop: () => stopAudio()
+    });
+  }, [selectedId]);
 
   // Scroll active sentence into view if needed
   useEffect(() => {

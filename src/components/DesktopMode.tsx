@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Square, Volume2, Type, RefreshCw, Layers, X, Eye, EyeOff, Check } from 'lucide-react';
 import { Ayah, VerseWbw, WordData } from '../types';
 import { SURAHS, RECITERS } from '../data/surahs';
+import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { fetchSurahData, fetchWbwData } from '../services/quranApi';
 import { AnalysisModal } from './AnalysisModal';
 import { SurahSearchSelect } from './SurahSearchSelect';
@@ -63,6 +64,24 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
   // Reuse the same audio element across renders.
   const audioRef = useRef<HTMLAudioElement>(null!);
   if (audioRef.current === null) audioRef.current = new Audio();
+  useEffect(() => {
+    const audio = audioRef.current;
+    return bindAudioMediaSession(audio, () => ({
+      title: `${SURAHS.find(item => item.id === currentSurah)?.name || 'Kur’an-ı Kerim'} Suresi · Ezber`,
+      artist: RECITERS.find(item => item.id === selectedReciter)?.name || 'Kur’an-ı Kerim',
+      album: 'Hayat Rehberi · Ezber Asistanı'
+    }), {
+      onPlay: () => {
+        if (!audio.src) return;
+        void audio.play().then(() => setIsPlaying(true)).catch(() => {});
+      },
+      onPause: () => {
+        audio.pause();
+        setIsPlaying(false);
+      },
+      onStop: () => stopAudio()
+    });
+  }, [currentSurah, selectedReciter]);
   const playRequestRef = useRef(0);
   const segmentAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackSpeedRef = useRef<number>(playbackSpeed);
