@@ -2067,10 +2067,40 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                         </button>
                       </div>
                       <p className="text-xs text-slate-400">Eksiksiz dinlenen turlar sayılır. Kayıtlar yalnızca bu cihazda saklanır.</p>
-                      <label className="flex justify-between items-center gap-3 text-sm">
-                        <span>Takibi etkinleştir</span>
-                        <input type="checkbox" checked={cycle.enabled} onChange={e => { startedCycleAyahRef.current = null; updateCycle({ ...cycleRef.current, enabled: e.target.checked, surah: 1, ayah: 0, completedSurahs: 0 }); }} className="accent-emerald-500 w-4 h-4" />
-                      </label>
+                      {/* Modern switch: save immediately and dismiss the panel after selection. */}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={cycle.enabled}
+                        aria-label="Dinleme takibini aç veya kapat"
+                        onClick={() => {
+                          const nextEnabled = !cycleRef.current.enabled;
+                          startedCycleAyahRef.current = null;
+                          // Preserve completed tours; a new tracking session starts from Fâtiha.
+                          updateCycle({ ...cycleRef.current, enabled: nextEnabled, surah: 1, ayah: 0, completedSurahs: 0 });
+                          setCycleMenuOpen(false);
+                        }}
+                        className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${
+                          cycle.enabled
+                            ? 'bg-emerald-500/10 border-emerald-500/35 hover:bg-emerald-500/15'
+                            : 'bg-white/5 border-white/15 hover:bg-white/10'
+                        }`}
+                      >
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-sm font-semibold text-slate-100">Dinleme takibi</span>
+                          <span className={`text-xs ${cycle.enabled ? 'text-emerald-300' : 'text-slate-400'}`}>
+                            {cycle.enabled ? 'Açık' : 'Kapalı'}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className={`inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors duration-200 ${
+                            cycle.enabled ? 'bg-emerald-500' : 'bg-slate-600'
+                          }`}
+                        >
+                          <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${cycle.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </span>
+                      </button>
                       {cycle.enabled && (
                         <>
                           <div className="text-2xl font-bold text-emerald-300">{cycle.total} <span className="text-xs font-normal text-slate-300">tam tur</span></div>
