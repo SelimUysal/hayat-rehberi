@@ -9,6 +9,7 @@ async function openAccount(page:Page) {
 async function authenticate(page:Page,email:string,register=false,choice:'merge'|'cloud'='cloud') {
   await openAccount(page);
   await expect(page.getByRole('button',{name:'Google ile giriş yap',exact:true})).toBeEnabled();
+  await page.getByText('E-posta ve şifreyle devam et',{exact:true}).click();
   if(register)await page.getByRole('button',{name:'Yeni hesap oluştur',exact:true}).click();
   await page.getByLabel('E-posta',{exact:true}).fill(email);
   await page.getByLabel('Şifre',{exact:true}).fill(password);
