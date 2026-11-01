@@ -1,0 +1,66 @@
+name: Investigate SadaQuran browser playback
+on:
+  push:
+    paths:
+      - '.github/workflows/investigate-sadaquran.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm install --legacy-peer-deps
+      - name: Check AWE transport stream codecs and playlist
+        shell: bash
+        run: |
+          set -e
+          python3 - <<'PY'
+          import urllib.request,subprocess
+          url='https://manifest.aweradio.app/sadaquran/music/aac.m3u8'
+          req=urllib.request.Request(url, headers={'Origin':'https://selimuysal.github.io', 'User-Agent':'Mozilla/5.0'})
+          with urllib.request.urlopen(req,timeout=20) as r:
+            text=r.read().decode()
+          segments=[s.strip() for s in text.splitlines() if s.strip().startswith('https://hls.aweradio.app/')]
+          print('SEGMENTS:',len(segments),flush=True)
+          for seg in segments[:1]:
+            with urllib.request.urlopen(urllib.request.Request(seg,headers={'Origin':'https://selimuysal.github.io'}),timeout=20) as r:
+              data=r.read()
+              print('SEGMENT_HEADER:',r.headers.get('content-type'),'BYTES:',len(data),flush=True)
+            with open('/tmp/sada-segment.ts','wb') as f:f.write(data)
+            p=subprocess.run(['ffprobe','-v','error','-show_entries','stream=codec_type,codec_name,sample_rate,channels,profile','-of','default=noprint_wrappers=1','/tmp/sada-segment.ts'],capture_output=True,text=True)
+            print('FFPROBE_EXIT:',p.returncode,'STDOUT:',p.stdout,'STDERR:',p.stderr[:1500],flush=True)
+          PY
+      - name: Install headless browser
+        run: |
+          npm install --no-save --legacy-peer-deps playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run Chromium against deployed site
+        shell: bash
+        run: |
+          cat >/tmp/probe.cjs <<'JS'
+          const { chromium } = require(process.cwd() + '/node_modules/playwright');
+          (async () => {
+            const browser = await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+            const page=await browser.newPage();
+            page.on('console',msg=>{if(['warning','error'].includes(msg.type()))console.log('CONSOLE',msg.type(),msg.text().slice(0,600))});
+            page.on('requestfailed',request=>{if(/aweradio|hls/.test(request.url()))console.log('REQUEST_FAILED',request.url().slice(0,200),request.failure()?.errorText)});
+            page.on('response',res=>{if(/aweradio/.test(res.url()))console.log('NETWORK',res.status(),res.url().slice(0,220),res.headers()['access-control-allow-origin']||'')});
+            await page.goto('https://selimuysal.github.io/hayat-rehberi/#radio',{waitUntil:'domcontentloaded',timeout:40000});
+            await page.waitForTimeout(1800);
+            console.log('BROWSER_CAPABILITIES:',await page.evaluate(()=>{let a=document.createElement('audio');return {userAgent:navigator.userAgent, hls:a.canPlayType('application/vnd.apple.mpegurl'),mse:!!window.MediaSource, mp4aac:MediaSource?.isTypeSupported('audio/mp4; codecs="mp4a.40.2"')}}));
+            await page.getByRole('button',{name:/Canlı dinle|Yeniden bağlan/}).click();
+            for(let k=0;k<8;k++){
+              await page.waitForTimeout(1750);
+              console.log('TICK',k,await page.evaluate(()=>{const a=document.querySelector('audio');return{readyState:a?.readyState,networkState:a?.networkState,errorCode:a?.error?.code,paused:a?.paused,time:a?.currentTime,src:a?.currentSrc?.slice(0,140),status:document.body.innerText.match(/Dinleniyor|Bağlanıyor|Bağlantı sorunu|Dinlemeye hazır/)?.[0],error:document.body.innerText.match(/Tarayıcı canlı sesi[^\n]+|Canlı yayın akışına ulaşılamadı[^\n]+/)?.[0]}}));
+            }
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node /tmp/probe.cjs
