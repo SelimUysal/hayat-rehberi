@@ -30,9 +30,10 @@ interface MobileModeProps {
   targetSurahId?: number | null;
   themeMode?: 'dark' | 'emerald';
   active?: boolean;
+  onPlaybackChange?: (playing: boolean) => void;
 }
 
-export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode = 'dark', active = true }) => {
+export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode = 'dark', active = true, onPlaybackChange }) => {
   const isDark = themeMode === 'dark';
   // Durumlar
   const initialSessionRef = useRef(readMobileEzberSession());
@@ -65,6 +66,10 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
   // Çalma Durumu
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  useEffect(() => {
+    onPlaybackChange?.(isPlaying);
+  }, [isPlaying, onPlaybackChange]);
+  useEffect(() => () => onPlaybackChange?.(false), [onPlaybackChange]);
   const [currentlyPlayingVerseNum, setCurrentlyPlayingVerseNum] = useState<number | null>(null);
   const [playMode, setPlayMode] = useState<'verse' | 'full'>(initialSession?.mode ?? 'verse');
   const [pausedSession, setPausedSession] = useState(() => initialSession?.wasPlaying ? initialSession : null);

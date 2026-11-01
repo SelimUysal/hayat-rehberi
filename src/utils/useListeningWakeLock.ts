@@ -25,18 +25,18 @@ function getWakeLockProvider(): WakeLockProviderLike | null {
  * Screen wake lock is an opt-in reading aid, never a requirement for audio.
  * Release it when paused, hidden, or unmounted; reacquire on return to the tab.
  */
-export function useListeningWakeLock(isPlaying: boolean) {
+export function useListeningWakeLock(isPlaying: boolean, storageKey = STORAGE_KEY) {
   const [enabled, setEnabled] = useState<boolean>(() => {
-    try { return localStorage.getItem(STORAGE_KEY) === '1'; }
+    try { return localStorage.getItem(storageKey) === '1'; }
     catch { return false; }
   });
   const [status, setStatus] = useState<ListeningWakeStatus>('off');
   const supported = getWakeLockProvider() !== null;
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0'); }
+    try { localStorage.setItem(storageKey, enabled ? '1' : '0'); }
     catch { /* Storage failure must not interrupt the recitation. */ }
-  }, [enabled]);
+  }, [enabled, storageKey]);
 
   useEffect(() => {
     if (!enabled) { setStatus('off'); return; }

@@ -12,9 +12,10 @@ import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiag
 interface DesktopModeProps {
   targetSurahId?: number | null;
   themeMode?: 'dark' | 'emerald';
+  onPlaybackChange?: (playing: boolean) => void;
 }
 
-export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMode = 'dark' }) => {
+export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMode = 'dark', onPlaybackChange }) => {
   const isDark = themeMode === 'dark';
   // Durumlar
   const [currentSurah, setCurrentSurah] = useState<number>(() => {
@@ -46,6 +47,10 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
 
   // Çalma Durumu
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  useEffect(() => {
+    onPlaybackChange?.(isPlaying);
+  }, [isPlaying, onPlaybackChange]);
+  useEffect(() => () => onPlaybackChange?.(false), [onPlaybackChange]);
   const [activeVerseNum, setActiveVerseNum] = useState<number | null>(null);
   const [activeWordKey, setActiveWordKey] = useState<string | null>(null);
 
