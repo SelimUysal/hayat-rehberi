@@ -329,3 +329,32 @@ test('Android previous-track also wraps from Fâtiha to Nâs and crosses Bakara 
     await page.cleanup();
   }
 });
+
+
+test('counter switch uses accessible toggle, saves selection and closes panel automatically', async () => {
+  const page = await mountListening(1, 0, { enabled: false, total: 2, surah: 1, ayah: 0, completedSurahs: 0 });
+  try {
+    const open = () => page.container.querySelector('button[aria-label="Kur\'an dinleme sayacı"]') as HTMLButtonElement | null;
+    const panel = () => page.container.querySelector('[role="region"][aria-label="Kur\'an dinleme sayacı ayarları"]') as HTMLElement | null;
+    const toggle = () => page.container.querySelector('button[role="switch"][aria-label="Dinleme takibini aç veya kapat"]') as HTMLButtonElement | null;
+
+    await React.act(async () => { open()?.click(); });
+    assert.ok(panel());
+    assert.equal(toggle()?.getAttribute('aria-checked'), 'false');
+    await React.act(async () => { toggle()?.click(); });
+    assert.equal(panel(), null, 'panel must close immediately after enabling');
+    let saved = JSON.parse(localStorage.getItem('quran_listening_full_cycle_v1') || '{}');
+    assert.equal(saved.enabled, true);
+    assert.equal(saved.total, 2, 'completed tours must remain unchanged');
+
+    await React.act(async () => { open()?.click(); });
+    assert.equal(toggle()?.getAttribute('aria-checked'), 'true');
+    await React.act(async () => { toggle()?.click(); });
+    assert.equal(panel(), null, 'panel must close immediately after disabling');
+    saved = JSON.parse(localStorage.getItem('quran_listening_full_cycle_v1') || '{}');
+    assert.equal(saved.enabled, false);
+    assert.equal(saved.total, 2, 'turning off tracking must not erase the counter');
+  } finally {
+    await page.cleanup();
+  }
+});
