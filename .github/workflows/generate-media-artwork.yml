@@ -1,0 +1,48 @@
+name: Keep Hayat Rehberi media artwork in sync with header icon
+on:
+  push:
+    paths:
+      - 'public/favicon.svg'
+      - '.github/workflows/generate-media-artwork.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render-artwork:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Render original SVG into high-resolution notification PNG
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check "CairoSVG==2.7.1" "Pillow>=10,<12"
+          python - <<'PY'
+          import io
+          from pathlib import Path
+          import cairosvg
+          from PIL import Image
+          svg = Path('public/favicon.svg')
+          image_bytes = cairosvg.svg2png(url=str(svg), output_width=512, output_height=512)
+          picture = Image.open(io.BytesIO(image_bytes)).convert('RGBA')
+          # A paletted PNG keeps the original shapes and colors with a compact download.
+          picture = picture.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+          picture.save('public/hayat-media-icon.png', optimize=True)
+          print('New media artwork:', Path('public/hayat-media-icon.png').stat().st_size, 'bytes')
+          PY
+      - name: Commit image if changed
+        shell: bash
+        run: |
+          git add public/hayat-media-icon.png
+          if git diff --cached --quiet; then
+            echo "Media artwork already up to date"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Generate original header SVG as notification-safe PNG"
+            git push
+          fi
