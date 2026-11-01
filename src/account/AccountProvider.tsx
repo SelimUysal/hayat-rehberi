@@ -198,20 +198,42 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
         <div className="flex items-center justify-between gap-3 mb-4"><h2 id="account-title" className="text-xl font-bold">{user ? 'Hesabım' : 'Hayat Rehberi hesabı'}</h2>
           <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>{autoCloseRef.current=null;setOpened(false);}} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
         {user ? <>
-          <p className="font-semibold break-words">{user.displayName || 'Hayat Rehberi kullanıcısı'}</p><p className="text-sm text-slate-600 dark:text-stone-400 break-all mb-4">{user.email}</p>
-          {state.needsImport ? <div className="space-y-3">
-            <h3 className="font-bold">Bu cihazdaki mevcut kayıtları ne yapalım?</h3>
-            <p className="text-sm text-slate-700 dark:text-stone-300">Ezberler, ders ilerlemesi, yer imleri, kaza sayaçları ve hedefler bu hesapla eşitlenebilir. Cihazdaki önceki kayıtlar ayrıca yedekte tutulur.</p>
-            <button className={button} disabled={busy} onClick={()=>void chooseImport('merge')}>Bu cihazdaki kayıtları da hesabıma ekle</button>
-            <button className={button} disabled={busy} onClick={()=>void chooseImport('cloud')}>Yalnızca hesabımdaki kayıtları aç</button>
-          </div> : <>
-            <p className="flex gap-2 items-center text-sm mb-3" role="status">{state.offline ? <CloudOff className="w-4 h-4 shrink-0"/> : <Cloud className="w-4 h-4 shrink-0"/>}{status}</p>
-            <p className="text-xs text-slate-600 dark:text-stone-400 mb-4">Aynı hesapla başka cihazdan giriş yapınca kalıcı kayıtların yüklenir. Ses kayıtları, konum, hata raporları ve anlık oynatma bilgileri bu eşitlemeye dahil değildir. Misafirken oluşturduğun ses kayıtları misafir kullanımında kalır.</p>
-            <div className="space-y-2">
-              <button className={button} disabled={busy || state.syncing || state.delegated} onClick={()=>void action(async()=>{await storeRef.current?.retry();},'sync')}>Şimdi eşitle</button>
-              {!user.providerData.some(p=>p.providerId === 'google.com') && <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');},'link')}>Google hesabını bu hesaba bağla</button>}
-              {!user.emailVerified && <button className={button} disabled={busy} onClick={()=>void action(async()=>{await runtimeRef.current!.verify(user);setMessage('Doğrulama bağlantısı gönderildi.');})}>Doğrulama e-postasını gönder</button>}
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-700 dark:bg-white/5">
+            <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-lg font-bold text-white dark:bg-emerald-600">{accountAvatarInitial(user)}</div>
+            <div className="min-w-0">
+              <p className="break-words font-semibold">{user.displayName || 'Hayat Rehberi kullanıcısı'}</p>
+              <p className="break-all text-sm text-slate-600 dark:text-stone-400">{user.email}</p>
+              <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">{user.providerData.some(p=>p.providerId === 'google.com') ? 'Google hesabı bağlı' : 'E-posta hesabıyla giriş yapıldı'}</p>
             </div>
+          </div>
+          {state.needsImport ? <div className="space-y-3">
+            <h3 className="text-base font-semibold">Bu cihazdaki kayıtları nasıl kullanmak istersin?</h3>
+            <p className="text-sm text-slate-700 dark:text-stone-300">Bu cihazda önceden oluşturulmuş ilerleme kayıtları bulundu. Bir defalık seçim yapman gerekiyor; kayıtlar silinmeden önceki kopyaları cihazda saklanır.</p>
+            <div className="space-y-2">
+              <button className={button} disabled={busy} onClick={()=>void chooseImport('merge')}>Bu cihazdaki kayıtları da hesabıma ekle</button>
+              <p className="px-1 text-xs text-slate-600 dark:text-stone-400">Buradaki ezber ve ilerleme kayıtlarını hesabındakilerle birleştirmeye çalışır. Farklı notlar için gerekirse sana sorulur.</p>
+            </div>
+            <div className="space-y-2">
+              <button className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:bg-white/5 dark:text-stone-100 dark:hover:bg-white/10" disabled={busy} onClick={()=>void chooseImport('cloud')}>Yalnızca hesabımdaki kayıtları aç</button>
+              <p className="px-1 text-xs text-slate-600 dark:text-stone-400">Bu cihazdaki ayrı kayıtları hesabına eklemeden, hesabında kayıtlı ilerlemeni açar. Önceki cihaz kayıtların yedekte tutulur.</p>
+            </div>
+          </div> : <>
+            <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-700 dark:bg-white/5">
+              <p className="flex items-start gap-2 text-sm font-medium" role="status">{state.offline ? <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"/> : <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400"/>}<span>{status}</span></p>
+              <p className="mt-2 text-xs text-slate-600 dark:text-stone-400">Ezber ve ilerleme kayıtların internet bağlantısı olduğunda otomatik eşitlenir. Dosya indirmen gerekmez.</p>
+              <button type="button" className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:hover:bg-stone-700" disabled={busy || state.syncing || state.delegated} onClick={()=>void action(async()=>{await storeRef.current?.retry();},'sync')}><Cloud className="h-4 w-4" aria-hidden="true"/>Şimdi eşitle</button>
+            </div>
+            {(!user.providerData.some(p=>p.providerId === 'google.com') || !user.emailVerified) && <div className="mt-3 space-y-2">
+              {!user.providerData.some(p=>p.providerId === 'google.com') && <div>
+                <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');},'link')}>Google hesabını bu hesaba bağla</button>
+                <p className="mt-1 text-xs text-slate-600 dark:text-stone-400">Mevcut kayıtlarını kaybetmeden Google ile de giriş yapabilmek için.</p>
+              </div>}
+              {!user.emailVerified && <div>
+                <button className={button} disabled={busy} onClick={()=>void action(async()=>{await runtimeRef.current!.verify(user);setMessage('Doğrulama bağlantısı gönderildi.');})}>Doğrulama e-postasını gönder</button>
+                <p className="mt-1 text-xs text-slate-600 dark:text-stone-400">E-posta adresinin sana ait olduğunu onaylamak için.</p>
+              </div>}
+            </div>}
+            <p className="mt-3 text-xs text-slate-500 dark:text-stone-400">Ses kayıtları, konum, hata raporları ve anlık oynatma durumu buluta aktarılmaz.</p>
           </>}
           {state.conflicts.map(key=><div key={key} className="mt-4 rounded-xl border border-amber-300 bg-amber-50/60 p-3 text-sm space-y-2 dark:border-amber-800 dark:bg-transparent">
             <p><strong>{labels[key] || 'Günlük sayaç'}</strong> iki cihazda farklı değiştirilmiş. İki kayıttan hangisini kullanacağımızı seç.</p>
@@ -222,13 +244,19 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
           <p className="text-xs text-slate-600 dark:text-stone-400 mt-4">Çıkış yaptığında bekleyen değişiklikler bu cihazda hesabına ait olarak korunur.</p>
           <button className="mt-3 w-full rounded-xl border border-stone-300 py-3 text-sm text-slate-700 hover:bg-stone-100 dark:border-stone-700 dark:text-stone-100 dark:hover:bg-white/5" disabled={busy} onClick={()=>void action(async()=>{storeRef.current?.exportBackup();await runtimeRef.current!.logout();setMessage('Misafir kullanımına geçildi.');})}>{state.needsImport ? 'Misafir kullanıma dön' : 'Hesaptan çıkış yap'}</button>
         </> : <>
-          <p className="text-sm text-slate-700 dark:text-stone-300 mb-4">İlerlemeni hesabında sakla; telefon veya bilgisayar değiştirdiğinde kaldığın yerden devam et. Hesapsız kullanım da devam eder.</p>
+          <p className="mb-4 text-sm leading-relaxed text-slate-700 dark:text-stone-300">Ezberlerini ve ilerleme kayıtlarını telefonunla bilgisayarın arasında kullanmak için giriş yapabilirsin.</p>
           {!accountReady && <p role="status" className="mb-3 text-sm text-slate-600 dark:text-stone-400">Hesap bağlantısı hazırlanıyor. Uygulamayı kullanmaya devam edebilirsin.</p>}
           <button className={button} disabled={busy || !accountReady} onClick={()=>void google()}>Google ile giriş yap</button>
-          <button type="button" disabled={busy} onClick={()=>{autoCloseRef.current=null;setMessage('');setOpened(false);}} className="mt-3 w-full rounded-xl border border-stone-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-stone-100 dark:border-stone-700 dark:text-stone-100 dark:hover:bg-white/5">Hesap açmadan devam et</button>
-          <details className="mt-4 rounded-xl border border-stone-200 dark:border-stone-700">
-            <summary className="cursor-pointer p-3 text-sm font-medium text-emerald-800 dark:text-emerald-200">E-posta ve şifreyle devam et</summary>
-            <div className="px-3 pb-3">
+          <p className="mt-1.5 text-center text-xs text-slate-600 dark:text-stone-400">Mevcut Google hesabını seçmen yeterli; yeni bir şifre oluşturmana gerek yok.</p>
+          <button type="button" disabled={busy} onClick={()=>{autoCloseRef.current=null;setMessage('');setOpened(false);}} className="mt-4 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:bg-white/5 dark:text-stone-100 dark:hover:bg-white/10">Hesap açmadan devam et</button>
+          <p className="mt-1.5 text-center text-xs text-slate-600 dark:text-stone-400">Kayıtların bu cihazda kalır; diğer cihazlara otomatik aktarılmaz.</p>
+          <details className="group mt-5 rounded-xl border border-stone-200 bg-stone-50/60 dark:border-stone-700 dark:bg-white/5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-sm font-medium text-emerald-800 marker:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-200 [&::-webkit-details-marker]:hidden">
+              <span className="flex flex-col gap-0.5"><span>E-posta ve şifreyle devam et</span><span className="text-xs font-normal text-slate-600 dark:text-stone-400">Google hesabı kullanmak istemeyenler için</span></span>
+              <span aria-hidden="true" className="text-lg text-slate-500 group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="border-t border-stone-200 px-3 pb-4 pt-3 dark:border-stone-700">
+              <p className="mb-3 text-xs text-slate-600 dark:text-stone-300">{mode === 'register' ? 'E-posta adresin ve belirleyeceğin şifreyle yeni hesap oluşturabilirsin.' : 'Daha önce oluşturduğun hesabınla giriş yapabilirsin.'}</p>
           <form onSubmit={submitEmail} className="space-y-3">
             <label className="block text-sm">E-posta<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-slate-900 dark:border-stone-700 dark:bg-black/20 dark:text-stone-100"/></label>
             <label className="block text-sm">Şifre<input type="password" required minLength={mode === 'register' ? 8 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-slate-900 dark:border-stone-700 dark:bg-black/20 dark:text-stone-100"/></label>
@@ -241,15 +269,25 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
             </div>
           </details>
         </>}
-        {!state.needsImport && <details className="mt-4 rounded-xl border border-stone-200 dark:border-stone-700">
-          <summary className="cursor-pointer p-3 text-sm text-slate-600 dark:text-stone-300">Yedekleme ve diğer seçenekler</summary>
-          <div className="space-y-3 px-3 pb-3">
-            <p className="text-xs text-slate-600 dark:text-stone-300">Giriş yaptığında kayıtların otomatik eşitlenir. Dosya yedeği yalnızca ek güvence veya eski kayıtları geri yüklemek içindir.</p>
-            <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
-            <label className="block text-sm text-slate-700 dark:text-stone-300">Eski yedekten kayıt ekle
-          <input type="file" accept="application/json,.json" disabled={busy || !accountReady} className="mt-2 block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-medium file:text-emerald-800 dark:file:bg-emerald-950 dark:file:text-emerald-100" onChange={event=>{void restore(event.target.files?.[0]);event.target.value='';}}/>
-          <span className="mt-1 block text-xs text-slate-500 dark:text-stone-500">Mevcut kayıtlarla birleştirilir. Farklı notlar otomatik değiştirilmez.</span>
-        </label>
+        {!state.needsImport && <details className="group mt-4 rounded-xl border border-stone-200 bg-stone-50/60 dark:border-stone-700 dark:bg-white/5">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-sm font-medium text-slate-800 marker:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-stone-100 [&::-webkit-details-marker]:hidden">
+            <span className="flex flex-col gap-0.5"><span>Yedekleme ve diğer seçenekler</span><span className="text-xs font-normal text-slate-600 dark:text-stone-400">Dosya indir veya eski kayıtlarını geri yükle</span></span>
+            <span aria-hidden="true" className="text-lg text-slate-500 group-open:rotate-180">⌄</span>
+          </summary>
+          <div className="space-y-4 border-t border-stone-200 px-3 pb-4 pt-3 dark:border-stone-700">
+            <p className="text-xs leading-relaxed text-slate-600 dark:text-stone-300">{user ? 'Hesabındaki kalıcı ilerleme otomatik eşitlenir. Dosya yedeği ek bir güvence sağlar.' : 'Hesapsız kullanımda kayıtların bu cihazda kalır. Dosya yedeğini saklarsan gerektiğinde geri yükleyebilirsin.'}</p>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">1. Kayıtlarının dosya yedeğini al</p>
+              <p className="text-xs text-slate-600 dark:text-stone-400">İlerlemenin bir kopyasını cihazına indirir. Bu işlem mevcut kayıtlarını silmez.</p>
+              <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
+            </div>
+            <div className="space-y-2 border-t border-stone-200 pt-3 dark:border-stone-700">
+              <p className="text-sm font-semibold">2. Eski yedeğini geri yükle</p>
+              <p className="text-xs text-slate-600 dark:text-stone-400">Daha önce Hayat Rehberi'nden indirdiğin JSON yedek dosyasını seç. Kayıtlar doğrulandıktan sonra mevcut ilerlemeyle birleştirilir; farklı notlar otomatik değiştirilmez.</p>
+              <label className="block text-sm font-medium text-slate-700 dark:text-stone-300">Yedek dosyası seç
+                <input type="file" accept="application/json,.json" disabled={busy || !accountReady} className="mt-2 block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-medium file:text-emerald-800 dark:file:bg-emerald-950 dark:file:text-emerald-100" onChange={event=>{void restore(event.target.files?.[0]);event.target.value='';}}/>
+              </label>
+            </div>
           </div>
         </details>}
         {(message || state.error) && <p role="alert" className="mt-4 text-sm text-amber-800 dark:text-amber-200">{message || state.error}</p>}

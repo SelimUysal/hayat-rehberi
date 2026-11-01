@@ -219,3 +219,38 @@ test('signed-in email users have a colored initial avatar distinct from signed-o
     assert.ok(button().querySelector('svg'));
   } finally {await p.cleanup();}
 });
+
+test('onboarding clearly explains Google, guest mode and file backups without touching existing progress',async()=>{
+  const p=await page(()=>new Promise(()=>{}));
+  try {
+    p.dom.window.localStorage.setItem('namaz_memorized_ids','["fatiha"]');
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const dialog=p.dom.window.document.querySelector('[role="dialog"]')!;
+    assert.match(dialog.textContent!,/yeni bir şifre oluşturmana gerek yok/);
+    assert.match(dialog.textContent!,/diğer cihazlara otomatik aktarılmaz/);
+    const sections=[...dialog.querySelectorAll('details')];
+    const email=sections.find(x=>x.querySelector('summary')?.textContent?.includes('E-posta ve şifreyle devam et'))!;
+    const backup=sections.find(x=>x.querySelector('summary')?.textContent?.includes('Yedekleme ve diğer seçenekler'))!;
+    assert.ok(email && backup);
+    assert.equal(email.open,false);
+    assert.equal(backup.open,false);
+    assert.ok(email.querySelector('form input[type=password]'));
+    assert.ok(backup.querySelector('input[type=file]'));
+    assert.match(backup.textContent!,/Bu işlem mevcut kayıtlarını silmez/);
+    assert.equal(p.dom.window.localStorage.getItem('namaz_memorized_ids'),'["fatiha"]');
+  } finally {await p.cleanup();}
+});
+test('signed-in account explains sync and keeps manual retry and backups available',async()=>{
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:Date.now(),delegated:false};
+  const runtime={store:{state,subscribe:()=>()=>{},activate:async()=>{},stop:()=>{}},watch:(callback:(user:any)=>void)=>{callback({uid:'alice',email:'alice@example.test',displayName:'Alice',emailVerified:true,providerData:[{providerId:'google.com'}]});return ()=>{};}} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const dialog=p.dom.window.document.querySelector('[role="dialog"]')!;
+    assert.match(dialog.textContent!,/Ezber ve ilerleme kayıtların internet bağlantısı olduğunda otomatik eşitlenir/);
+    assert.ok([...dialog.querySelectorAll('button')].some(b=>b.textContent==='Şimdi eşitle'));
+    assert.ok([...dialog.querySelectorAll('button')].some(b=>b.textContent==='Hesaptan çıkış yap'));
+    assert.ok([...dialog.querySelectorAll('details')].some(d=>d.querySelector('input[type=file]')));
+    assert.ok([...dialog.querySelectorAll('details button')].some(b=>b.textContent==='Cihaz yedeğini indir'));
+  } finally {await p.cleanup();}
+});
