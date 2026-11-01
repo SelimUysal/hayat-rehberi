@@ -29,10 +29,14 @@ jobs:
             text=r.read().decode()
           segments=[s.strip() for s in text.splitlines() if s.strip().startswith('https://hls.aweradio.app/')]
           print('SEGMENTS:',len(segments),flush=True)
-          for seg in segments[:1]:
+          for seg in segments[-5:]:
+            try:
             with urllib.request.urlopen(urllib.request.Request(seg,headers={'Origin':'https://selimuysal.github.io'}),timeout=20) as r:
               data=r.read()
-              print('SEGMENT_HEADER:',r.headers.get('content-type'),'BYTES:',len(data),flush=True)
+              print('SEGMENT_STATUS:',r.status,'BYTES:',len(data),flush=True)
+          except Exception as e:
+            print('SEGMENT_FAILURE:',str(e),flush=True)
+            continue
             with open('/tmp/sada-segment.ts','wb') as f:f.write(data)
             p=subprocess.run(['ffprobe','-v','error','-show_entries','stream=codec_type,codec_name,sample_rate,channels,profile','-of','default=noprint_wrappers=1','/tmp/sada-segment.ts'],capture_output=True,text=True)
             print('FFPROBE_EXIT:',p.returncode,'STDOUT:',p.stdout,'STDERR:',p.stderr[:1500],flush=True)
