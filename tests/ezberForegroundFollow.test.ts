@@ -61,6 +61,10 @@ test('foreground events resync the existing player without play(), a new Audio o
     setIsPlaying:(value:boolean)=>{playing=value;},setCurrentlyPlayingVerseNum:(value:number)=>{verse=value;},
     setSelectedVerseNum:(value:number)=>{selected=value;},requestEzberLiveState:()=>{requests++;},
     logEzber:()=>{},clearInterval:()=>{cleared++;},
+    saveMobileEzberSession:()=>{},readMobileEzberSession:()=>null,
+    setPausedSession:()=>{},setResumeAvailable:()=>{},
+    selectedVerseNumRef:{current:3},selectedReciterRef:{current:'ar.mahermuaiqly'},
+    playbackSpeedRef:{current:1},lastPositionRef:{current:37},playModeRef:{current:'verse'},
   });
   try {
     document.hidden=true;document.dispatchEvent(new Event('visibilitychange'));
