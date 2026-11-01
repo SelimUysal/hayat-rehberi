@@ -62,7 +62,8 @@ export class AccountSyncStore {
     if (!this.locks) throw new Error('Bu tarayıcı güvenli çoklu sekme eşitlemesini desteklemiyor. Güncel bir tarayıcı kullanabilir veya misafir olarak devam edebilirsin.');
     let heldRelease:(()=>void)|undefined;
     const attempt = () => new Promise<boolean>((resolve,reject) => {
-      this.lockTask = this.locks.request('hayat-account-sync',{ifAvailable:true},async lock => {
+      // A tab owns one writer per account. Unrelated accounts must not block each other.
+      this.lockTask = this.locks.request(`hayat-account-sync:${uid}`,{ifAvailable:true},async lock => {
         if (!lock || generation!==this.generation) {resolve(false);return;}
         this.lockUid=uid;
         await new Promise<void>(release => {heldRelease=release;this.releaseLock=release;resolve(true);});

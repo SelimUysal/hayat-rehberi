@@ -1,7 +1,12 @@
 name: Firebase account and synchronization checks
 on:
-  push:
   pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+concurrency:
+  group: "account-sync-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
