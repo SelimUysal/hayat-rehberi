@@ -8,26 +8,38 @@ async function openAccount(page:Page) {
     await page.getByRole('button',{name:/Hesaba giriş yap|Hesabım ve eşitleme/}).click();
   await expect(dialog).toBeVisible();
 }
-async function chooseImportIfNeeded(page:Page,choice:'merge'|'cloud') {
+async function chooseImportIfNeeded(page:Page,choice:'merge'|'cloud'):Promise<boolean> {
   const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
   const merge=dialog.getByRole('button',{name:'Bu cihazdaki kayıtları da hesabıma ekle',exact:true});
   const cloud=dialog.getByRole('button',{name:'Yalnızca hesabımdaki kayıtları aç',exact:true});
   const status=dialog.getByRole('status');
-  // Auth state can arrive before the one-time import decision is rendered.
-  // Wait for either the import choices, the normal sync status, or auto-close.
+  // Auth can arrive before the one-time import decision is rendered.
   await expect.poll(async()=>{
     if(!await dialog.isVisible().catch(()=>false))return 'closed';
     if(await merge.isVisible().catch(()=>false) && await cloud.isVisible().catch(()=>false))return 'choice';
     if(await status.count())return 'status';
     return 'loading';
   },{timeout:30_000}).toMatch(/^(closed|choice|status)$/);
-  if(await merge.isVisible().catch(()=>false) && await cloud.isVisible().catch(()=>false)) {
-    await (choice==='merge'?merge:cloud).click();
-    await expect.poll(async()=>{
-      if(!await dialog.isVisible().catch(()=>false))return 'closed';
-      return await status.count()?'status':'loading';
-    },{timeout:30_000}).toMatch(/^(closed|status)$/);
-  }
+  if(!await merge.isVisible().catch(()=>false) || !await cloud.isVisible().catch(()=>false))return false;
+
+  // Choosing merge/cloud starts the first cloud synchronization itself.
+  // Do not immediately call sync() again: the success effect may be closing
+  // this dialog, and reopening it during that transition races with React.
+  await (choice==='merge'?merge:cloud).click();
+  const outcome=async():Promise<string>=>{
+    if(!await dialog.isVisible().catch(()=>false))return 'closed';
+    if(!await status.count())return 'loading';
+    const message=await status.innerText({timeout:1_000}).catch(()=>'');
+    if(message.includes('Kayıtların eşitlendi.'))return 'synced';
+    if(/başka açık sekmede|diğer açık sekmede/.test(message))return 'delegated';
+    if(/Cihaz kayıtları korunuyor|Çevrimdışı:/.test(message))return 'error';
+    return 'waiting';
+  };
+  await expect.poll(outcome,{timeout:60_000}).toMatch(/^(closed|synced|delegated|error)$/);
+  const result=await outcome();
+  if(result==='error')throw new Error(await status.innerText({timeout:1_000}).catch(()=>'İlk bulut eşitlemesi tamamlanamadı.'));
+  if(result==='synced')await expect(dialog).toBeHidden({timeout:10_000});
+  return true;
 }
 async function authenticate(page:Page,email:string,register=false,choice:'merge'|'cloud'='cloud') {
   await openAccount(page);
@@ -38,8 +50,8 @@ async function authenticate(page:Page,email:string,register=false,choice:'merge'
   await page.getByLabel('Şifre',{exact:true}).fill(password);
   await page.getByRole('button',{name:register?'Hesap oluştur':'E-posta ile giriş yap',exact:true}).click();
   await expect(page.getByRole('button',{name:/^(Hesaptan çıkış yap|Misafir kullanıma dön)$/})).toBeVisible();
-  await chooseImportIfNeeded(page,choice);
-  await sync(page);
+  const importHandledSync=await chooseImportIfNeeded(page,choice);
+  if(!importHandledSync)await sync(page);
 }
 async function sync(page:Page) {
   await openAccount(page);
