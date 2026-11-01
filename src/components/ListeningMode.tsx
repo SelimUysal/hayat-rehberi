@@ -829,7 +829,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       previousPlayer.onended = null;
       previousPlayer.onloadedmetadata = null;
       previousPlayer.onerror = null;
-      audioRef.current = ready;
+      audioRef.current = player;
       if (ready === preloadNextAudioRef.current) preloadNextAudioRef.current = previousPlayer;
       else preloadAfterNextAudioRef.current = previousPlayer;
       setAudioEpoch((n) => n + 1);

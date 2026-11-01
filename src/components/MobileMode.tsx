@@ -111,7 +111,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   selectedVerseNumRef.current = selectedVerseNum;
   selectedReciterRef.current = selectedReciter;
   sessionSpeedRef.current = playbackSpeed;
-  const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickIntervalRef = useRef<number | null>(null);
   const syncFollowRef = useRef<(() => void) | null>(null);
   const lastValidWordRef = useRef<number | null>(null);
   const resumeFollowTimerRef = useRef<(() => void) | null>(null);
@@ -525,7 +525,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         publishEzberLiveState({
           surahId: currentSurah, verseNum, reciter: selectedReciterRef.current,
           playbackSpeed: playbackSpeedRef.current, positionSeconds: cur,
-          wasPlaying: true, mode, mode, updatedAt: Date.now(),
+          wasPlaying: true, mode, updatedAt: Date.now(),
           durationSeconds: Number.isFinite(player.duration) ? player.duration : undefined,
         });
       }

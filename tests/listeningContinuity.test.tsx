@@ -137,7 +137,7 @@ const { createRoot } = await import('react-dom/client');
 const { ListeningMode } = await import('../src/components/ListeningMode');
 
 function currentAudio(): FakeAudio {
-  const player = FakeAudio.all.findLast((audio) => !audio.paused && !!audio.src);
+  const player = FakeAudio.all.slice().reverse().find((audio) => !audio.paused && !!audio.src);
   assert.ok(player, 'there must be an actively playing audio stream');
   return player;
 }
@@ -228,7 +228,7 @@ test('buffered next-ayah handoff starts the incoming player before pausing the o
     });
     const incoming = currentAudio();
     assert.equal(incoming.src, 'https://audio.test/1/2.mp3');
-    const lastStart = FakeAudio.handoffSnapshots.findLast((snap) => snap.incoming.endsWith('/1/2.mp3'));
+    const lastStart = FakeAudio.handoffSnapshots.slice().reverse().find((snap) => snap.incoming.endsWith('/1/2.mp3'));
     assert.ok(lastStart, 'the preloaded next ayah must start playing');
     assert.ok(lastStart.activeBefore.includes(outgoingSrc), 'the previous media stream must remain active until the new one starts');
     assert.equal(outgoing.paused, true, 'outgoing stream must be cleaned after successful handoff');
