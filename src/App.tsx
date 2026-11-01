@@ -223,7 +223,7 @@ export function App() {
       const savedElifba = localStorage.getItem('elifba_theme_mode');
       if (savedElifba === 'dark' || savedElifba === 'emerald') return savedElifba === 'dark';
     } catch {}
-    return true; // Varsayılan: Koyu mod
+    return false; // Varsayılan: Aydınlık mod; kayıtlı kullanıcı tercihi önceliklidir.
   });
 
   // Sayfalardan veya dışarıdan tetiklenen tema değişimlerini anlık yakala

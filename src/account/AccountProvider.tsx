@@ -159,28 +159,28 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     finally {setBusy(false);}
   };
   const status = state.error ? 'Cihaz kayıtları korunuyor; eşitleme tamamlanmadı.' : state.offline ? 'Çevrimdışı: değişiklikler cihazda bekliyor.' : state.syncing ? 'Eşitleniyor…' : state.pending ? `${state.pending} değişiklik eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Kayıtların eşitlendi.' : 'Bulut bağlantısı kuruluyor…';
-  const button = 'w-full rounded-xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-900 disabled:opacity-50 cursor-pointer';
+  const button = 'w-full rounded-xl border border-emerald-700 bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900';
   return <AccountContext.Provider value={{user,state,open:()=>setOpened(true)}}>
     {state.ready ? <React.Fragment key={state.owner}>{children}</React.Fragment> :
-      <main className="min-h-screen bg-[#0d1512] text-emerald-50 flex flex-col items-center justify-center gap-4 p-8 text-center" aria-live="polite">
+      <main className="min-h-screen bg-[#FBF9F5] text-slate-800 dark:bg-[#0d1512] dark:text-emerald-50 flex flex-col items-center justify-center gap-4 p-8 text-center" aria-live="polite">
         <Cloud className="w-8 h-8"/><p>{state.error || (state.needsImport ? 'Bu cihazdaki kayıtlarla ilgili seçimini bekliyoruz.' : 'Hesap kayıtları hazırlanıyor…')}</p>
         <button className={button+' max-w-xs'} onClick={()=>setOpened(true)}>Hesap seçenekleri</button>
       </main>}
-    {user && state.ready && !opened && (state.error || state.conflicts.length > 0) && <button type="button" onClick={()=>setOpened(true)} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[19000] max-w-[90vw] rounded-xl border border-amber-700 bg-amber-950 px-4 py-3 text-sm text-amber-100 shadow-xl">{state.conflicts.length ? 'İki cihazdaki kayıtlar farklı. Seçim yapmak için aç.' : 'Eşitleme tamamlanamadı. Hesap durumunu aç.'}</button>}
-    {opened && createPortal(<div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/75 p-3">
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-title" className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-emerald-900 bg-[#111c17] p-5 text-stone-100 shadow-2xl">
+    {user && state.ready && !opened && (state.error || state.conflicts.length > 0) && <button type="button" onClick={()=>setOpened(true)} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[19000] max-w-[90vw] rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-xl dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">{state.conflicts.length ? 'İki cihazdaki kayıtlar farklı. Seçim yapmak için aç.' : 'Eşitleme tamamlanamadı. Hesap durumunu aç.'}</button>}
+    {opened && createPortal(<div className="fixed inset-0 z-[20000] flex items-center justify-center bg-slate-900/40 dark:bg-black/75 p-3">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-title" className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-stone-200 bg-[#FFFEFB] p-5 text-slate-800 shadow-2xl dark:border-emerald-900 dark:bg-[#111c17] dark:text-stone-100">
         <div className="flex items-center justify-between gap-3 mb-4"><h2 id="account-title" className="text-xl font-bold">{user ? 'Hesabım' : 'Hayat Rehberi hesabı'}</h2>
-          <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>setOpened(false)} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
+          <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>setOpened(false)} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
         {user ? <>
-          <p className="font-semibold break-words">{user.displayName || 'Hayat Rehberi kullanıcısı'}</p><p className="text-sm text-stone-400 break-all mb-4">{user.email}</p>
+          <p className="font-semibold break-words">{user.displayName || 'Hayat Rehberi kullanıcısı'}</p><p className="text-sm text-slate-600 dark:text-stone-400 break-all mb-4">{user.email}</p>
           {state.needsImport ? <div className="space-y-3">
             <h3 className="font-bold">Bu cihazdaki mevcut kayıtları ne yapalım?</h3>
-            <p className="text-sm text-stone-300">Ezberler, ders ilerlemesi, yer imleri, kaza sayaçları ve hedefler bu hesapla eşitlenebilir. Cihazdaki önceki kayıtlar ayrıca yedekte tutulur.</p>
+            <p className="text-sm text-slate-700 dark:text-stone-300">Ezberler, ders ilerlemesi, yer imleri, kaza sayaçları ve hedefler bu hesapla eşitlenebilir. Cihazdaki önceki kayıtlar ayrıca yedekte tutulur.</p>
             <button className={button} disabled={busy} onClick={()=>void chooseImport('merge')}>Bu cihazdaki kayıtları da hesabıma ekle</button>
             <button className={button} disabled={busy} onClick={()=>void chooseImport('cloud')}>Yalnızca hesabımdaki kayıtları aç</button>
           </div> : <>
             <p className="flex gap-2 items-center text-sm mb-3" role="status">{state.offline ? <CloudOff className="w-4 h-4 shrink-0"/> : <Cloud className="w-4 h-4 shrink-0"/>}{status}</p>
-            <p className="text-xs text-stone-400 mb-4">Aynı hesapla başka cihazdan giriş yapınca kalıcı kayıtların yüklenir. Ses kayıtları, konum, hata raporları ve anlık oynatma bilgileri bu eşitlemeye dahil değildir. Misafirken oluşturduğun ses kayıtları misafir kullanımında kalır.</p>
+            <p className="text-xs text-slate-600 dark:text-stone-400 mb-4">Aynı hesapla başka cihazdan giriş yapınca kalıcı kayıtların yüklenir. Ses kayıtları, konum, hata raporları ve anlık oynatma bilgileri bu eşitlemeye dahil değildir. Misafirken oluşturduğun ses kayıtları misafir kullanımında kalır.</p>
             <div className="space-y-2">
               <button className={button} disabled={busy || state.syncing} onClick={()=>void action(async()=>{await storeRef.current?.retry();})}>Şimdi eşitle</button>
               {!user.providerData.some(p=>p.providerId === 'google.com') && <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');})}>Google hesabını bu hesaba bağla</button>}
@@ -188,35 +188,35 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
               <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
             </div>
           </>}
-          {state.conflicts.map(key=><div key={key} className="mt-4 rounded-xl border border-amber-800 p-3 text-sm space-y-2">
+          {state.conflicts.map(key=><div key={key} className="mt-4 rounded-xl border border-amber-300 bg-amber-50/60 p-3 text-sm space-y-2 dark:border-amber-800 dark:bg-transparent">
             <p><strong>{labels[key] || 'Günlük sayaç'}</strong> iki cihazda farklı değiştirilmiş. İki kayıttan hangisini kullanacağımızı seç.</p>
             <details><summary className="cursor-pointer">İki kaydı karşılaştır</summary><p className="mt-2">Bu cihaz:</p><pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all text-xs">{storeRef.current?.conflictValues(key).local || 'Kayıt yok'}</pre><p className="mt-2">Bulut:</p><pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all text-xs">{storeRef.current?.conflictValues(key).cloud || 'Kayıt yok'}</pre></details>
             <button className={button} onClick={()=>storeRef.current?.resolve(key,'local')}>Bu cihazdakini kullan</button>
             <button className={button} onClick={()=>storeRef.current?.resolve(key,'cloud')}>Buluttakini kullan</button>
           </div>)}
-          <p className="text-xs text-stone-400 mt-4">Çıkış yaptığında bekleyen değişiklikler bu cihazda hesabına ait olarak korunur.</p>
-          <button className="mt-3 w-full rounded-xl border border-stone-700 py-3 text-sm hover:bg-white/5" disabled={busy} onClick={()=>void action(async()=>{storeRef.current?.exportBackup();await runtimeRef.current!.logout();setMessage('Misafir kullanımına geçildi.');})}>{state.needsImport ? 'Misafir kullanıma dön' : 'Hesaptan çıkış yap'}</button>
+          <p className="text-xs text-slate-600 dark:text-stone-400 mt-4">Çıkış yaptığında bekleyen değişiklikler bu cihazda hesabına ait olarak korunur.</p>
+          <button className="mt-3 w-full rounded-xl border border-stone-300 py-3 text-sm text-slate-700 hover:bg-stone-100 dark:border-stone-700 dark:text-stone-100 dark:hover:bg-white/5" disabled={busy} onClick={()=>void action(async()=>{storeRef.current?.exportBackup();await runtimeRef.current!.logout();setMessage('Misafir kullanımına geçildi.');})}>{state.needsImport ? 'Misafir kullanıma dön' : 'Hesaptan çıkış yap'}</button>
         </> : <>
-          <p className="text-sm text-stone-300 mb-4">İlerlemeni hesabında sakla; telefon veya bilgisayar değiştirdiğinde kaldığın yerden devam et. Hesapsız kullanım da devam eder.</p>
-          {!accountReady && <p role="status" className="mb-3 text-sm text-stone-400">Hesap bağlantısı hazırlanıyor. Uygulamayı kullanmaya devam edebilirsin.</p>}
+          <p className="text-sm text-slate-700 dark:text-stone-300 mb-4">İlerlemeni hesabında sakla; telefon veya bilgisayar değiştirdiğinde kaldığın yerden devam et. Hesapsız kullanım da devam eder.</p>
+          {!accountReady && <p role="status" className="mb-3 text-sm text-slate-600 dark:text-stone-400">Hesap bağlantısı hazırlanıyor. Uygulamayı kullanmaya devam edebilirsin.</p>}
           <button className={button} disabled={busy || !accountReady} onClick={()=>void google()}>Google ile giriş yap</button>
-          <div className="my-4 text-center text-xs text-stone-500">veya e-posta ile</div>
+          <div className="my-4 text-center text-xs text-slate-500 dark:text-stone-500">veya e-posta ile</div>
           <form onSubmit={submitEmail} className="space-y-3">
-            <label className="block text-sm">E-posta<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-700 bg-black/20 px-3 py-2"/></label>
-            <label className="block text-sm">Şifre<input type="password" required minLength={mode === 'register' ? 8 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-700 bg-black/20 px-3 py-2"/></label>
+            <label className="block text-sm">E-posta<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-slate-900 dark:border-stone-700 dark:bg-black/20 dark:text-stone-100"/></label>
+            <label className="block text-sm">Şifre<input type="password" required minLength={mode === 'register' ? 8 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-slate-900 dark:border-stone-700 dark:bg-black/20 dark:text-stone-100"/></label>
             <button type="submit" className={button} disabled={busy || !accountReady}>{busy ? 'Lütfen bekle…' : mode === 'register' ? 'Hesap oluştur' : 'E-posta ile giriş yap'}</button>
           </form>
-          <div className="flex justify-between gap-3 text-xs text-emerald-300 mt-4">
+          <div className="flex justify-between gap-3 text-xs text-emerald-700 dark:text-emerald-300 mt-4">
             <button disabled={busy} onClick={()=>{setMode(mode === 'login' ? 'register' : 'login');setMessage('');setPassword('');}}>{mode === 'login' ? 'Yeni hesap oluştur' : 'Mevcut hesaba giriş yap'}</button>
             <button disabled={busy || !accountReady || !email.trim()} onClick={()=>void action(async()=>{await runtimeRef.current!.reset(email.trim());setMessage('Bu adresle bir hesap varsa şifre yenileme bağlantısı gönderildi.');})}>Şifremi unuttum</button>
           </div>
         </>}
         {!user && <button className={button+' mt-4'} onClick={backup}>Cihaz yedeğini indir</button>}
-        {!state.needsImport && <label className="mt-3 block text-sm text-stone-300">Yedekten kayıt ekle
-          <input type="file" accept="application/json,.json" disabled={busy || !accountReady} className="mt-2 block w-full text-xs" onChange={event=>{void restore(event.target.files?.[0]);event.target.value='';}}/>
-          <span className="mt-1 block text-xs text-stone-500">Mevcut kayıtlarla birleştirilir. Farklı notlar otomatik değiştirilmez.</span>
+        {!state.needsImport && <label className="mt-3 block text-sm text-slate-700 dark:text-stone-300">Yedekten kayıt ekle
+          <input type="file" accept="application/json,.json" disabled={busy || !accountReady} className="mt-2 block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-medium file:text-emerald-800 dark:file:bg-emerald-950 dark:file:text-emerald-100" onChange={event=>{void restore(event.target.files?.[0]);event.target.value='';}}/>
+          <span className="mt-1 block text-xs text-slate-500 dark:text-stone-500">Mevcut kayıtlarla birleştirilir. Farklı notlar otomatik değiştirilmez.</span>
         </label>}
-        {(message || state.error) && <p role="alert" className="mt-4 text-sm text-amber-200">{message || state.error}</p>}
+        {(message || state.error) && <p role="alert" className="mt-4 text-sm text-amber-800 dark:text-amber-200">{message || state.error}</p>}
         {!state.ready && state.error && !state.needsImport && <button className={button+' mt-3'} disabled={busy} onClick={()=>void action(async()=>{await storeRef.current?.activate(userRef.current?.uid || null);})}>Kayıtları yüklemeyi tekrar dene</button>}
       </section>
     </div>,document.body)}

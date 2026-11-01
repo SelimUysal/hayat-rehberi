@@ -93,3 +93,19 @@ test('cloud outage does not block startup; offline edits persist and sign-out is
   await authenticate(page,`second-${info.project.name}-${Date.now()}@example.test`,true,'cloud');
   await expect.poll(()=>read(page,'esma_learned_names')).not.toBe('{"1":true}');
 });
+
+test('first visit defaults to light; account dialog follows live theme changes and remembers dark preference',async({page})=>{
+  await page.goto('/#takvim');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await openAccount(page);
+  const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
+  await expect(dialog).toBeVisible();
+  await expect.poll(()=>dialog.evaluate(element=>getComputedStyle(element).backgroundColor)).toBe('rgb(255, 254, 251)');
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('app-theme-changed',{detail:{isDark:true,theme:'dark'}})));
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect.poll(()=>dialog.evaluate(element=>getComputedStyle(element).backgroundColor)).toBe('rgb(17, 28, 23)');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await openAccount(page);
+  await expect.poll(()=>page.getByRole('dialog').evaluate(element=>getComputedStyle(element).backgroundColor)).toBe('rgb(17, 28, 23)');
+});

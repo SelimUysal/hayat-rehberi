@@ -108,3 +108,30 @@ test('email-only users do not show a Google avatar and Google accounts without p
     assert.match(p.dom.window.document.querySelector('button')!.getAttribute('title')!,/Google hesabı bağlı/);
   } finally {await p.cleanup();}
 });
+
+test('account dialog uses light-first colors and the global dark theme without changing account data',async()=>{
+  const p=await page(()=>new Promise(()=>{}));
+  try {
+    const storage=p.dom.window.localStorage;
+    storage.setItem('esma_learned_names','{"1":true}');
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const dialog=p.dom.window.document.querySelector('[role="dialog"]')!;
+    assert.ok(dialog.classList.contains('bg-[#FFFEFB]'));
+    assert.ok(dialog.classList.contains('dark:bg-[#111c17]'));
+    assert.ok(dialog.classList.contains('text-slate-800'));
+    assert.ok(dialog.classList.contains('dark:text-stone-100'));
+    const primary=[...dialog.querySelectorAll('button')].find(b=>b.textContent==='Google ile giriş yap')!;
+    assert.ok(primary.classList.contains('bg-emerald-700'));
+    assert.ok(primary.classList.contains('dark:bg-emerald-950'));
+    const input=dialog.querySelector('input[type=email]')!;
+    assert.ok(input.classList.contains('bg-white'));
+    assert.ok(input.classList.contains('dark:bg-black/20'));
+    const overlay=dialog.parentElement!;
+    assert.ok(overlay.classList.contains('bg-slate-900/40'));
+    assert.ok(overlay.classList.contains('dark:bg-black/75'));
+    p.dom.window.document.documentElement.classList.add('dark');
+    assert.ok(p.dom.window.document.documentElement.classList.contains('dark'));
+    assert.equal(storage.getItem('esma_learned_names'),'{"1":true}');
+    assert.equal(p.mounts,1);
+  } finally {await p.cleanup();}
+});
