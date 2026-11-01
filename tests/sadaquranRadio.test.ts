@@ -45,3 +45,13 @@ test('radio playback cleans up on unmount and connection problems are explained'
   assert.ok(code.includes('Hls.ErrorTypes.MEDIA_ERROR'));
   assert.ok(code.includes("role=\"alert\""));
 });
+
+test('SadaQuran cover uses the original artwork and animates only during actual playback',()=>{
+  const code=read('src/components/SadaQuranRadio.tsx');
+  assert.ok(code.includes('sadaquran-radio-cover.avif'));
+  assert.ok(code.includes('data-testid="sadaquran-cover"'));
+  assert.ok(code.includes("status === 'playing'"));
+  assert.ok(code.includes('motion-reduce:animate-none'));
+  assert.ok(code.includes('motion-reduce:transform-none'));
+  assert.ok(!code.includes('<Headphones'));
+});

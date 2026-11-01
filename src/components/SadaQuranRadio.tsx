@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AlertCircle, ExternalLink, Headphones, Pause, Play, RadioTower,
+  AlertCircle, ExternalLink, Pause, Play, RadioTower,
   RotateCcw, ShieldCheck, Square, Volume2, WifiOff
 } from 'lucide-react';
 
@@ -183,8 +183,27 @@ export const SadaQuranRadio: React.FC = () => {
           </div>
 
           <div className="flex min-h-[260px] flex-col items-center justify-center gap-5 px-5 py-10 text-center sm:min-h-[310px]">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10">
-              <Headphones className="h-9 w-9 text-emerald-300" aria-hidden="true" />
+            <div
+              data-testid="sadaquran-cover"
+              data-playing={status === 'playing' ? 'true' : 'false'}
+              className="relative isolate mb-1 h-40 w-40 sm:h-48 sm:w-48"
+            >
+              <div
+                aria-hidden="true"
+                className={`pointer-events-none absolute -inset-2 rounded-3xl bg-emerald-400/20 blur-2xl transition-opacity duration-500 motion-reduce:animate-none ${status === 'playing' ? 'animate-pulse opacity-100' : 'opacity-0'}`}
+              />
+              <div
+                aria-hidden="true"
+                className={`pointer-events-none absolute -inset-1 rounded-[1.45rem] border border-emerald-400/45 transition-opacity duration-500 motion-reduce:animate-none ${status === 'playing' ? 'animate-ping opacity-35 [animation-duration:3s]' : 'opacity-0'}`}
+              />
+              <img
+                src={`${import.meta.env.BASE_URL}sadaquran-radio-cover.avif`}
+                alt="SadaQuran Radyo kapak görseli"
+                width={320}
+                height={320}
+                decoding="async"
+                className={`relative h-full w-full rounded-2xl border border-amber-300/25 object-cover shadow-[0_16px_42px_rgba(0,0,0,0.35)] transition-all duration-700 motion-reduce:transform-none ${status === 'playing' ? 'scale-[1.025] shadow-[0_16px_48px_rgba(16,185,129,0.24)]' : ''}`}
+              />
             </div>
             <div className="max-w-lg space-y-2">
               <h2 className="text-lg font-bold text-white">Kur'an-ı Kerim canlı radyo</h2>
