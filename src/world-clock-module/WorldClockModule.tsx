@@ -152,9 +152,9 @@ function loadInitialPersistedState(): PersistedWorldClockState {
                   ? '#142952'
                   : c.numeralColor,
               clockScalePercent:
-                Number.isFinite(c.clockScalePercent) ? Math.max(60,Math.min(180,c.clockScalePercent)) : 100,
+                typeof c.clockScalePercent === 'number' && Number.isFinite(c.clockScalePercent) ? Math.max(60,Math.min(180,c.clockScalePercent)) : 100,
               centerPhotoScale:
-                Number.isFinite(c.centerPhotoScale) ? Math.max(0.02,Math.min(1,c.centerPhotoScale)) : 0.55,
+                typeof c.centerPhotoScale === 'number' && Number.isFinite(c.centerPhotoScale) ? Math.max(0.02,Math.min(1,c.centerPhotoScale)) : 0.55,
               showDialDate:
                 typeof c.showDialDate === 'boolean' ? c.showDialDate : true,
               dialDatePosition: c.dialDatePosition || 'right',
@@ -175,10 +175,10 @@ function loadInitialPersistedState(): PersistedWorldClockState {
               ? parsed.focusShowDigitalSubClock
               : true,
           timeTravelMinutes:
-            Number.isFinite(parsed.timeTravelMinutes) && Number.isInteger(parsed.timeTravelMinutes)
+            typeof parsed.timeTravelMinutes === 'number' && Number.isFinite(parsed.timeTravelMinutes) && Number.isInteger(parsed.timeTravelMinutes)
               ? Math.max(-720, Math.min(720, parsed.timeTravelMinutes))
               : 0,
-          scrollY: Number.isFinite(parsed.scrollY) ? Math.max(0,parsed.scrollY) : 0
+          scrollY: typeof parsed.scrollY === 'number' && Number.isFinite(parsed.scrollY) ? Math.max(0,parsed.scrollY) : 0
         };
         if (state.cards.length > 0) {
           const seen = new Set<string>();

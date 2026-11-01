@@ -5,7 +5,12 @@ export interface SurahMeta {
   totalAyahs?: number;
 }
 
-export type Surah = SurahMeta;
+// The bundled catalog has complete metadata; search inputs can still use the
+// smaller SurahMeta shape without promising an ayah count.
+export interface Surah extends SurahMeta {
+  englishName: string;
+  totalAyahs: number;
+}
 
 export interface Reciter {
   id: string;

@@ -95,7 +95,7 @@ export function recordGlobalError(data: {
     const line = safePositive(data.line);
     const column = safePositive(data.column);
     const previous = readGlobalErrors();
-    const match = previous.findLast(e => e.section === section && e.name === name && e.message === message &&
+    const match = previous.slice().reverse().find(e => e.section === section && e.name === name && e.message === message &&
       (e.file || '') === (file || '') && Date.now() - Date.parse(e.lastAt) < 5000);
     if (match) {
       memory = trim(previous.map(e => e.id === match.id ? {...e, lastAt: at, count: Math.min(e.count + 1, 9999),
@@ -151,7 +151,8 @@ export function installGlobalDiagnostics(): void {
   if (installed || typeof window === 'undefined') return;
   installed = true;
   try {
-    window.addEventListener('error', event => {
+    // Capture listeners receive both ErrorEvent and plain resource-error Event.
+    window.addEventListener('error', (event: Event) => {
       if (event.target && event.target !== window && !(event instanceof ErrorEvent)) {
         const tag = (event.target as Element).tagName;
         if (tag === 'SCRIPT' || tag === 'LINK') recordGlobalError({

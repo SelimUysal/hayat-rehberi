@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import fs from 'node:fs';
-import { completeABIteration, validateABRange, orderABPoints, compareABPoints, inABRange, readABLoop, saveABLoop, AB_LOOP_STORAGE_KEY } from '../src/utils/listeningABLoop';
+import { completeABIteration, validateABRange, orderABPoints, compareABPoints, inABRange, readABLoop, saveABLoop, AB_LOOP_STORAGE_KEY, type ABLoopState } from '../src/utils/listeningABLoop';
 
 const point=(surahId:number,ayahIndex:number,seconds=0)=>({surahId,ayahIndex,seconds});
 test('same-surah range, cross-surah range and reversed order',()=>{
@@ -37,7 +37,7 @@ test('same-surah range, cross-surah range and reversed order',()=>{
  assert.equal(inABRange(range,3,5),false);
 });
 test('A–B counts only completed iterations and stops at configured limit',()=>{
- let state={active:true,completed:0,start:point(67,2),end:point(67,4),repeatLimit:2};
+ let state:ABLoopState={active:true,completed:0,start:point(67,2),end:point(67,4),repeatLimit:2};
  state=completeABIteration(state);
  assert.equal(state.completed,1);
  assert.equal(state.active,true);

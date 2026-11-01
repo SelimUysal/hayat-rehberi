@@ -54,3 +54,55 @@ test('react and browser entrypoints are wired before rendering', async () => {
   const nav=fs.readFileSync('src/components/Navbar.tsx','utf8');
   assert.ok(nav.includes('<GlobalDiagnosticsPanel section={activeTab} />'));
 });
+
+test('error capture and deduplication work without Array.findLast support', () => {
+  const original = Object.getOwnPropertyDescriptor(Array.prototype,'findLast');
+  clearGlobalErrors();
+  try {
+    Object.defineProperty(Array.prototype,'findLast',{configurable:true,writable:true,value:undefined});
+    recordGlobalError({source:'javascript',name:'ReferenceError',message:'x is not defined'});
+    recordGlobalError({source:'javascript',name:'ReferenceError',message:'x is not defined'});
+    const rows=readGlobalErrors();
+    assert.equal(rows.length,1);
+    assert.equal(rows[0].count,2);
+  } finally {
+    if(original) Object.defineProperty(Array.prototype,'findLast',original);
+    else Reflect.deleteProperty(Array.prototype,'findLast');
+    clearGlobalErrors();
+  }
+});
+
+test('capture listener handles resource Events and JavaScript ErrorEvents separately', () => {
+  const dom=new JSDOM('<!doctype html><body></body>',{url:'https://example.test'});
+  const values={window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,
+    Event:dom.window.Event,ErrorEvent:dom.window.ErrorEvent,Element:dom.window.Element};
+  const descriptors=Object.fromEntries(Object.keys(values).map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+  const originalConsoleError=console.error;
+  try {
+    for(const [key,value] of Object.entries(values)) Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+    clearGlobalErrors();installGlobalDiagnostics();
+    const script=document.createElement('script');
+    script.src='https://private.example/app-bundle.js?token=hidden';document.body.appendChild(script);
+    script.dispatchEvent(new dom.window.Event('error'));
+    window.dispatchEvent(new dom.window.ErrorEvent('error',{
+      error:new ReferenceError("Cannot access 'x' before initialization"),
+      filename:'https://private.example/runtime.js?token=hidden',lineno:12,colno:7,
+    }));
+    const rows=readGlobalErrors();
+    assert.equal(rows.length,2);
+    assert.equal(rows.find(e=>e.source==='resource')?.file,'app-bundle.js');
+    const runtime=rows.find(e=>e.source==='javascript');
+    assert.equal(runtime?.name,'ReferenceError');assert.equal(runtime?.file,'runtime.js');
+    assert.equal(runtime?.line,12);assert.equal(runtime?.column,7);
+    assert.ok(!JSON.stringify(rows).includes('hidden'));
+    assert.ok(!JSON.stringify(rows).includes('private.example'));
+    clearGlobalErrors();
+  } finally {
+    console.error=originalConsoleError;
+    for(const key of Object.keys(values)) {
+      const original=descriptors[key];
+      if(original) Object.defineProperty(globalThis,key,original);else Reflect.deleteProperty(globalThis,key);
+    }
+    dom.window.close();
+  }
+});
