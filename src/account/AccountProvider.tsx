@@ -8,7 +8,7 @@ import { allowedKey } from './syncModel';
 
 type Context = {user:User|null;state:SyncState;open:()=>void};
 type AutoClosePurpose = 'signin'|'link'|'sync'|'import';
-const fallback: SyncState = {ready:true,owner:'guest',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null};
+const fallback: SyncState = {ready:true,owner:'guest',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null,delegated:false};
 const loadDefaultRuntime = () => import('./accountRuntime');
 function initialState(): SyncState {
   try {return {...fallback,owner:localStorage.getItem('hayat-account-owner-v1') || 'guest',offline:!navigator.onLine};}
@@ -108,7 +108,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     const purpose = autoCloseRef.current;
     if (!purpose || !opened || busy || !user || !state.ready || state.owner !== user.uid ||
       state.needsImport || state.offline || !!state.error || state.pending !== 0 ||
-      state.syncing || state.conflicts.length !== 0 || state.lastSyncedAt === null) return;
+      state.syncing || state.delegated || state.conflicts.length !== 0 || state.lastSyncedAt === null) return;
     autoCloseRef.current = null;
     setOpened(false);
     setNotice(purpose === 'link' ? 'Google hesabın bağlandı; kayıtların bulutla eşitlendi.' : 'Kayıtların bulutla eşitlendi.');
@@ -178,7 +178,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     } catch(error) {setMessage(error instanceof Error ? error.message : 'Yedek açılamadı. Mevcut kayıtların korundu.');}
     finally {setBusy(false);}
   };
-  const status = state.error ? 'Cihaz kayıtları korunuyor; eşitleme tamamlanmadı.' : state.offline ? 'Çevrimdışı: değişiklikler cihazda bekliyor.' : state.syncing ? 'Eşitleniyor…' : state.pending ? `${state.pending} değişiklik eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Kayıtların eşitlendi.' : 'Bulut bağlantısı kuruluyor…';
+  const status = state.error ? 'Cihaz kayıtları korunuyor; eşitleme tamamlanmadı.' : state.offline ? 'Çevrimdışı: değişiklikler cihazda bekliyor.' : state.delegated ? (state.pending ? `Hesabın bağlı. ${state.pending} değişiklik başka açık sekmede eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Hesabın bağlı. Bulut eşitlemesi diğer açık sekmede yönetiliyor.' : 'Hesabın bağlı. Bulut bağlantısı diğer açık sekmede hazırlanıyor.') : state.syncing ? 'Eşitleniyor…' : state.pending ? `${state.pending} değişiklik eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Kayıtların eşitlendi.' : 'Bulut bağlantısı kuruluyor…';
   const button = 'w-full rounded-xl border border-emerald-700 bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900';
   return <AccountContext.Provider value={{user,state,open:()=>{autoCloseRef.current=null;setNotice('');setOpened(true);}}}>
     {state.ready ? <React.Fragment key={state.owner}>{children}</React.Fragment> :
@@ -203,7 +203,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
             <p className="flex gap-2 items-center text-sm mb-3" role="status">{state.offline ? <CloudOff className="w-4 h-4 shrink-0"/> : <Cloud className="w-4 h-4 shrink-0"/>}{status}</p>
             <p className="text-xs text-slate-600 dark:text-stone-400 mb-4">Aynı hesapla başka cihazdan giriş yapınca kalıcı kayıtların yüklenir. Ses kayıtları, konum, hata raporları ve anlık oynatma bilgileri bu eşitlemeye dahil değildir. Misafirken oluşturduğun ses kayıtları misafir kullanımında kalır.</p>
             <div className="space-y-2">
-              <button className={button} disabled={busy || state.syncing} onClick={()=>void action(async()=>{await storeRef.current?.retry();},'sync')}>Şimdi eşitle</button>
+              <button className={button} disabled={busy || state.syncing || state.delegated} onClick={()=>void action(async()=>{await storeRef.current?.retry();},'sync')}>Şimdi eşitle</button>
               {!user.providerData.some(p=>p.providerId === 'google.com') && <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');},'link')}>Google hesabını bu hesaba bağla</button>}
               {!user.emailVerified && <button className={button} disabled={busy} onClick={()=>void action(async()=>{await runtimeRef.current!.verify(user);setMessage('Doğrulama bağlantısı gönderildi.');})}>Doğrulama e-postasını gönder</button>}
               <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
