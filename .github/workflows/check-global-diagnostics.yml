@@ -1,0 +1,21 @@
+name: Verify automatic client error reports
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm install --legacy-peer-deps
+      - name: Automatic error capture and legacy diagnostics tests
+        run: npx tsx --test tests/globalDiagnostics.test.ts tests/ezberDiagnostics.test.ts tests/listeningDiagnostics.test.ts tests/namazMode.test.ts tests/mushafDiagnostics.test.ts tests/troubleshootingMenus.test.ts
+      - name: Production build
+        run: npx vite build
