@@ -22,8 +22,9 @@ function getWakeLockProvider(): WakeLockProviderLike | null {
 }
 
 /**
- * Screen wake lock is an opt-in reading aid, never a requirement for audio.
- * Release it when paused, hidden, or unmounted; reacquire on return to the tab.
+ * Screen wake lock is a best-effort, opt-in reading aid: it cannot override
+ * the power button, a system-enforced lock or the browser's background policy.
+ * It never controls the audio element, so re-acquiring cannot restart a verse.
  */
 export function useListeningWakeLock(isPlaying: boolean, storageKey = STORAGE_KEY) {
   const [enabled, setEnabled] = useState<boolean>(() => {
@@ -35,7 +36,7 @@ export function useListeningWakeLock(isPlaying: boolean, storageKey = STORAGE_KE
 
   useEffect(() => {
     try { localStorage.setItem(storageKey, enabled ? '1' : '0'); }
-    catch { /* Storage failure must not interrupt the recitation. */ }
+    catch { /* Storage failure must not interrupt recitation. */ }
   }, [enabled, storageKey]);
 
   useEffect(() => {
@@ -47,12 +48,14 @@ export function useListeningWakeLock(isPlaying: boolean, storageKey = STORAGE_KE
     let disposed = false;
     let pending = false;
     let sentinel: WakeLockSentinelLike | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let releaseRetries = 0;
+    let lastAttemptAt = 0;
 
-    const onReleased = () => {
-      sentinel = null;
-      if (!disposed) setStatus(document.visibilityState === 'visible' ? 'blocked' : 'waiting');
+    const cancelRetry = () => {
+      if (retryTimer !== null) clearTimeout(retryTimer);
+      retryTimer = null;
     };
-
     const release = () => {
       const previous = sentinel;
       sentinel = null;
@@ -60,21 +63,34 @@ export function useListeningWakeLock(isPlaying: boolean, storageKey = STORAGE_KE
       previous.removeEventListener('release', onReleased);
       void previous.release().catch(() => {});
     };
-
     const acquire = async () => {
-      if (disposed || pending || sentinel) return;
-      if (document.visibilityState !== 'visible') { setStatus('waiting'); return; }
+      if (disposed || pending) return;
+      if (document.visibilityState !== 'visible') {
+        setStatus('waiting');
+        return;
+      }
+      if (sentinel && !sentinel.released) return;
+      if (sentinel?.released) {
+        sentinel.removeEventListener('release', onReleased);
+        sentinel = null;
+      }
       pending = true;
+      lastAttemptAt = Date.now();
       setStatus('requesting');
       try {
         const granted = await provider.request('screen');
-        if (disposed || document.visibilityState !== 'visible') {
-          void granted.release().catch(() => {});
-          if (!disposed) setStatus('waiting');
+        if (disposed || document.visibilityState !== 'visible' || granted.released) {
+          if (!granted.released) void granted.release().catch(() => {});
+          if (!disposed) setStatus(document.visibilityState === 'visible' ? 'blocked' : 'waiting');
           return;
         }
         sentinel = granted;
         granted.addEventListener('release', onReleased);
+        // The OS may revoke a lock between the request and listener registration.
+        if (granted.released) {
+          onReleased();
+          return;
+        }
         setStatus('active');
       } catch {
         if (!disposed) setStatus('blocked');
@@ -82,22 +98,63 @@ export function useListeningWakeLock(isPlaying: boolean, storageKey = STORAGE_KE
         pending = false;
       }
     };
+    function onReleased() {
+      const old = sentinel;
+      sentinel = null;
+      old?.removeEventListener('release', onReleased);
+      if (disposed) return;
+      if (document.visibilityState !== 'visible') {
+        setStatus('waiting');
+        return;
+      }
+      setStatus('blocked');
+      // Re-try once if the platform unexpectedly revokes the lock while visible.
+      // Never spin endlessly on battery saver / permission denial.
+      if (releaseRetries++ === 0) {
+        cancelRetry();
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          void acquire();
+        }, 500);
+      }
+    }
 
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void acquire();
-      else { release(); setStatus('waiting'); }
+      cancelRetry();
+      if (document.visibilityState === 'visible') {
+        releaseRetries = 0;
+        void acquire();
+      } else {
+        release();
+        setStatus('waiting');
+      }
     };
-    const onPageHide = () => { release(); setStatus('waiting'); };
+    const onForeground = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (sentinel && !sentinel.released) return;
+      // Coalesce visibilitychange, focus and pageshow on the same resume.
+      if (Date.now() - lastAttemptAt < 1200) return;
+      releaseRetries = 0;
+      void acquire();
+    };
+    const onPageHide = () => {
+      cancelRetry();
+      release();
+      setStatus('waiting');
+    };
 
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('pageshow', onVisibility);
+    window.addEventListener('pageshow', onForeground);
+    window.addEventListener('focus', onForeground);
     window.addEventListener('pagehide', onPageHide);
     void acquire();
 
     return () => {
       disposed = true;
+      cancelRetry();
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pageshow', onVisibility);
+      window.removeEventListener('pageshow', onForeground);
+      window.removeEventListener('focus', onForeground);
       window.removeEventListener('pagehide', onPageHide);
       release();
     };
