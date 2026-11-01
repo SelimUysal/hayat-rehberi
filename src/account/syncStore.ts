@@ -6,7 +6,7 @@ import { CHUNK_LENGTH, MAX_CHUNKS, partId, splitValue, decodeProgress, decodeCol
 
 type Pending = Operation & { sequence: number; sent?: boolean; resolve?: boolean };
 type Cache = { version: 1; deviceId: string; nextSequence: number; values: Values; remote: Values; operations: Pending[]; privateValues?: Values; lastCloudSeenAt?: number };
-export type SyncState = { ready: boolean; owner: string; pending: number; syncing: boolean; offline: boolean; error: string; conflicts: string[]; needsImport: boolean; lastSyncedAt: number | null; delegated: boolean };
+export type SyncState = { ready: boolean; owner: string; pending: number; syncing: boolean; offline: boolean; error: string; conflicts: string[]; needsImport: boolean; lastSyncedAt: number | null; delegated?: boolean };
 const OWNER = 'hayat-account-owner-v1';
 // Legacy and emergency Kaza backups stay local but must not leak to a second
 // account through the existing migration / restore screens.
