@@ -12,12 +12,14 @@ export function splitValue(value:string):string[] {
 }
 export function decodeProgress(key:string,data:Record<string,any>|undefined,parts:Map<string,Record<string,any>>=new Map()):string|null {
   if(!data)return null;
+  if(data.operationId!==undefined && (typeof data.operationId!=='string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(data.operationId)))throw new Error('Bulut işlem kimliği doğrulanamadı.');
   let value=data.deleted===true ? null : data.value;
   if(data.schemaVersion===2){
     if(data.deleted!==false || data.value!=='' || !Number.isInteger(data.chunkCount) || data.chunkCount<1 || data.chunkCount>MAX_CHUNKS)throw new Error('Parçalı bulut kaydı doğrulanamadı.');
     value=Array.from({length:data.chunkCount},(_,index)=>{
       const p=parts.get(partId(key,index));
       if(!p || p.schemaVersion!==2 || p.chunkOf!==key || p.index!==index || typeof p.value!=='string' || p.value.length>CHUNK_LENGTH)throw new Error('Bulut kaydının parçaları eksik; cihaz kaydı korundu.');
+      if(data.operationId!==undefined && p.operationId!==data.operationId)throw new Error('Bulut parçaları aynı işleme ait değil; cihaz kaydı korundu.');
       return p.value;
     }).join('');
   } else if(data.schemaVersion!==1)throw new Error('Bulut kaydının biçimi desteklenmiyor. Cihaz kaydı korundu.');

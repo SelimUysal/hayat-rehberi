@@ -32,6 +32,9 @@ korunur. Misafir kayıtları misafir kullanımında görünür.
 Uygulama önce mevcut cihaz kayıtlarıyla açılır. Firebase SDK yüklemesi,
 Authentication veya Firestore bağlantısı ilk ekranı bekletmez. Aynı hesabın
 oturumu geri geldiğinde uygulama ve ses oynatıcıları yeniden kurulmaz.
+Tarayıcı sekme kilidi beklenirken yapılan değişiklikler, cihaz kopyası
+uygulanmadan hemen önce tekrar yakalanır. Kapanmış veya iptal edilmiş oturum
+sonradan kilit alıp eşitlemeyi kilitleyemez.
 
 Google veya e-posta/şifre ile giriş yapılır. İlk girişte cihazda mevcut kayıt
 varsa kullanıcı bunları hesaba eklemeyi ya da yalnızca hesabındaki kayıtları
@@ -60,6 +63,9 @@ Normal bulut güncellemeleri açık ekranı yeniler; ses başlatmaz veya ileri s
 - Her tarayıcı/anahtar için artan sıra numaralı tek makbuz tutulur. Sunucu işlemi
   tamamladığı halde yanıt kaybolursa aynı sayaç işlemi tekrar uygulanmaz. Her
   tıklama için sonsuza kadar yeni makbuz belgesi biriktirilmez.
+  Yeni istemci, ilerleme, parçalar ve makbuzu aynı işlem kimliğiyle bağlar;
+  iki yazı aynı sunucu zamanına denk gelse de işlem reddedilmez. Önceki istemci
+  biçimi aşamalı güncelleme için desteklenir.
 - Aynı tarayıcıdaki sekmeler Web Locks ile tek yazıcı kullanır; ana sekme kapanınca
   diğeri devralır. Bu API yoksa bulut işlemi açık hata verir, mevcut uygulama
   cihaz kayıtlarıyla kullanılabilir.
@@ -82,6 +88,8 @@ Hesap ekranında yedek indirme ve JSON yedekten kayıt ekleme vardır. Yedek
 doğrulanmadan hiçbir alan değiştirilmez. Geri yükleme kayıtları birleştirir;
 başka cihazın kimliği veya işlem kuyruğu ithal edilmez. Farklı notlar otomatik
 değiştirilmez. Hesap SDK'sı yüklenemese de yerel ilerleme yedeği indirilebilir.
+Hesap yedeği başka kişiye ait olabilecek misafir arşivini içermez; misafir
+yedeği misafir kullanımından ayrıca indirilebilir.
 
 ## Yetkilendirme modeli
 
