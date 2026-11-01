@@ -2,7 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { installGlobalDiagnostics } from './utils/globalDiagnostics';
+import { installGlobalDiagnostics, recordGlobalError } from './utils/globalDiagnostics';
 
 installGlobalDiagnostics();
 
@@ -18,7 +18,10 @@ console.error = (...args: unknown[]) => {
   }
 };
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById('root')!, {
+  onUncaughtError: (error) => recordGlobalError({source:'react',name: error instanceof Error ? error.name : 'Error', message: error instanceof Error ? error.message : undefined}),
+  onCaughtError: (error) => recordGlobalError({source:'react',name: error instanceof Error ? error.name : 'Error', message: error instanceof Error ? error.message : undefined}),
+}).render(
   <StrictMode>
     <App />
   </StrictMode>,
