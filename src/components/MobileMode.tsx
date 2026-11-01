@@ -359,10 +359,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
   const mediaPauseRef = useRef<() => void>(() => {});
   const mediaResumeRef = useRef<() => void>(() => {});
-  // The functions are updated on each render without taking over the
-  // audio element's own onplaying/onpause callbacks.
-  mediaPauseRef.current = pauseAudio;
-  mediaResumeRef.current = resumeAudio;
+  // Bind the existing audio object once without replacing its playback callbacks.
+  // The control ref assignments must occur AFTER pauseAudio/resumeAudio are initialized.
   useEffect(() => {
     const audio = audioRef.current;
     return bindAudioMediaSession(audio, () => ({
@@ -422,6 +420,11 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     setPlayMode(paused.mode ?? 'verse');
     playVerse(paused.verseNum, paused.mode ?? 'verse');
   };
+
+  // Avoid JavaScript temporal-dead-zone errors during initial Ezber render.
+  // These are plain ref assignments (not hooks); the effect above runs after render.
+  mediaPauseRef.current = pauseAudio;
+  mediaResumeRef.current = resumeAudio;
 
   // Ayeti Çal ve Döngüye Al (Senkronizasyon garantili, karışma engelli)
   const playVerse = (verseNum: number, mode: 'verse' | 'full' = 'verse') => {
