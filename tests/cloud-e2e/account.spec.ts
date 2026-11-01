@@ -3,8 +3,10 @@ import { encodedFixtures } from '../fixtures/accountProgress';
 
 const password='Demo-only-cloud-test-2026!';
 async function openAccount(page:Page) {
-  if(!await page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/}).isVisible())
+  const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
+  if(!await dialog.isVisible())
     await page.getByRole('button',{name:/Hesaba giriş yap|Hesabım ve eşitleme/}).click();
+  await expect(dialog).toBeVisible();
 }
 async function authenticate(page:Page,email:string,register=false,choice:'merge'|'cloud'='cloud') {
   await openAccount(page);
@@ -21,11 +23,36 @@ async function authenticate(page:Page,email:string,register=false,choice:'merge'
 }
 async function sync(page:Page) {
   await openAccount(page);
-  const button=page.getByRole('button',{name:'Şimdi eşitle',exact:true});
-  await expect(button).toBeEnabled({timeout:60_000});await button.click();
-  await expect(page.getByRole('status').filter({hasText:'Kayıtların eşitlendi.'})).toBeVisible({timeout:60_000});
+  const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
+  const button=dialog.getByRole('button',{name:'Şimdi eşitle',exact:true});
+  const status=dialog.getByRole('status');
+  const outcome=async():Promise<string>=>{
+    if(!await dialog.isVisible().catch(()=>false))return 'closed';
+    const message=await status.innerText().catch(()=>'');
+    if(message.includes('Kayıtların eşitlendi.'))return 'synced';
+    if(message.includes('Bulut eşitlemesi diğer açık sekmede yönetiliyor.'))return 'delegated';
+    if(/başka açık sekmede|diğer açık sekmede/.test(message))return 'delegated-wait';
+    if(/Eşitleniyor|Bulut bağlantısı kuruluyor/.test(message))return 'syncing';
+    if(await button.isEnabled().catch(()=>false))return 'ready';
+    return 'waiting';
+  };
+  let current=await outcome();
+  if(['closed','synced','delegated'].includes(current))return;
+  if(current==='ready')await button.click();
+  else if(current==='waiting') {
+    await expect.poll(outcome,{timeout:60_000}).toMatch(/^(closed|synced|delegated|delegated-wait|syncing|ready)$/);
+    current=await outcome();
+    if(current==='ready')await button.click();
+  }
+  // A sync already started by sign-in/import must be allowed to finish.
+  // The app closes the dialog after a clean user-requested sync; a background
+  // sync instead changes the status to "Kayıtların eşitlendi.".
+  await expect.poll(outcome,{timeout:60_000}).toMatch(/^(closed|synced|delegated)$/);
 }
-async function closeAccount(page:Page) {await page.getByRole('button',{name:'Hesap penceresini kapat'}).click();}
+async function closeAccount(page:Page) {
+  const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
+  if(await dialog.isVisible())await dialog.getByRole('button',{name:'Hesap penceresini kapat'}).click();
+}
 async function read(page:Page,key:string) {return page.evaluate(k=>localStorage.getItem(k),key);}
 async function prepare(context:BrowserContext) {
   // Prevent unrelated maps/audio/CDN endpoints from influencing cloud tests.
@@ -88,6 +115,7 @@ test('cloud outage does not block startup; offline edits persist and sign-out is
   await expect.poll(async()=>JSON.parse(await read(page,'esma_learned_names') || '{}')['1']).toBe(true);
   await context.unroute('http://127.0.0.1:8088/**',block);await context.unroute('http://127.0.0.1:9099/**',block);
   await page.evaluate(()=>window.dispatchEvent(new Event('online')));await sync(page);
+  await openAccount(page);
   await page.getByRole('button',{name:'Hesaptan çıkış yap',exact:true}).click();
   await expect(page.getByRole('button',{name:'Google ile giriş yap',exact:true})).toBeEnabled();
   await expect.poll(()=>read(page,'esma_learned_names')).not.toBe('{"1":true}');
