@@ -69,3 +69,42 @@ test('unauthorized Google domain reports the setup problem for sign-in and linki
     } finally {await p.cleanup();}
   }
 });
+
+test('Google-linked accounts show the Google profile photo, fall back when it fails, and clear it on sign-out',async()=>{
+  let notify:(user:any)=>void=()=>{};
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null};
+  const runtime={store:{state,subscribe:()=>()=>{},activate:async()=>{},stop:()=>{}},watch:(next:(user:any)=>void)=>{notify=next;return ()=>{};}} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{notify({uid:'alice',photoURL:'https://example.test/generic.png',providerData:[{providerId:'google.com',photoURL:'https://lh3.googleusercontent.com/alice.png'}]});});
+    const button=p.dom.window.document.querySelector('button[aria-label*="Google hesabı bağlı"]')!;
+    const photo=button.querySelector('img')!;
+    assert.equal(photo?.getAttribute('src'),'https://lh3.googleusercontent.com/alice.png');
+    assert.equal(photo?.getAttribute('referrerpolicy'),'no-referrer');
+    assert.equal(button.querySelector('svg'),null);
+    await React.act(async()=>{photo.dispatchEvent(new p.dom.window.Event('error'));});
+    assert.equal(button.querySelector('img'),null);
+    assert.ok(button.querySelector('svg'));
+    await React.act(async()=>{notify({uid:'bob',photoURL:null,providerData:[{providerId:'google.com',photoURL:'https://lh3.googleusercontent.com/bob.png'}]});});
+    assert.equal(p.dom.window.document.querySelector('button img')?.getAttribute('src'),'https://lh3.googleusercontent.com/bob.png');
+    await React.act(async()=>{notify(null);});
+    assert.equal(p.dom.window.document.querySelector('button img'),null);
+    assert.equal(p.dom.window.document.querySelector('button')?.getAttribute('aria-label'),'Hesaba giriş yap');
+  } finally {await p.cleanup();}
+});
+
+test('email-only users do not show a Google avatar and Google accounts without photos keep the icon',async()=>{
+  let notify:(user:any)=>void=()=>{};
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null};
+  const runtime={store:{state,subscribe:()=>()=>{},activate:async()=>{},stop:()=>{}},watch:(next:(user:any)=>void)=>{notify=next;return ()=>{};}} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{notify({uid:'alice',photoURL:'https://example.test/unrelated.png',providerData:[{providerId:'password',photoURL:null}]});});
+    assert.equal(p.dom.window.document.querySelector('button img'),null);
+    assert.equal(p.dom.window.document.querySelector('button')?.getAttribute('aria-label'),'Hesabım ve eşitleme');
+    await React.act(async()=>{notify({uid:'alice',photoURL:null,providerData:[{providerId:'google.com',photoURL:null}]});});
+    assert.equal(p.dom.window.document.querySelector('button img'),null);
+    assert.ok(p.dom.window.document.querySelector('button svg'));
+    assert.match(p.dom.window.document.querySelector('button')!.getAttribute('title')!,/Google hesabı bağlı/);
+  } finally {await p.cleanup();}
+});

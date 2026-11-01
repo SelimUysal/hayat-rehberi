@@ -37,12 +37,29 @@ function authMessage(error: unknown) {
   if (code === 'auth/network-request-failed') return 'İnternet bağlantısını kontrol edip tekrar dene.';
   return 'İşlem tamamlanamadı. Mevcut kayıtların cihazda korunuyor; tekrar deneyebilirsin.';
 }
+function googleAvatarUrl(user: User | null): string | null {
+  if (!user?.providerData.some(provider => provider.providerId === 'google.com')) return null;
+  const google = user.providerData.find(provider => provider.providerId === 'google.com');
+  const photo = google?.photoURL || user.photoURL;
+  if (!photo) return null;
+  // Only use an HTTPS photo supplied by the signed-in Google account.
+  try {const url = new URL(photo); return url.protocol === 'https:' ? url.href : null;}
+  catch {return null;}
+}
 export function AccountButton({dark = true}:{dark?:boolean}) {
   const {user,state,open} = useContext(AccountContext);
-  return <button type="button" onClick={open} aria-label={user ? 'Hesabım ve eşitleme' : 'Hesaba giriş yap'} title={user ? 'Hesabım ve eşitleme' : 'Giriş yap ve kayıtlarını eşitle'}
-    className={`relative p-2 rounded-xl border cursor-pointer ${dark ? 'border-white/10 text-stone-300 hover:bg-white/10' : 'border-stone-200 text-stone-700 hover:bg-stone-100'}`}>
-    <UserRound className="w-4 h-4" aria-hidden="true"/>
-    {user && <span aria-hidden="true" className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${state.error || state.conflicts.length ? 'bg-amber-400' : state.pending || state.offline ? 'bg-sky-400' : 'bg-emerald-400'}`}/>}
+  const hasGoogleAccount = !!user?.providerData.some(provider => provider.providerId === 'google.com');
+  const photoUrl = googleAvatarUrl(user);
+  const photoKey = photoUrl && user ? `${user.uid}:${photoUrl}` : null;
+  const [failedPhoto,setFailedPhoto] = useState<string|null>(null);
+  const showPhoto = !!photoUrl && photoKey !== failedPhoto;
+  return <button type="button" onClick={open}
+    aria-label={user ? hasGoogleAccount ? 'Hesabım ve eşitleme (Google hesabı bağlı)' : 'Hesabım ve eşitleme' : 'Hesaba giriş yap'}
+    title={user ? hasGoogleAccount ? 'Google hesabı bağlı · Hesabım ve eşitleme' : 'Hesabım ve eşitleme' : 'Giriş yap ve kayıtlarını eşitle'}
+    className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border cursor-pointer ${dark ? 'border-white/10 text-stone-300 hover:bg-white/10' : 'border-stone-200 text-stone-700 hover:bg-stone-100'}`}>
+    {showPhoto ? <img src={photoUrl!} alt="" referrerPolicy="no-referrer" className="h-7 w-7 rounded-full object-cover" onError={()=>setFailedPhoto(photoKey)}/> :
+      <UserRound className="w-4 h-4" aria-hidden="true"/>}
+    {user && <span aria-hidden="true" className={`absolute bottom-0 right-0 h-2 w-2 rounded-full ring-2 ${dark ? 'ring-stone-900' : 'ring-white'} ${state.error || state.conflicts.length ? 'bg-amber-400' : state.pending || state.offline ? 'bg-sky-400' : 'bg-emerald-400'}`}/>}
   </button>;
 }
 export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{children:React.ReactNode;loadRuntime?:typeof loadDefaultRuntime}) {
