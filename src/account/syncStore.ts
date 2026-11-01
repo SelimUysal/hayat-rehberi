@@ -52,22 +52,27 @@ export class AccountSyncStore {
     this.update({owner:this.owner});
   }
   private releaseLeadership() {this.releaseLock?.();this.releaseLock=undefined;this.lockUid='';}
-  private async leadership(uid:string|null):Promise<boolean> {
+  private async leadership(uid:string|null,generation=this.generation):Promise<boolean> {
+    if(generation!==this.generation)return false;
     if (!uid) {this.releaseLeadership();return this.leader=true;}
     if (this.lockUid === uid && this.releaseLock) return this.leader=true;
     this.releaseLeadership();
     await this.lockTask;
+    if(generation!==this.generation)return false;
     if (!this.locks) throw new Error('Bu tarayıcı güvenli çoklu sekme eşitlemesini desteklemiyor. Güncel bir tarayıcı kullanabilir veya misafir olarak devam edebilirsin.');
+    let heldRelease:(()=>void)|undefined;
     const attempt = () => new Promise<boolean>((resolve,reject) => {
       this.lockTask = this.locks.request('hayat-account-sync',{ifAvailable:true},async lock => {
-        if (!lock) {resolve(false);return;}
+        if (!lock || generation!==this.generation) {resolve(false);return;}
         this.lockUid=uid;
-        await new Promise<void>(release => {this.releaseLock=release;resolve(true);});
+        await new Promise<void>(release => {heldRelease=release;this.releaseLock=release;resolve(true);});
       }).catch(reject);
     });
     let acquired = await attempt();
+    if(generation!==this.generation){if(heldRelease && heldRelease===this.releaseLock)this.releaseLeadership();return false;}
     // A tab that just closed may still be releasing its lock in a microtask.
     if (!acquired) {await new Promise(resolve => setTimeout(resolve,0));acquired = await attempt();}
+    if(generation!==this.generation){if(heldRelease && heldRelease===this.releaseLock)this.releaseLeadership();return false;}
     return this.leader=acquired;
   }
   private follow(uid:string,generation:number) {
@@ -81,7 +86,7 @@ export class AccountSyncStore {
     this.storageListener=()=>refresh();window.addEventListener('storage',this.storageListener);
     this.timer=window.setInterval(()=>{
       this.cache=this.read(uid)||fresh();
-      void this.leadership(uid).then(acquired=>{if (generation!==this.generation)return;if(acquired) void this.activate(uid);else refresh();}).catch(error=>this.fail(error));
+      void this.leadership(uid,generation).then(acquired=>{if (generation!==this.generation)return;if(acquired) void this.activate(uid);else refresh();}).catch(error=>this.fail(error));
     },2000);
   }
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => {this.listeners.delete(listener);}; };
@@ -126,7 +131,7 @@ export class AccountSyncStore {
         const base = this.cache.values[key] ?? null;
         if (next === base) continue;
         const last = [...this.cache.operations].reverse().find(o => o.key === key);
-        if (last && !last.sent) last.value = next;
+        if (last && !last.sent && !last.initial) last.value = next;
         else this.cache.operations.push({id:newId(),sequence:this.cache.nextSequence++,key,base,value:next});
       }
     }
@@ -184,8 +189,11 @@ export class AccountSyncStore {
     this.update({ready:this.owner === targetOwner,needsImport:false,error:'',conflicts:[]});
     try {
       if(this.owner && this.leader) this.capture(true);
-      if(!await this.leadership(uid)) {if(generation===this.generation && uid)this.follow(uid,generation);return;}
+      if(!await this.leadership(uid,generation)) {if(generation===this.generation && uid)this.follow(uid,generation);return;}
       if(generation!==this.generation)return;
+      // The screen stays usable during same-account startup. Preserve edits
+      // made after the first capture while the asynchronous browser lock waited.
+      this.capture(true);
       const guest = this.owner === 'guest' ? {...this.cache.values} : null;
       const existing = this.read(targetOwner);
       if (uid && guest && !existing && Object.values(guest).some(v => v !== null) && !decision) {
@@ -298,6 +306,7 @@ export class AccountSyncStore {
     this.lastAttempt = Date.now();
     this.update({syncing:true});
     const uid = this.owner;
+    const deviceId = this.cache.deviceId;
     try {
       for (const op of [...this.cache.operations]) {
         if (generation !== this.generation || this.stopped) return;
@@ -306,7 +315,7 @@ export class AccountSyncStore {
         try {
           const value = await runTransaction(this.db,async transaction => {
             const target = doc(this.db,'users',uid,'progress',op.key);
-            const receipt = doc(this.db,'users',uid,'devices',`${this.cache.deviceId}_${op.key}`);
+            const receipt = doc(this.db,'users',uid,'devices',`${deviceId}_${op.key}`);
             const [current,done] = await Promise.all([transaction.get(target),transaction.get(receipt)]);
             const currentData=current.exists() ? current.data() : undefined;
             const oldCount=currentData?.schemaVersion===2 ? currentData.chunkCount : 0;
@@ -322,10 +331,10 @@ export class AccountSyncStore {
             if (done.exists() && done.data().sequence >= op.sequence) return remote;
             const next = mergeValue(op,remote,op.resolve);
             const chunks=next!==null && next.length>CHUNK_LENGTH ? splitValue(next) : [];
-            transaction.set(target,chunks.length ? {schemaVersion:2,value:'',deleted:false,chunkCount:chunks.length,updatedAt:serverTimestamp()} : {schemaVersion:1,value:next ?? '',deleted:next === null,updatedAt:serverTimestamp()});
-            chunks.forEach((value,index)=>transaction.set(doc(this.db,'users',uid,'progress',partId(op.key,index)),{schemaVersion:2,chunkOf:op.key,index,value,updatedAt:serverTimestamp()}));
+            transaction.set(target,chunks.length ? {schemaVersion:2,operationId:op.id,value:'',deleted:false,chunkCount:chunks.length,updatedAt:serverTimestamp()} : {schemaVersion:1,operationId:op.id,value:next ?? '',deleted:next === null,updatedAt:serverTimestamp()});
+            chunks.forEach((value,index)=>transaction.set(doc(this.db,'users',uid,'progress',partId(op.key,index)),{schemaVersion:2,operationId:op.id,chunkOf:op.key,index,value,updatedAt:serverTimestamp()}));
             for(let index=chunks.length;index<oldCount;index++)transaction.delete(doc(this.db,'users',uid,'progress',partId(op.key,index)));
-            transaction.set(receipt,{schemaVersion:2,deviceId:this.cache.deviceId,key:op.key,sequence:op.sequence,updatedAt:serverTimestamp()});
+            transaction.set(receipt,{schemaVersion:2,operationId:op.id,deviceId,key:op.key,sequence:op.sequence,updatedAt:serverTimestamp()});
             return next;
           });
           if (generation !== this.generation) return;
@@ -337,13 +346,14 @@ export class AccountSyncStore {
           this.update({error:'',offline:false,lastSyncedAt:Date.now()});
         } catch (error) {
           this.inFlight = '';
+          if(generation!==this.generation)return;
           if (error instanceof SyncConflict) {
             this.update({conflicts:[...new Set([...this.state.conflicts,op.key])]});
           } else {throw error;}
         }
       }
-    } catch (error) {this.fail(error);}
-    finally {this.inFlight = '';this.running = false;this.update({syncing:false});}
+    } catch (error) {if(generation===this.generation)this.fail(error);}
+    finally {this.inFlight = '';this.running = false;if(generation===this.generation)this.update({syncing:false});}
   }
   resolve(key: string,choice: 'local'|'cloud') {
     this.capture();
@@ -361,7 +371,7 @@ export class AccountSyncStore {
     const device:Values = {};
     for (let i=0;i<this.storage.length;i++) {const key=this.storage.key(i);if (key && allowedKey(key)) device[key]=this.storage.getItem(key);}
     let guest:unknown;
-    try {guest=this.read('guest');} catch {guest={raw:this.storage.getItem(cacheKey('guest'))};}
+    if(this.owner==='guest')try {guest=this.read('guest');} catch {guest={raw:this.storage.getItem(cacheKey('guest'))};}
     return {version:1,owner:this.owner,date:new Date().toISOString(),device,current:this.cache,guest};
   }
   restoreBackup(input: unknown) {

@@ -18,6 +18,7 @@ test('large cloud values round-trip across bounded chunks without splitting Unic
 test('corrupt or mismatched cloud manifests cannot replace device data',()=>{
   for(const chunkCount of [-1,0,7,100000,'2'])assert.throws(()=>decodeProgress('esma_learned_names',{schemaVersion:2,value:'',deleted:false,chunkCount}));
   assert.throws(()=>decodeProgress('esma_learned_names',{schemaVersion:99,value:'{}'}));
+  assert.throws(()=>decodeProgress('esma_learned_names',{schemaVersion:2,operationId:'upload-a',value:'',deleted:false,chunkCount:1},new Map([['esma_learned_names__part_0',{schemaVersion:2,operationId:'upload-b',chunkOf:'esma_learned_names',index:0,value:'{}'}]])),/aynı işleme ait değil/);
 });
 
 test('local cache compression retains exact content, reads legacy JSON and substantially reduces repeated history',()=>{

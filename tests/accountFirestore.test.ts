@@ -16,7 +16,7 @@ let env:RulesTestEnvironment;
 let dom:JSDOM;
 let online = true;
 const stores:AccountSyncStore[] = [];
-const data = (value:string) => ({schemaVersion:1,value,deleted:false,updatedAt:serverTimestamp()});
+const data = (value:string,operationId:string=crypto.randomUUID()) => ({schemaVersion:1,operationId,value,deleted:false,updatedAt:serverTimestamp()});
 const db = (uid:string) => env.authenticatedContext(uid).firestore() as unknown as Firestore;
 const path = (database:Firestore,uid='alice',key='esma_learned_names') => doc(database,'users',uid,'progress',key);
 const suite = (name:string,fn:()=>Promise<void>) => test(name,{skip:!enabled},fn);
@@ -74,18 +74,21 @@ suite('rules: schema, field types, size and timestamp are validated on creates a
 });
 suite('rules: device watermark requires the matching progress write and strictly increasing sequence',async()=>{
   const alice=db('alice'), receipt=doc(alice,'users','alice','devices','browser-1_esma_learned_names');
-  const record={schemaVersion:2,deviceId:'browser-1',key:'esma_learned_names',sequence:1,updatedAt:serverTimestamp()};
+  const proof=data('{}');
+  const record={schemaVersion:2,operationId:proof.operationId,deviceId:'browser-1',key:'esma_learned_names',sequence:1,updatedAt:serverTimestamp()};
   await assertFails(setDoc(receipt,record));
-  const batch=writeBatch(alice);batch.set(path(alice),data('{}'));batch.set(receipt,record);
+  const batch=writeBatch(alice);batch.set(path(alice),proof);batch.set(receipt,record);
   await assertSucceeds(batch.commit());
   await assertFails(setDoc(receipt,record));
   await assertFails(deleteDoc(receipt));
   await assertFails(getDoc(doc(db('bob'),'users','alice','devices','browser-1_esma_learned_names')));
   await assertFails(getDocs(collection(alice,'users','alice','devices')));
-  const advance=writeBatch(alice);advance.set(path(alice),data('{"2":true}'));advance.set(receipt,{...record,sequence:2});
+  const advanced=data('{"2":true}');
+  const advance=writeBatch(alice);advance.set(path(alice),advanced);advance.set(receipt,{...record,operationId:advanced.operationId,sequence:2});
   await assertSucceeds(advance.commit());
   for (const invalid of [0,1,2,-1,Number.MAX_SAFE_INTEGER+1,'3']) {
-    const batch=writeBatch(alice);batch.set(path(alice),data('{}'));batch.set(receipt,{...record,sequence:invalid});
+    const next=data('{}');
+    const batch=writeBatch(alice);batch.set(path(alice),next);batch.set(receipt,{...record,operationId:next.operationId,sequence:invalid});
     await assertFails(batch.commit());
   }
   const wrong=writeBatch(alice);wrong.set(path(alice),data('{}'));wrong.set(receipt,{...record,key:'elifba_state',sequence:3});
@@ -127,8 +130,8 @@ suite('store: server-committed operation with a lost acknowledgement is not coun
   assert.equal(queue.length,1);
   // Reproduce a successful server transaction whose response never reached the
   // browser: its original queue survives while its immutable receipt exists.
-  const batch=writeBatch(alice);batch.set(target,data('6'));
-  batch.set(doc(alice,'users','alice','devices',`${saved.deviceId}_${key}`),{schemaVersion:2,deviceId:saved.deviceId,key,sequence:queue[0].sequence,updatedAt:serverTimestamp()});
+  const batch=writeBatch(alice);batch.set(target,data('6',queue[0].id));
+  batch.set(doc(alice,'users','alice','devices',`${saved.deviceId}_${key}`),{schemaVersion:2,operationId:queue[0].id,deviceId:saved.deviceId,key,sequence:queue[0].sequence,updatedAt:serverTimestamp()});
   await batch.commit();online=true;
   const restarted=store(db('alice'),a);await restarted.activate('alice');
   assert.equal((await getDoc(target)).data()!.value,'6');
@@ -142,6 +145,7 @@ suite('store: account changes isolate pending data and local legacy/emergency ba
   assert.equal(bob.state.error,'',JSON.stringify(bob.state));assert.equal(bob.state.ready,true,JSON.stringify(bob.state));
   assert.equal(a.getItem('esma_learned_names'),null);
   assert.equal(a.getItem('kaza_namazlari'),null);assert.equal(a.getItem('kaza_emergency_backup'),null);
+  assert.equal(bob.exportBackup().guest,undefined,'another account backup must not include the device guest archive');
   assert.equal((await getDocs(collection(db('bob'),'users','bob','progress'))).size,0);
   await bob.activate(null);
   assert.equal(a.getItem('kaza_emergency_backup'),'private-backup');
@@ -270,4 +274,57 @@ suite('rules: orphan, missing, oversized and cross-account chunks cannot be crea
     const attempt=writeBatch(database);attempt.set(path(database),manifest);attempt.set(part,invalid);await assertFails(attempt.commit());
   }
   const missing=writeBatch(database);missing.set(path(database),{...manifest,chunkCount:2});missing.set(part,chunk);await assertFails(missing.commit());
+});
+
+suite('startup: an edit made while account leadership is being acquired is preserved and uploaded',async()=>{
+  const database=db('alice'),a=storage();await setDoc(path(database),data('{}'));
+  const warm=store(database,a);await warm.activate('alice');warm.stop();
+  const locks=lockManager();
+  const delayed={async request(name:string,options:any,callback:any){await new Promise(r=>setTimeout(r,60));return locks.request(name,options,callback);}} as LockManager;
+  const restarted=new AccountSyncStore(database,a,delayed);stores.push(restarted);
+  const activating=restarted.activate('alice');
+  await new Promise(r=>setTimeout(r,5));a.setItem('esma_learned_names','{"1":true}');
+  await activating;await restarted.flush();
+  assert.equal(a.getItem('esma_learned_names'),'{"1":true}');
+  assert.equal((await getDoc(path(database))).data()!.value,'{"1":true}');
+});
+
+suite('startup: stopping during a pending lock request cannot leave a dead store holding the browser lock',async()=>{
+  const database=db('alice'),a=storage();const locks=lockManager();
+  const delayed={async request(name:string,options:any,callback:any){await new Promise(r=>setTimeout(r,60));return locks.request(name,options,callback);}} as LockManager;
+  const first=new AccountSyncStore(database,a,delayed);stores.push(first);
+  const activating=first.activate('alice');await new Promise(r=>setTimeout(r,5));first.stop();await activating;
+  const next=new AccountSyncStore(database,a,delayed);stores.push(next);await next.activate('alice');
+  assert.equal(next.state.ready,true);assert.equal(next.state.error,'');
+});
+
+suite('rules: legacy progress remains readable and writable while new clients upgrade it to operation proofs',async()=>{
+  const database=db('alice'),key='elifba_state',target=path(database,'alice',key);
+  const legacy={schemaVersion:1,value:'{"letter_A":true}',deleted:false,updatedAt:serverTimestamp()};
+  const batch=writeBatch(database);batch.set(target,legacy);
+  batch.set(doc(database,'users','alice','devices','legacy-browser_'+key),{schemaVersion:2,deviceId:'legacy-browser',key,sequence:1,updatedAt:serverTimestamp()});
+  await assertSucceeds(batch.commit());
+  const a=storage(),first=store(database,a);await first.activate('alice');
+  a.setItem(key,'{"letter_A":true,"letter_B":true}');await first.flush();
+  const upgraded=(await getDoc(target)).data()!;
+  assert.equal(typeof upgraded.operationId,'string');assert.deepEqual(JSON.parse(upgraded.value),{letter_A:true,letter_B:true});
+});
+
+suite('rules: a receipt cannot claim a new operation without its matching progress mutation',async()=>{
+  const database=db('alice');await setDoc(path(database),data('{}','previous-operation'));
+  const receipt=doc(database,'users','alice','devices','proof-browser_esma_learned_names');
+  await assertFails(setDoc(receipt,{schemaVersion:2,operationId:'forged-operation',deviceId:'proof-browser',key:'esma_learned_names',sequence:1,updatedAt:serverTimestamp()}));
+  const next=data('{"1":true}','matching-operation');const batch=writeBatch(database);batch.set(path(database),next);
+  batch.set(receipt,{schemaVersion:2,operationId:next.operationId,deviceId:'proof-browser',key:'esma_learned_names',sequence:1,updatedAt:serverTimestamp()});
+  await assertSucceeds(batch.commit());
+});
+
+suite('first import: a new user edit stays a separate delta while the original import is still queued',async()=>{
+  const database=db('alice'),key='esma_learned_names';await setDoc(path(database),data('{"1":true,"2":true}'));
+  const a=storage();a.setItem(key,'{"1":true}');const first=store(database,a);
+  online=false;await first.activate('alice','merge');
+  const flags=JSON.parse(a.getItem(key) || '{}');delete flags['1'];a.setItem(key,JSON.stringify(flags));first.exportBackup();
+  online=true;await first.activate('alice');await first.flush();
+  assert.deepEqual(JSON.parse(a.getItem(key)!),{'2':true});
+  assert.deepEqual(JSON.parse((await getDoc(path(database))).data()!.value),{'2':true});
 });
