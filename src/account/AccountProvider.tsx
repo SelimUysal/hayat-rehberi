@@ -25,6 +25,8 @@ const labels:Record<string,string> = {
 };
 function authMessage(error: unknown) {
   const code = (error as {code?:string})?.code;
+  if (code === 'auth/unauthorized-domain') return 'Bu site adresi Google girişi için henüz yetkilendirilmemiş. Site yöneticisinin giriş ayarlarını düzeltmesi gerekiyor. Mevcut hesabın ve kayıtların korunuyor.';
+  if (code === 'auth/operation-not-allowed') return 'Bu giriş yöntemi şu anda kullanılamıyor. E-posta ile giriş yapabilir veya daha sonra tekrar deneyebilirsin.';
   if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Giriş penceresi kapatıldı. Tekrar deneyebilirsin.';
   if (code === 'auth/popup-blocked') return 'Tarayıcı giriş penceresini engelledi. Bu site için açılır pencereye izin verip tekrar dene.';
   if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') return 'E-posta veya şifre doğrulanamadı.';

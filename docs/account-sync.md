@@ -140,6 +140,13 @@ Google girişi, fiziksel iPhone/Safari ve mikrofon izinleri ayrıca doğrulanmal
 
 GitHub hesabı ile bulut projesi ayrı yetkilerdir. Uygulama kodunu yayımlamak
 Firestore kuralını kendiliğinden yayımlamaz; kurallar ayrıca uygulanır.
+Google girişinin açıldığı gerçek site alanı, Authentication'ın canlı
+`authorizedDomains` listesinde ayrıca doğrulanmalıdır. `firebase.json` içindeki
+liste tek başına canlı ayarın uygulandığının kanıtı değildir. Bu uygulama için
+`selimuysal.github.io` alanı gerekir; protokol ve `/hayat-rehberi/` yolu eklenmez.
+Alan eksikse Google giriş ve hesap bağlama penceresi hemen kapanabilir.
+İstemci bu durumda `auth/unauthorized-domain` için açıklayıcı hata gösterir;
+mevcut e-posta hesabı veya ilerleme kaydı değiştirilmez.
 Sorunda önceki GitHub sürümü yeniden yayımlanabilir; bulut kayıtları ve cihazdaki
 hesap yedekleri geri alma sırasında silinmemelidir.
 
