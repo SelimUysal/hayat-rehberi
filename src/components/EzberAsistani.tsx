@@ -123,14 +123,16 @@ export const EzberAsistani: React.FC<EzberAsistaniProps> = ({ targetSurahId, act
               aria-label={`${screenAwakeLabel}: ${screenAwakeAccessibility}`}
               title={screenAwakeTitle}
               className={`min-h-11 min-w-0 justify-center px-2 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer transition-all ${keepScreenAwake
-                ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200'
+                ? isDark
+                  ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200'
+                  : 'border-emerald-500 bg-emerald-100 text-emerald-900 hover:bg-emerald-200'
                 : isDark
                   ? 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'
                   : 'border-emerald-900/10 bg-white text-slate-700 hover:bg-emerald-50'}`}
             >
               <MonitorSmartphone className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{screenAwakeLabel}</span>
-              {screenAwakeBadge && <span aria-hidden="true" className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${wakeStatus === 'blocked' || wakeStatus === 'unsupported' ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200'}`}>{screenAwakeBadge}</span>}
+              {screenAwakeBadge && <span aria-hidden="true" className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${wakeStatus === 'blocked' || wakeStatus === 'unsupported' ? (isDark ? 'bg-amber-500/20 text-amber-200' : 'bg-amber-100 text-amber-900') : (isDark ? 'bg-emerald-500/20 text-emerald-200' : 'bg-emerald-200 text-emerald-900')}`}>{screenAwakeBadge}</span>}
             </button>
             <TroubleshootingMenu dark={isDark}><EzberDiagnosticsPanel /></TroubleshootingMenu>
             {/* Görünüm Değiştirici Butonları */}
