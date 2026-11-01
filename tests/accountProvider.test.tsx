@@ -141,12 +141,13 @@ test('account dialog uses light-first colors and the global dark theme without c
 
 test('manual sync closes only on successful clean state and reopening stays open',async()=>{
   let change=()=>{};
-  const state={ready:true,owner:'alice',pending:1,syncing:true,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null as number|null};
+  const state={ready:true,owner:'alice',pending:1,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null as number|null};
   const runtime={store:{state,subscribe:(f:()=>void)=>{change=f;return ()=>{};},activate:async()=>{},retry:async()=>{},stop:()=>{}},watch:(f:(user:any)=>void)=>{f({uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[{providerId:'google.com'}]});return ()=>{};}} as unknown as AccountRuntime;
   const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
   try {
     await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
     const button=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Şimdi eşitle')!;
+    assert.equal(button.disabled,false,'Manual sync action must be enabled before testing its completion');
     await React.act(async()=>{button.click();});
     assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
     await React.act(async()=>{state.pending=0;state.syncing=false;state.lastSyncedAt=Date.now();change();});
@@ -162,7 +163,7 @@ test('link success alone does not close while sync is pending, errored or confli
   const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[] as string[],needsImport:false,lastSyncedAt:null as number|null};
   const emailUser={uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[]};
   const linked={...emailUser,providerData:[{providerId:'google.com'}]};
-  const runtime={store:{state,subscribe:(f:()=>void)=>{change=f;return ()=>{};},activate:async()=>{},stop:()=>{}},watch:(f:(user:any)=>void)=>{f(emailUser);return ()=>{};},link:async()=>({user:linked})} as unknown as AccountRuntime;
+  const runtime={store:{state,subscribe:(f:()=>void)=>{change=f;return ()=>{};},activate:async()=>{},stop:()=>{},conflictValues:(_key:string)=>({local:'',cloud:''}),resolve:()=>{}},watch:(f:(user:any)=>void)=>{f(emailUser);return ()=>{};},link:async()=>({user:linked})} as unknown as AccountRuntime;
   const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
   try {
     await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
