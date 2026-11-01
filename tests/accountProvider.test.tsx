@@ -46,3 +46,26 @@ test('restoring an existing auth session does not remount the application when o
     assert.equal(p.mounts,1);assert.match(p.dom.window.document.body.textContent!,/Yerel kayıtlar açık/);
   } finally {await p.cleanup();}
 });
+
+test('unauthorized Google domain reports the setup problem for sign-in and linking without changing the current owner',async()=>{
+  for(const signedIn of [false,true]) {
+    const state={ready:true,owner:signedIn?'alice':'guest',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null};
+    const failure=async()=>{throw {code:'auth/unauthorized-domain'};};
+    let activateCount=0;
+    const runtime={store:{state,subscribe:()=>()=>{},activate:async()=>{activateCount++;},stop:()=>{}},watch:(next:(user:any)=>void)=>{next(signedIn?{uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[]}:null);return ()=>{};},google:failure,link:failure} as unknown as AccountRuntime;
+    const p=await page(async()=>({createAccountRuntime:()=>runtime}),state.owner);
+    try {
+      p.dom.window.localStorage.setItem('esma_learned_names','{"1":true}');
+      const activationsBefore=activateCount;
+      await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+      const label=signedIn?'Google hesabını bu hesaba bağla':'Google ile giriş yap';
+      const button=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent===label)!;
+      await React.act(async()=>{button.click();});
+      assert.match(p.dom.window.document.querySelector('[role="alert"]')!.textContent!,/site adresi Google girişi için henüz yetkilendirilmemiş/);
+      assert.equal(button.disabled,false);
+      assert.equal(activateCount,activationsBefore);
+      assert.equal(p.dom.window.localStorage.getItem('esma_learned_names'),'{"1":true}');
+      assert.equal(p.mounts,1);
+    } finally {await p.cleanup();}
+  }
+});
