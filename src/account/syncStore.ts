@@ -5,7 +5,7 @@ import { encodeCacheText, decodeStoredCache } from './cacheCodec';
 import { CHUNK_LENGTH, MAX_CHUNKS, partId, splitValue, decodeProgress, decodeCollection } from './cloudDocuments';
 
 type Pending = Operation & { sequence: number; sent?: boolean; resolve?: boolean };
-type Cache = { version: 1; deviceId: string; nextSequence: number; values: Values; remote: Values; operations: Pending[]; privateValues?: Values };
+type Cache = { version: 1; deviceId: string; nextSequence: number; values: Values; remote: Values; operations: Pending[]; privateValues?: Values; lastCloudSeenAt?: number };
 export type SyncState = { ready: boolean; owner: string; pending: number; syncing: boolean; offline: boolean; error: string; conflicts: string[]; needsImport: boolean; lastSyncedAt: number | null };
 const OWNER = 'hayat-account-owner-v1';
 // Legacy and emergency Kaza backups stay local but must not leak to a second
@@ -80,7 +80,7 @@ export class AccountSyncStore {
     const refresh=()=>{
       if (generation !== this.generation) return;
       this.cache=this.read(uid)||fresh();
-      this.update({owner:uid,ready:this.storage.getItem(OWNER)===uid,offline:!navigator.onLine,syncing:this.cache.operations.length>0,error:''});
+      this.update({owner:uid,ready:this.storage.getItem(OWNER)===uid,offline:!navigator.onLine,syncing:this.cache.operations.length>0,error:'',lastSyncedAt:this.cache.lastCloudSeenAt || null});
     };
     refresh();
     this.storageListener=()=>refresh();window.addEventListener('storage',this.storageListener);
@@ -228,9 +228,10 @@ export class AccountSyncStore {
           const documents=new Map<string,Record<string,any>>();result.forEach(d=>documents.set(d.id,d.data()));
           const values=decodeCollection(documents);
           this.cache.remote = values;
+          this.cache.lastCloudSeenAt = Date.now();
           this.apply(this.preview());
           this.serverReady = true;
-          this.update({offline:false,error:'',lastSyncedAt:Date.now(),syncing:this.running});
+          this.update({offline:false,error:'',lastSyncedAt:this.cache.lastCloudSeenAt,syncing:this.running});
           const initial = !firstHandled;firstHandled = true;
           const sending = this.flush(generation);
           if (initial) void sending.finally(firstSnapshot);
@@ -341,9 +342,10 @@ export class AccountSyncStore {
           this.capture();
           this.cache.remote[op.key] = value;
           this.cache.operations = this.cache.operations.filter(p => p.id !== op.id);
+          this.cache.lastCloudSeenAt = Date.now();
           this.inFlight = '';
           this.apply(this.preview());
-          this.update({error:'',offline:false,lastSyncedAt:Date.now()});
+          this.update({error:'',offline:false,lastSyncedAt:this.cache.lastCloudSeenAt});
         } catch (error) {
           this.inFlight = '';
           if(generation!==this.generation)return;
