@@ -79,7 +79,8 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
   const [notice,setNotice] = useState('');
-  const autoCloseRef = useRef<AutoClosePurpose|null>(null);
+  // Keep the close request in state so an already-completed cloud sync also closes the dialog.
+  const [closeRequest,setCloseRequest] = useState<AutoClosePurpose|null>(null);
   const storeRef = useRef<AccountSyncStore|null>(null);
   const runtimeRef = useRef<AccountRuntime|null>(null);
   const userRef = useRef<User|null>(null);
@@ -110,14 +111,14 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
   useEffect(() => {if (state.needsImport) setOpened(true);},[state.needsImport]);
   // Only close after a user-initiated action and a confirmed, clean cloud sync.
   useEffect(() => {
-    const purpose = autoCloseRef.current;
+    const purpose = closeRequest;
     if (!purpose || !opened || busy || !user || !state.ready || state.owner !== user.uid ||
       state.needsImport || state.offline || !!state.error || state.pending !== 0 ||
       state.syncing || state.delegated || state.conflicts.length !== 0 || state.lastSyncedAt === null) return;
-    autoCloseRef.current = null;
+    setCloseRequest(null);
     setOpened(false);
     setNotice(purpose === 'link' ? 'Google hesabın bağlandı; kayıtların bulutla eşitlendi.' : 'Kayıtların bulutla eşitlendi.');
-  },[opened,busy,user,state]);
+  },[closeRequest,opened,busy,user,state]);
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(''),4000);
@@ -129,7 +130,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';closeRef.current?.focus();
     const onKey = (event:KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy && !state.needsImport) {autoCloseRef.current=null;setOpened(false);}
+      if (event.key === 'Escape' && !busy && !state.needsImport) {setCloseRequest(null);setOpened(false);}
       if (event.key !== 'Tab') return;
       const items = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href]') || [])].filter(el => el.getClientRects().length);
       if (!items.length) return;
@@ -140,10 +141,10 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     return () => {document.body.style.overflow=overflow;document.removeEventListener('keydown',onKey);previous?.focus();};
   },[opened,busy,state.needsImport]);
   const action = async (fn:()=>Promise<unknown>,closeOnSynced:AutoClosePurpose|null=null) => {
-    autoCloseRef.current = null;
+    setCloseRequest(null);
     setBusy(true);setMessage('');
-    try {await fn();if(closeOnSynced)autoCloseRef.current=closeOnSynced;}
-    catch (error) {autoCloseRef.current=null;setMessage(authMessage(error));}
+    try {await fn();if(closeOnSynced)setCloseRequest(closeOnSynced);}
+    catch (error) {setCloseRequest(null);setMessage(authMessage(error));}
     finally {setBusy(false);}
   };
   const google = () => action(async () => {
@@ -185,7 +186,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
   };
   const status = state.error ? 'Cihaz kayıtları korunuyor; eşitleme tamamlanmadı.' : state.offline ? 'Çevrimdışı: değişiklikler cihazda bekliyor.' : state.delegated ? (state.pending ? `Hesabın bağlı. ${state.pending} değişiklik başka açık sekmede eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Hesabın bağlı. Bulut eşitlemesi diğer açık sekmede yönetiliyor.' : 'Hesabın bağlı. Bulut bağlantısı diğer açık sekmede hazırlanıyor.') : state.syncing ? 'Eşitleniyor…' : state.pending ? `${state.pending} değişiklik eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Kayıtların eşitlendi.' : 'Bulut bağlantısı kuruluyor…';
   const button = 'w-full rounded-xl border border-emerald-700 bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900';
-  return <AccountContext.Provider value={{user,state,open:()=>{autoCloseRef.current=null;setNotice('');setOpened(true);}}}>
+  return <AccountContext.Provider value={{user,state,open:()=>{setCloseRequest(null);setNotice('');setOpened(true);}}}>
     {state.ready ? <React.Fragment key={state.owner}>{children}</React.Fragment> :
       <main className="min-h-screen bg-[#FBF9F5] text-slate-800 dark:bg-[#0d1512] dark:text-emerald-50 flex flex-col items-center justify-center gap-4 p-8 text-center" aria-live="polite">
         <Cloud className="w-8 h-8"/><p>{state.error || (state.needsImport ? 'Bu cihazdaki kayıtlarla ilgili seçimini bekliyoruz.' : 'Hesap kayıtları hazırlanıyor…')}</p>
@@ -196,7 +197,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     {opened && createPortal(<div className="fixed inset-0 z-[20000] flex items-center justify-center bg-slate-900/40 dark:bg-black/75 p-3">
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-title" className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-stone-200 bg-[#FFFEFB] p-5 text-slate-800 shadow-2xl dark:border-emerald-900 dark:bg-[#111c17] dark:text-stone-100">
         <div className="flex items-center justify-between gap-3 mb-4"><h2 id="account-title" className="text-xl font-bold">{user ? 'Hesabım' : 'Hayat Rehberi hesabı'}</h2>
-          <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>{autoCloseRef.current=null;setOpened(false);}} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
+          <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>{setCloseRequest(null);setOpened(false);}} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
         {user ? <>
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-700 dark:bg-white/5">
             <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-lg font-bold text-white dark:bg-emerald-600">{accountAvatarInitial(user)}</div>
@@ -248,7 +249,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
           {!accountReady && <p role="status" className="mb-3 text-sm text-slate-600 dark:text-stone-400">Hesap bağlantısı hazırlanıyor. Uygulamayı kullanmaya devam edebilirsin.</p>}
           <button className={button} disabled={busy || !accountReady} onClick={()=>void google()}>Google ile giriş yap</button>
           <p className="mt-1.5 text-center text-xs text-slate-600 dark:text-stone-400">Mevcut Google hesabını seçmen yeterli; yeni bir şifre oluşturmana gerek yok.</p>
-          <button type="button" disabled={busy} onClick={()=>{autoCloseRef.current=null;setMessage('');setOpened(false);}} className="mt-4 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:bg-white/5 dark:text-stone-100 dark:hover:bg-white/10">Hesap açmadan devam et</button>
+          <button type="button" disabled={busy} onClick={()=>{setCloseRequest(null);setMessage('');setOpened(false);}} className="mt-4 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:bg-white/5 dark:text-stone-100 dark:hover:bg-white/10">Hesap açmadan devam et</button>
           <p className="mt-1.5 text-center text-xs text-slate-600 dark:text-stone-400">Kayıtların bu cihazda kalır; diğer cihazlara otomatik aktarılmaz.</p>
           <details className="group mt-5 rounded-xl border border-stone-200 bg-stone-50/60 dark:border-stone-700 dark:bg-white/5">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-sm font-medium text-emerald-800 marker:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-200 [&::-webkit-details-marker]:hidden">
