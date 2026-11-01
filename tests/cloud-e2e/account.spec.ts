@@ -8,6 +8,27 @@ async function openAccount(page:Page) {
     await page.getByRole('button',{name:/Hesaba giriş yap|Hesabım ve eşitleme/}).click();
   await expect(dialog).toBeVisible();
 }
+async function chooseImportIfNeeded(page:Page,choice:'merge'|'cloud') {
+  const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
+  const merge=dialog.getByRole('button',{name:'Bu cihazdaki kayıtları da hesabıma ekle',exact:true});
+  const cloud=dialog.getByRole('button',{name:'Yalnızca hesabımdaki kayıtları aç',exact:true});
+  const status=dialog.getByRole('status');
+  // Auth state can arrive before the one-time import decision is rendered.
+  // Wait for either the import choices, the normal sync status, or auto-close.
+  await expect.poll(async()=>{
+    if(!await dialog.isVisible().catch(()=>false))return 'closed';
+    if(await merge.isVisible().catch(()=>false) && await cloud.isVisible().catch(()=>false))return 'choice';
+    if(await status.count())return 'status';
+    return 'loading';
+  },{timeout:30_000}).toMatch(/^(closed|choice|status)$/);
+  if(await merge.isVisible().catch(()=>false) && await cloud.isVisible().catch(()=>false)) {
+    await (choice==='merge'?merge:cloud).click();
+    await expect.poll(async()=>{
+      if(!await dialog.isVisible().catch(()=>false))return 'closed';
+      return await status.count()?'status':'loading';
+    },{timeout:30_000}).toMatch(/^(closed|status)$/);
+  }
+}
 async function authenticate(page:Page,email:string,register=false,choice:'merge'|'cloud'='cloud') {
   await openAccount(page);
   await expect(page.getByRole('button',{name:'Google ile giriş yap',exact:true})).toBeEnabled();
@@ -16,9 +37,8 @@ async function authenticate(page:Page,email:string,register=false,choice:'merge'
   await page.getByLabel('E-posta',{exact:true}).fill(email);
   await page.getByLabel('Şifre',{exact:true}).fill(password);
   await page.getByRole('button',{name:register?'Hesap oluştur':'E-posta ile giriş yap',exact:true}).click();
-  const importButton=page.getByRole('button',{name:'Bu cihazdaki kayıtları da hesabıma ekle',exact:true});
   await expect(page.getByRole('button',{name:/^(Hesaptan çıkış yap|Misafir kullanıma dön)$/})).toBeVisible();
-  if(await importButton.isVisible())await page.getByRole('button',{name:choice==='merge'?'Bu cihazdaki kayıtları da hesabıma ekle':'Yalnızca hesabımdaki kayıtları aç',exact:true}).click();
+  await chooseImportIfNeeded(page,choice);
   await sync(page);
 }
 async function sync(page:Page) {
@@ -26,28 +46,37 @@ async function sync(page:Page) {
   const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
   const button=dialog.getByRole('button',{name:'Şimdi eşitle',exact:true});
   const status=dialog.getByRole('status');
+  const merge=dialog.getByRole('button',{name:'Bu cihazdaki kayıtları da hesabıma ekle',exact:true});
+  const cloud=dialog.getByRole('button',{name:'Yalnızca hesabımdaki kayıtları aç',exact:true});
   const outcome=async():Promise<string>=>{
     if(!await dialog.isVisible().catch(()=>false))return 'closed';
-    const message=await status.innerText().catch(()=>'');
+    if(await merge.isVisible().catch(()=>false) || await cloud.isVisible().catch(()=>false))return 'import';
+    if(!await status.count())return 'loading';
+    const message=await status.innerText({timeout:1_000}).catch(()=>'');
     if(message.includes('Kayıtların eşitlendi.'))return 'synced';
     if(message.includes('Bulut eşitlemesi diğer açık sekmede yönetiliyor.'))return 'delegated';
     if(/başka açık sekmede|diğer açık sekmede/.test(message))return 'delegated-wait';
+    if(/Cihaz kayıtları korunuyor|Çevrimdışı:/.test(message))return 'error';
     if(/Eşitleniyor|Bulut bağlantısı kuruluyor/.test(message))return 'syncing';
     if(await button.isEnabled().catch(()=>false))return 'ready';
     return 'waiting';
   };
   let current=await outcome();
-  if(['closed','synced','delegated'].includes(current))return;
+  if(['closed','synced','delegated','delegated-wait'].includes(current))return;
+  if(current==='import')throw new Error('Eşitleme başlamadan önce cihaz kayıtları için seçim yapılmalı.');
   if(current==='ready')await button.click();
-  else if(current==='waiting') {
-    await expect.poll(outcome,{timeout:60_000}).toMatch(/^(closed|synced|delegated|delegated-wait|syncing|ready)$/);
+  else if(['waiting','loading'].includes(current)) {
+    await expect.poll(outcome,{timeout:30_000}).toMatch(/^(closed|synced|delegated|delegated-wait|syncing|ready|error|import)$/);
     current=await outcome();
     if(current==='ready')await button.click();
+    if(current==='import')throw new Error('Eşitleme başlamadan önce cihaz kayıtları için seçim yapılmalı.');
   }
-  // A sync already started by sign-in/import must be allowed to finish.
-  // The app closes the dialog after a clean user-requested sync; a background
-  // sync instead changes the status to "Kayıtların eşitlendi.".
-  await expect.poll(outcome,{timeout:60_000}).toMatch(/^(closed|synced|delegated)$/);
+  if(current==='error')throw new Error(await status.innerText({timeout:1_000}).catch(()=>'Bulut eşitlemesi başarısız oldu.'));
+  // If the first import or sign-in already started syncing, wait for its real
+  // completion. A delegated tab is checked by the cross-device assertions.
+  await expect.poll(outcome,{timeout:60_000}).toMatch(/^(closed|synced|delegated|delegated-wait|error)$/);
+  current=await outcome();
+  if(current==='error')throw new Error(await status.innerText({timeout:1_000}).catch(()=>'Bulut eşitlemesi başarısız oldu.'));
 }
 async function closeAccount(page:Page) {
   const dialog=page.getByRole('dialog',{name:/Hesabım|Hayat Rehberi hesabı/});
@@ -69,7 +98,9 @@ test('all durable screens restore across two browser devices; live edits refresh
       for(const [key,value]of Object.entries(values))localStorage.setItem(key,value);
       localStorage.setItem('cloud-test-seeded','1');
     }
-  },{...encodedFixtures,hayat_rehberi_hadis_activity_logs_v1:JSON.stringify(Array.from({length:5000},(_,i)=>({id:`history-${i}`,hadisId:1,timestamp:'2026-11-01T10:00:00.000Z',action:'review',kategori:'İman ve güzel ahlak'})))});
+  // The 5,000-entry chunking case is covered by the cloud integration suite.
+  // Keep this browser test focused on UI and cross-device restoration on mobile.
+  },encodedFixtures);
   const email=`screen-${info.project.name}-${Date.now()}@example.test`;
   await page.goto('/#esma');await authenticate(page,email,true,'merge');
   const expected=await page.evaluate(keys=>Object.fromEntries(keys.map(k=>[k,localStorage.getItem(k)])),Object.keys(encodedFixtures));
@@ -118,6 +149,9 @@ test('cloud outage does not block startup; offline edits persist and sign-out is
   await openAccount(page);
   await page.getByRole('button',{name:'Hesaptan çıkış yap',exact:true}).click();
   await expect(page.getByRole('button',{name:'Google ile giriş yap',exact:true})).toBeEnabled();
+  // Wait for the auth observer and account store to finish switching to guest
+  // before immediately creating another account.
+  await expect.poll(()=>read(page,'hayat-account-owner-v1')).toBe('guest');
   await expect.poll(()=>read(page,'esma_learned_names')).not.toBe('{"1":true}');
   await authenticate(page,`second-${info.project.name}-${Date.now()}@example.test`,true,'cloud');
   await expect.poll(()=>read(page,'esma_learned_names')).not.toBe('{"1":true}');
