@@ -47,6 +47,10 @@ function googleAvatarUrl(user: User | null): string | null {
   try {const url = new URL(photo); return url.protocol === 'https:' ? url.href : null;}
   catch {return null;}
 }
+function accountAvatarInitial(user: User): string {
+  const label = user.displayName?.trim() || user.email?.trim();
+  return label ? [...label][0].toLocaleUpperCase('tr-TR') : 'H';
+}
 export function AccountButton({dark = true}:{dark?:boolean}) {
   const {user,state,open} = useContext(AccountContext);
   const hasGoogleAccount = !!user?.providerData.some(provider => provider.providerId === 'google.com');
@@ -56,9 +60,10 @@ export function AccountButton({dark = true}:{dark?:boolean}) {
   const showPhoto = !!photoUrl && photoKey !== failedPhoto;
   return <button type="button" onClick={open}
     aria-label={user ? hasGoogleAccount ? 'Hesabım ve eşitleme (Google hesabı bağlı)' : 'Hesabım ve eşitleme' : 'Hesaba giriş yap'}
-    title={user ? hasGoogleAccount ? 'Google hesabı bağlı · Hesabım ve eşitleme' : 'Hesabım ve eşitleme' : 'Giriş yap ve kayıtlarını eşitle'}
+    title={user ? hasGoogleAccount ? 'Google hesabı bağlı · Hesabım ve eşitleme' : 'Giriş yapıldı · Hesabım ve eşitleme' : 'Giriş yap ve kayıtlarını eşitle'}
     className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border cursor-pointer ${dark ? 'border-white/10 text-stone-300 hover:bg-white/10' : 'border-stone-200 text-stone-700 hover:bg-stone-100'}`}>
     {showPhoto ? <img src={photoUrl!} alt="" referrerPolicy="no-referrer" className="h-7 w-7 rounded-full object-cover" onError={()=>setFailedPhoto(photoKey)}/> :
+      user ? <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white shadow-sm dark:bg-emerald-600">{accountAvatarInitial(user)}</span> :
       <UserRound className="w-4 h-4" aria-hidden="true"/>}
     {user && <span aria-hidden="true" className={`absolute bottom-0 right-0 h-2 w-2 rounded-full ring-2 ${dark ? 'ring-stone-900' : 'ring-white'} ${state.error || state.conflicts.length ? 'bg-amber-400' : state.pending || state.offline ? 'bg-sky-400' : 'bg-emerald-400'}`}/>}
   </button>;

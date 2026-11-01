@@ -84,7 +84,8 @@ test('Google-linked accounts show the Google profile photo, fall back when it fa
     assert.equal(button.querySelector('svg'),null);
     await React.act(async()=>{photo.dispatchEvent(new p.dom.window.Event('error'));});
     assert.equal(button.querySelector('img'),null);
-    assert.ok(button.querySelector('svg'));
+    assert.equal(button.querySelector('span.flex')?.textContent,'H');
+    assert.equal(button.querySelector('svg'),null);
     await React.act(async()=>{notify({uid:'bob',photoURL:null,providerData:[{providerId:'google.com',photoURL:'https://lh3.googleusercontent.com/bob.png'}]});});
     assert.equal(p.dom.window.document.querySelector('button img')?.getAttribute('src'),'https://lh3.googleusercontent.com/bob.png');
     await React.act(async()=>{notify(null);});
@@ -102,9 +103,11 @@ test('email-only users do not show a Google avatar and Google accounts without p
     await React.act(async()=>{notify({uid:'alice',photoURL:'https://example.test/unrelated.png',providerData:[{providerId:'password',photoURL:null}]});});
     assert.equal(p.dom.window.document.querySelector('button img'),null);
     assert.equal(p.dom.window.document.querySelector('button')?.getAttribute('aria-label'),'Hesabım ve eşitleme');
+    assert.equal(p.dom.window.document.querySelector('button span.flex')?.textContent,'H');
+    assert.match(p.dom.window.document.querySelector('button')!.getAttribute('title')!,/Giriş yapıldı/);
     await React.act(async()=>{notify({uid:'alice',photoURL:null,providerData:[{providerId:'google.com',photoURL:null}]});});
     assert.equal(p.dom.window.document.querySelector('button img'),null);
-    assert.ok(p.dom.window.document.querySelector('button svg'));
+    assert.equal(p.dom.window.document.querySelector('button span.flex')?.textContent,'H');
     assert.match(p.dom.window.document.querySelector('button')!.getAttribute('title')!,/Google hesabı bağlı/);
   } finally {await p.cleanup();}
 });
@@ -192,5 +195,27 @@ test('secondary browser tab explains delegated sync and does not falsely report 
     await React.act(async()=>{state.delegated=false;change();});
     assert.match(p.dom.window.document.querySelector('[role="dialog"]')!.textContent!,/Kayıtların eşitlendi/);
     assert.equal(sync.disabled,false);
+  } finally {await p.cleanup();}
+});
+
+test('signed-in email users have a colored initial avatar distinct from signed-out guests',async()=>{
+  let notify:(user:any)=>void=()=>{};
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null};
+  const runtime={store:{state,subscribe:()=>()=>{},activate:async()=>{},stop:()=>{}},watch:(f:(user:any)=>void)=>{notify=f;return ()=>{};}} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    const button=()=>p.dom.window.document.querySelector('button')!;
+    assert.ok(button().querySelector('svg'));
+    assert.equal(button().querySelector('span.flex'),null);
+    await React.act(async()=>{notify({uid:'alice',displayName:null,email:'uygun@example.test',photoURL:null,providerData:[{providerId:'password'}]});});
+    const avatar=button().querySelector('span.flex')!;
+    assert.equal(avatar.textContent,'U');
+    assert.ok(avatar.classList.contains('bg-emerald-700'));
+    assert.equal(button().querySelector('svg'),null);
+    await React.act(async()=>{notify({uid:'alice',displayName:'İpek',email:'uygun@example.test',photoURL:null,providerData:[{providerId:'password'}]});});
+    assert.equal(button().querySelector('span.flex')?.textContent,'İ');
+    await React.act(async()=>{notify(null);});
+    assert.equal(button().querySelector('span.flex'),null);
+    assert.ok(button().querySelector('svg'));
   } finally {await p.cleanup();}
 });
