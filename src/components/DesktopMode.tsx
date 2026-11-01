@@ -612,7 +612,7 @@ export const DesktopMode: React.FC<DesktopModeProps> = ({ targetSurahId, themeMo
     segmentsRef.current = segments;
     segmentIdxRef.current = 0;
     currentLoopRef.current = 1;
-    targetLoopRef.current = 1;
+    targetLoopRef.current = targetLoopCount;
     setCurrentLoop(1);
     setIsPlaying(true);
     playSegmentAt(0);
