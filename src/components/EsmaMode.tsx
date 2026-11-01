@@ -20,6 +20,7 @@ import {
   Search,
   CheckCircle,
   RotateCcw,
+  Repeat,
   Sparkles,
   Info,
   Sliders,
@@ -202,6 +203,21 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
   const [volume, setVolume] = useState<number>(() => readEsmaAudioSettings().volume);
   const [isMuted, setIsMuted] = useState<boolean>(() => readEsmaAudioSettings().muted);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(() => readEsmaAudioSettings().speed);
+  // The loop setting is shared by all recordings and persists between visits.
+  // Native HTMLMediaElement looping does not need a JS timer (important on locked phones).
+  const [isInfiniteLoop, setIsInfiniteLoop] = useState<boolean>(() => {
+    try { return localStorage.getItem('esma_audio_infinite_loop_v1') === '1'; }
+    catch { return false; }
+  });
+  const infiniteLoopRef = useRef(isInfiniteLoop);
+  infiniteLoopRef.current = isInfiniteLoop;
+  const toggleInfiniteLoop = () => {
+    const next = !infiniteLoopRef.current;
+    infiniteLoopRef.current = next;
+    setIsInfiniteLoop(next);
+    if (audioRef.current) audioRef.current.loop = next;
+    try { localStorage.setItem('esma_audio_infinite_loop_v1', next ? '1' : '0'); } catch {}
+  };
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const lastPositionWriteRef = useRef(0);
@@ -253,7 +269,27 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
     audio.load();
   }, [audioSource]);
 
-  // Başka sekmeye geçildiğinde veya uygulama kapandığında konumu kaydet.
+  // Save the position immediately when the page is hidden or closed.
+  // Do not pause playback: native audio can continue with screen locked if the OS allows it.
+  useEffect(() => {
+    const persistOnBackground = () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      if (position >= 0) saveAudioPosition(position);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistOnBackground();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', persistOnBackground);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', persistOnBackground);
+    };
+  }, []);
+
+  // When navigating away from the Esma page, preserve the chosen recording's bookmark.
   useEffect(() => {
     const audio = audioRef.current;
     return () => {
@@ -347,6 +383,12 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
     if (!audio) return;
     setCurrentTime(audio.currentTime);
     if (Number.isFinite(audio.duration)) setDuration(audio.duration);
+    // Native loop wraps from the end to 0 without firing an 'ended' event.
+    // Clear the previous tour's near-end bookmark when the recording restarts.
+    if (infiniteLoopRef.current && audio.currentTime + 1 < lastPositionWriteRef.current) {
+      saveAudioPosition(0);
+      lastPositionWriteRef.current = 0;
+    }
     if (Math.abs(audio.currentTime - lastPositionWriteRef.current) >= 5) {
       saveAudioPosition(audio.currentTime);
       lastPositionWriteRef.current = audio.currentTime;
@@ -461,6 +503,7 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
         ref={audioRef}
         src={audioSource}
         preload="metadata"
+        loop={isInfiniteLoop}
         onLoadedMetadata={() => {
           if (audioRef.current) {
             const audio = audioRef.current;
@@ -499,6 +542,22 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
           if (audioRef.current) saveAudioPosition(audioRef.current.currentTime);
         }}
         onEnded={() => {
+          // Browsers normally suppress 'ended' when audio.loop is true.
+          // This fallback covers browsers that unexpectedly emit it anyway.
+          if (infiniteLoopRef.current) {
+            const audio = audioRef.current;
+            if (audio) {
+              audio.currentTime = 0;
+              setCurrentTime(0);
+              saveAudioPosition(0);
+              lastPositionWriteRef.current = 0;
+              void audio.play().catch(() => {
+                setIsPlaying(false);
+                setAudioNotice('Ses yeniden başlatılamadı. Devam etmek için Başlat’a dokunun.');
+              });
+            }
+            return;
+          }
           setIsPlaying(false);
           setStatusText('Tamamlandı · 99 isim');
           saveAudioPosition(0);
@@ -688,6 +747,26 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
                 <span>Başa Al</span>
               </button>
 
+              <button type="button"
+                id="btn-esma-infinite-loop"
+                onClick={toggleInfiniteLoop}
+                aria-pressed={isInfiniteLoop}
+                aria-label={isInfiniteLoop ? 'Sonsuz döngüyü kapat' : 'Sonsuz döngüyü aç'}
+                title={isInfiniteLoop ? 'Seçili kayıt sonsuz tekrar ediyor' : 'Seçili kaydı sonsuz tekrarla'}
+                className={`min-h-[44px] px-3 sm:px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm flex items-center gap-2 border cursor-pointer transition-all active:scale-95 ${
+                  isInfiniteLoop
+                    ? isDark
+                      ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200'
+                      : 'bg-emerald-50 border-emerald-500 text-emerald-800'
+                    : isDark
+                      ? 'bg-[#20242a] text-slate-200 border-[#30363d] hover:border-[#55c99a]'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                }`}>
+                <Repeat className={`w-4 h-4 ${isInfiniteLoop ? 'text-emerald-500' : accentText}`} aria-hidden="true" />
+                <span>Sonsuz Döngü</span>
+                {isInfiniteLoop && <span aria-hidden="true" className="text-[10px] font-bold">Açık</span>}
+              </button>
+
               {/* Durum Metni */}
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium">
                 <span
@@ -768,7 +847,7 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
             </p>
           )}
           <p className={`mt-2 text-[11px] ${textMuted}`}>
-            Seçtiğiniz kayıt için dinleme konumu ayrı tutulur; hız ve ses ayarları ortaktır. Son seçilen kayıt hatırlanır; sayfa açıldığında ses otomatik başlamaz.
+            Her kaydın dinleme konumu ayrı saklanır. Sonsuz Döngü açıksa seçili kayıt bitince yeniden başlar. Döngü ve hız/ses ayarları hatırlanır; sayfa açıldığında ses otomatik başlamaz.
           </p>
 
           {/* İlerleme Zaman Çubuğu (Varsa) */}
