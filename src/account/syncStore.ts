@@ -6,14 +6,14 @@ import { CHUNK_LENGTH, MAX_CHUNKS, partId, splitValue, decodeProgress, decodeCol
 
 type Pending = Operation & { sequence: number; sent?: boolean; resolve?: boolean };
 type Cache = { version: 1; deviceId: string; nextSequence: number; values: Values; remote: Values; operations: Pending[]; privateValues?: Values; lastCloudSeenAt?: number };
-export type SyncState = { ready: boolean; owner: string; pending: number; syncing: boolean; offline: boolean; error: string; conflicts: string[]; needsImport: boolean; lastSyncedAt: number | null };
+export type SyncState = { ready: boolean; owner: string; pending: number; syncing: boolean; offline: boolean; error: string; conflicts: string[]; needsImport: boolean; lastSyncedAt: number | null; delegated: boolean };
 const OWNER = 'hayat-account-owner-v1';
 // Legacy and emergency Kaza backups stay local but must not leak to a second
 // account through the existing migration / restore screens.
 const PRIVATE_KEYS = ['kaza_namazlari','kaza_emergency_backup','quran_listening_full_cycle_v1',
   'quran_listening_bookmark','quran_ezber_mobile_last_session_v1','quran_listening_ab_loop_v1','elifba_saved_session'];
 const cacheKey = (owner: string) => `hayat-account-cache-v1:${owner}`;
-const initialState: SyncState = { ready:true,owner:'guest',pending:0,syncing:false,offline:!navigator.onLine,error:'',conflicts:[],needsImport:false,lastSyncedAt:null };
+const initialState: SyncState = { ready:true,owner:'guest',pending:0,syncing:false,offline:!navigator.onLine,error:'',conflicts:[],needsImport:false,lastSyncedAt:null,delegated:false };
 const fresh = (): Cache => ({version:1,deviceId:crypto.randomUUID(),nextSequence:1,values:{},remote:{},operations:[]});
 const same = (a: unknown,b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const newId = () => crypto.randomUUID();
@@ -80,7 +80,7 @@ export class AccountSyncStore {
     const refresh=()=>{
       if (generation !== this.generation) return;
       this.cache=this.read(uid)||fresh();
-      this.update({owner:uid,ready:this.storage.getItem(OWNER)===uid,offline:!navigator.onLine,syncing:this.cache.operations.length>0,error:'',lastSyncedAt:this.cache.lastCloudSeenAt || null});
+      this.update({owner:uid,ready:this.storage.getItem(OWNER)===uid,offline:!navigator.onLine,syncing:false,delegated:true,error:'',lastSyncedAt:this.cache.lastCloudSeenAt || null});
     };
     refresh();
     this.storageListener=()=>refresh();window.addEventListener('storage',this.storageListener);
@@ -186,11 +186,12 @@ export class AccountSyncStore {
     if(this.storageListener) window.removeEventListener('storage',this.storageListener);
     if(this.wakeListener) {window.removeEventListener('online',this.wakeListener);document.removeEventListener('visibilitychange',this.wakeListener);}
     const targetOwner = uid || 'guest';
-    this.update({ready:this.owner === targetOwner,needsImport:false,error:'',conflicts:[]});
+    this.update({ready:this.owner === targetOwner,needsImport:false,error:'',conflicts:[],delegated:false,lastSyncedAt:null});
     try {
       if(this.owner && this.leader) this.capture(true);
       if(!await this.leadership(uid,generation)) {if(generation===this.generation && uid)this.follow(uid,generation);return;}
       if(generation!==this.generation)return;
+      this.update({delegated:false});
       // The screen stays usable during same-account startup. Preserve edits
       // made after the first capture while the asynchronous browser lock waited.
       this.capture(true);
