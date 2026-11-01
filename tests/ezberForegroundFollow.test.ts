@@ -99,3 +99,14 @@ test('remote PWA playback carries duration and highlights its live word', () => 
  assert.ok(mobile.includes('lastValidWordRef.current'));
  assert.ok(mobile.includes('durationSeconds: Number.isFinite(player.duration) ? player.duration : undefined'));
 });
+
+test('background retains current audio second and foreground never starts a second player', () => {
+  const src = fs.readFileSync('src/components/MobileMode.tsx', 'utf8');
+  const segment = foregroundEffect(src);
+  assert.ok(segment.includes('saveMobileEzberSession({'));
+  assert.ok(segment.includes('positionSeconds: Number.isFinite(player.currentTime)'));
+  assert.ok(segment.includes('setPausedSession(saved)'));
+  assert.ok(segment.includes('!activeScreenRef.current'));
+  assert.ok(!segment.includes('player.play('));
+  assert.ok(!segment.includes('new Audio('));
+});
