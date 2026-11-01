@@ -254,3 +254,39 @@ test('signed-in account explains sync and keeps manual retry and backups availab
     assert.ok([...dialog.querySelectorAll('details button')].some(b=>b.textContent==='Cihaz yedeğini indir'));
   } finally {await p.cleanup();}
 });
+
+test('already-synced manual retry closes without a new store event',async()=>{
+  let retries=0;
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:Date.now(),delegated:false};
+  const runtime={store:{state,subscribe:()=>()=>{},activate:async()=>{},retry:async()=>{retries++;},stop:()=>{}},
+    watch:(fn:(user:any)=>void)=>{fn({uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[{providerId:'google.com'}]});return ()=>{};}
+  } as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const sync=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Şimdi eşitle')!;
+    await React.act(async()=>{sync.click();});
+    assert.equal(retries,1);
+    assert.equal(p.dom.window.document.querySelector('[role="dialog"]'),null);
+    assert.match(p.dom.window.document.querySelector('[role="status"]')!.textContent!,/Kayıtların bulutla eşitlendi/);
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+  } finally {await p.cleanup();}
+});
+test('Google sign-in closes after cloud state settled before sign-in promise resolves',async()=>{
+  const state={ready:true,owner:'guest',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null as number|null,delegated:false};
+  let notify:(user:any)=>void=()=>{},changed=()=>{};
+  const user={uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[{providerId:'google.com'}]};
+  const runtime={store:{state,subscribe:(fn:()=>void)=>{changed=fn;return ()=>{};},activate:async()=>{},stop:()=>{}},
+    watch:(fn:(user:any)=>void)=>{notify=fn;fn(null);return ()=>{};},
+    google:async()=>{notify(user);state.owner='alice';state.lastSyncedAt=Date.now();changed();return {user};}
+  } as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}));
+  try {
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const google=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Google ile giriş yap')!;
+    await React.act(async()=>{google.click();});
+    assert.equal(p.dom.window.document.querySelector('[role="dialog"]'),null);
+    assert.match(p.dom.window.document.querySelector('[role="status"]')!.textContent!,/Kayıtların bulutla eşitlendi/);
+  } finally {await p.cleanup();}
+});
