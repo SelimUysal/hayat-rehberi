@@ -67,3 +67,15 @@ test('Ezber stays mounted when switching tabs and returns to live verse on foreg
   assert.ok(mobile.includes("stopRemoteEzberAudio()"));
   assert.ok(mobile.includes("claimEzberAudio()"));
 });
+
+test('media control callbacks never access Ezber functions in the temporal dead zone', () => {
+  const mobile = fs.readFileSync('src/components/MobileMode.tsx', 'utf8');
+  for (const [name, declaration] of [
+    ['mediaPauseRef.current = pauseAudio', 'const pauseAudio ='],
+    ['mediaResumeRef.current = resumeAudio', 'const resumeAudio =']
+  ]) {
+    assert.ok(mobile.includes(name) && mobile.includes(declaration));
+    assert.ok(mobile.indexOf(name) > mobile.indexOf(declaration),
+      `${name} must follow its function declaration`);
+  }
+});
