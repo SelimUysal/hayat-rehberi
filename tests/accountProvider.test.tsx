@@ -174,3 +174,23 @@ test('link success alone does not close while sync is pending, errored or confli
     assert.equal(p.dom.window.document.querySelector('[role="dialog"]'),null);
   } finally {await p.cleanup();}
 });
+
+test('secondary browser tab explains delegated sync and does not falsely report failure',async()=>{
+  let change=()=>{};
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null as number|null,delegated:true};
+  const runtime={store:{state,subscribe:(f:()=>void)=>{change=f;return ()=>{};},activate:async()=>{},stop:()=>{}},
+    watch:(f:(user:any)=>void)=>{f({uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[{providerId:'google.com'}]});return ()=>{};}} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    assert.match(p.dom.window.document.querySelector('[role="dialog"]')!.textContent!,/Bulut bağlantısı diğer açık sekmede hazırlanıyor/);
+    const sync=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Şimdi eşitle')!;
+    assert.equal(sync.disabled,true);
+    await React.act(async()=>{state.lastSyncedAt=Date.now();change();});
+    assert.match(p.dom.window.document.querySelector('[role="dialog"]')!.textContent!,/Bulut eşitlemesi diğer açık sekmede yönetiliyor/);
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+    await React.act(async()=>{state.delegated=false;change();});
+    assert.match(p.dom.window.document.querySelector('[role="dialog"]')!.textContent!,/Kayıtların eşitlendi/);
+    assert.equal(sync.disabled,false);
+  } finally {await p.cleanup();}
+});
