@@ -318,3 +318,13 @@ suite('rules: a receipt cannot claim a new operation without its matching progre
   batch.set(receipt,{schemaVersion:2,operationId:next.operationId,deviceId:'proof-browser',key:'esma_learned_names',sequence:1,updatedAt:serverTimestamp()});
   await assertSucceeds(batch.commit());
 });
+
+suite('first import: a new user edit stays a separate delta while the original import is still queued',async()=>{
+  const database=db('alice'),key='esma_learned_names';await setDoc(path(database),data('{"1":true,"2":true}'));
+  const a=storage();a.setItem(key,'{"1":true}');const first=store(database,a);
+  online=false;await first.activate('alice','merge');
+  const flags=JSON.parse(a.getItem(key) || '{}');delete flags['1'];a.setItem(key,JSON.stringify(flags));first.exportBackup();
+  online=true;await first.activate('alice');await first.flush();
+  assert.deepEqual(JSON.parse(a.getItem(key)!),{'2':true});
+  assert.deepEqual(JSON.parse((await getDoc(path(database))).data()!.value),{'2':true});
+});

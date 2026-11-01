@@ -47,6 +47,10 @@ değişir; önceki hesabın kuyruğu veya acil kaza yedeği yeni hesaba aktarıl
 eski ekrandaki verinin yeni hesaba yazılmaması için ekran yeniden kurulur.
 Normal bulut güncellemeleri açık ekranı yeniler; ses başlatmaz veya ileri sarmaz.
 
+İlk aktarım henüz gönderilmeyi beklerken yapılan yeni düzenlemeler ayrı işlem
+olarak tutulur. Örneğin aktarım sırasında bir ezber işaretinin kaldırılması,
+ilk aktarımın korumacı birleştirmesi içinde kaybolmaz.
+
 ## Veri bütünlüğü ve çevrimdışı çalışma
 
 - Çalışma kopyası mevcut localStorage anahtarlarını kullanır. Cihazda bekleyen

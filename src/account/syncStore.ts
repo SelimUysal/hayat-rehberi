@@ -131,7 +131,7 @@ export class AccountSyncStore {
         const base = this.cache.values[key] ?? null;
         if (next === base) continue;
         const last = [...this.cache.operations].reverse().find(o => o.key === key);
-        if (last && !last.sent) last.value = next;
+        if (last && !last.sent && !last.initial) last.value = next;
         else this.cache.operations.push({id:newId(),sequence:this.cache.nextSequence++,key,base,value:next});
       }
     }
