@@ -5,6 +5,8 @@ import type { User } from 'firebase/auth';
 import type { AccountSyncStore, SyncState } from './syncStore';
 import type { AccountRuntime } from './accountRuntime';
 import { allowedKey } from './syncModel';
+import { AccountInvitation } from './AccountInvitation';
+import { ACCOUNT_INVITE_DELAY_MS, ACCOUNT_INVITE_KEY, configuredOneTapClientId, startGoogleOneTap } from './googleOneTap';
 
 type Context = {user:User|null;state:SyncState;open:()=>void};
 type AutoClosePurpose = 'signin'|'link'|'sync'|'import';
@@ -72,6 +74,9 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
   const [user,setUser] = useState<User|null>(null);
   const [state,setState] = useState<SyncState>(initialState);
   const [opened,setOpened] = useState(false);
+  const [invitation,setInvitation] = useState(false);
+  const [nativeOneTap,setNativeOneTap] = useState(false);
+  const [authChecked,setAuthChecked] = useState(false);
   const [accountReady,setAccountReady] = useState(false);
   const [mode,setMode] = useState<'login'|'register'>('login');
   const [email,setEmail] = useState('');
@@ -100,7 +105,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
       setState({...store.state});setAccountReady(true);
       unsubscribeStore = store.subscribe(() => setState({...store.state}));
       unsubscribeAuth = runtime.watch(current => {
-        userRef.current = current;setUser(current);setPassword('');
+        userRef.current = current;setUser(current);setAuthChecked(true);setPassword('');
         void store.activate(current?.uid || null);
       },() => setState(s => ({...s,ready:true,error:'Hesap bağlantısı yenilenemedi. Cihaz kayıtlarınla devam edebilirsin.'})));
     }).catch(() => {if(!disposed)setState(s => ({...s,ready:true,error:'Hesap bağlantısı açılamadı. Cihaz kayıtlarınla kullanmaya devam edebilirsin.'}));});
@@ -109,6 +114,56 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     return () => {disposed=true;unsubscribeAuth();unsubscribeStore();ownStore?.stop();window.removeEventListener('pagehide',onPageHide);};
   },[loadRuntime]);
   useEffect(() => {if (state.needsImport) setOpened(true);},[state.needsImport]);
+  // Offer account sync only after Firebase has resolved the current session.
+  // The choice is stored once per browser and never changes local progress.
+  useEffect(() => {
+    if (!authChecked || user || opened || state.needsImport || !accountReady) {
+      setInvitation(false);
+      return;
+    }
+    try {if (localStorage.getItem(ACCOUNT_INVITE_KEY)) return;} catch {return;}
+    const timer = window.setTimeout(() => {
+      try {
+        if (localStorage.getItem(ACCOUNT_INVITE_KEY)) return;
+        localStorage.setItem(ACCOUNT_INVITE_KEY,'shown');
+      } catch {return;}
+      setInvitation(true);
+    },ACCOUNT_INVITE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  },[authChecked,user,opened,state.needsImport,accountReady]);
+
+  const dismissInvitation = React.useCallback(() => {
+    setInvitation(false);
+    setNativeOneTap(false);
+    try {localStorage.setItem(ACCOUNT_INVITE_KEY,'dismissed');} catch {}
+  },[]);
+
+  useEffect(() => {
+    if (!invitation || user || opened) return;
+    const clientId = configuredOneTapClientId();
+    if (!clientId) return;
+    setNativeOneTap(true);
+    // Keep the manual invitation available if Google suppresses the prompt.
+    const fallbackTimer = window.setTimeout(() => setNativeOneTap(false),2500);
+    const stop = startGoogleOneTap(clientId,idToken => {
+      setNativeOneTap(false);
+      const runtime = runtimeRef.current;
+      if (!runtime) {
+        setCloseRequest(null);
+        setMessage('Hesap bağlantısı henüz hazır değil. Google ile giriş seçeneğini açıp tekrar deneyebilirsin.');
+        setOpened(true);
+        setInvitation(false);
+        return;
+      }
+      void runtime.oneTap(idToken).then(dismissInvitation).catch(error => {
+        setCloseRequest(null);
+        setMessage(authMessage(error));
+        setOpened(true);
+        setInvitation(false);
+      });
+    },() => setNativeOneTap(false));
+    return () => {window.clearTimeout(fallbackTimer);stop();};
+  },[invitation,user,opened,dismissInvitation]);
   // Only close after a user-initiated action and a confirmed, clean cloud sync.
   useEffect(() => {
     const purpose = closeRequest;
@@ -194,6 +249,7 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
       </main>}
     {user && state.ready && !opened && (state.error || state.conflicts.length > 0) && <button type="button" onClick={()=>setOpened(true)} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[19000] max-w-[90vw] rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-xl dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">{state.conflicts.length ? 'İki cihazdaki kayıtlar farklı. Seçim yapmak için aç.' : 'Eşitleme tamamlanamadı. Hesap durumunu aç.'}</button>}
     {notice && !opened && <div role="status" aria-live="polite" className="fixed bottom-4 left-1/2 z-[19000] w-max max-w-[90vw] -translate-x-1/2 rounded-xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100 shadow-xl">{notice}</div>}
+    {invitation && !nativeOneTap && !user && !opened && <AccountInvitation onGuest={dismissInvitation} onGoogle={()=>{dismissInvitation();setCloseRequest(null);setOpened(true);}}/>}
     {opened && createPortal(<div className="fixed inset-0 z-[20000] flex items-center justify-center bg-slate-900/40 dark:bg-black/75 p-3">
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-title" className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-stone-200 bg-[#FFFEFB] p-5 text-slate-800 shadow-2xl dark:border-emerald-900 dark:bg-[#111c17] dark:text-stone-100">
         <div className="flex items-center justify-between gap-3 mb-4"><h2 id="account-title" className="text-xl font-bold">{user ? 'Hesabım' : 'Hayat Rehberi hesabı'}</h2>
