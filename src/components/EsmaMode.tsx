@@ -64,6 +64,20 @@ function readEsmaAudioSettings() {
   }
 }
 
+
+const ESMA_AUDIO_TRACKS = [
+  { id: 'original', label: 'Asmaul Husna The Beautiful Names Of Allah', path: 'audio.mp3' },
+  { id: 'esma', label: 'Esmaü\'l-Hüsnâ', path: 'audio/esmaul-husna.m4a' },
+  { id: 'mealli', label: 'Türkçe Mealli Esmaü\'l-Hüsnâ', path: 'audio/esmaul-husna-tr-mealli.m4a' }
+] as const;
+type EsmaAudioId = typeof ESMA_AUDIO_TRACKS[number]['id'];
+const DEFAULT_ESMA_AUDIO_ID: EsmaAudioId = 'esma';
+
+function esmaAudioPositionKey(id: EsmaAudioId): string {
+  // Preserve the existing MP3 bookmark during the migration to three tracks.
+  return id === 'original' ? 'esma_audio_position_v1' : `esma_audio_position_${id}_v2`;
+}
+
 interface EsmaModeProps {
   targetEsmaNumber?: number;
   targetCategory?: 'all' | 'rahmet' | 'kudret' | 'ilim' | 'adalet' | 'learned';
@@ -151,14 +165,17 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
   // =========================================================================
   // 2. SES (AUDIO) OYNATICI VE KONTROLLERİ
   // =========================================================================
-  /*
-   * ╔════════════════════════════════════════════════════════════════════════════╗
-   * ║                   SES DOSYASI GELECEK YER                                  ║
-   * ║ Kendi 'audio.mp3' ses dosyanızı public klasörüne yerleştirebilir veya      ║
-   * ║ buradaki 'audioSource' değişkenine dosya yolunu / bağlantısını girebilirsiniz.║
-   * ╚════════════════════════════════════════════════════════════════════════════╝
-   */
-  const audioSource = `${import.meta.env.BASE_URL}audio.mp3`;
+  const [selectedAudioId, setSelectedAudioId] = useState<EsmaAudioId>(() => {
+    try {
+      const saved = localStorage.getItem('esma_audio_selected_v2');
+      if (ESMA_AUDIO_TRACKS.some(track => track.id === saved)) return saved as EsmaAudioId;
+    } catch { /* Storage may be unavailable. */ }
+    return DEFAULT_ESMA_AUDIO_ID;
+  });
+  const selectedAudioIdRef = useRef(selectedAudioId);
+  selectedAudioIdRef.current = selectedAudioId;
+  const resumeAfterTrackSwitchRef = useRef(false);
+  const audioSource = `${import.meta.env.BASE_URL}${ESMA_AUDIO_TRACKS.find(track => track.id === selectedAudioId)!.path}`;
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -176,8 +193,9 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
   const saveAudioPosition = (position: number) => {
     if (!Number.isFinite(position) || position < 0) return;
     try {
-      if (position === 0) localStorage.removeItem('esma_audio_position_v1');
-      else localStorage.setItem('esma_audio_position_v1', String(position));
+      const key = esmaAudioPositionKey(selectedAudioIdRef.current);
+      if (position === 0) localStorage.removeItem(key);
+      else localStorage.setItem(key, String(position));
     } catch { /* Storage may be unavailable. */ }
   };
 
@@ -189,6 +207,36 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
     } catch { /* Tarayıcı depolaması kısıtlı olabilir. */ }
   }, [volume, isMuted, playbackSpeed]);
 
+  // Changing tracks keeps existing volume, speed and mute settings.
+  // It saves the old track separately; the new track resumes from its own bookmark.
+  const selectAudioTrack = (id: EsmaAudioId) => {
+    if (id === selectedAudioIdRef.current) return;
+    const audio = audioRef.current;
+    const wasPlaying = Boolean(audio && !audio.paused);
+    if (audio) {
+      audio.pause();
+      saveAudioPosition(audio.currentTime);
+    }
+    selectedAudioIdRef.current = id;
+    resumeAfterTrackSwitchRef.current = wasPlaying;
+    setSelectedAudioId(id);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    lastPositionWriteRef.current = 0;
+    setHasAudioError(false);
+    setAudioNotice('');
+    setStatusText('Ses kaydı değiştirildi · Yükleniyor…');
+    try { localStorage.setItem('esma_audio_selected_v2', id); } catch {}
+  };
+
+  // Browser metadata is reloaded only for the selected audio track.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.load();
+  }, [audioSource]);
+
   // Başka sekmeye geçildiğinde veya uygulama kapandığında konumu kaydet.
   useEffect(() => {
     const audio = audioRef.current;
@@ -196,9 +244,9 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
       if (!audio) return;
       if (Number.isFinite(audio.duration) && audio.duration > 0 &&
           audio.currentTime >= audio.duration - 2) {
-        try { localStorage.removeItem('esma_audio_position_v1'); } catch {}
+        try { localStorage.removeItem(esmaAudioPositionKey(selectedAudioIdRef.current)); } catch {}
       } else if (Number.isFinite(audio.currentTime) && audio.currentTime > 0) {
-        try { localStorage.setItem('esma_audio_position_v1', String(audio.currentTime)); } catch {}
+        try { localStorage.setItem(esmaAudioPositionKey(selectedAudioIdRef.current), String(audio.currentTime)); } catch {}
       }
       audio.pause();
     };
@@ -404,7 +452,7 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
             setHasAudioError(false);
             setStatusText('Hazır · 99 isim');
             try {
-              const saved = Number(localStorage.getItem('esma_audio_position_v1'));
+              const saved = Number(localStorage.getItem(esmaAudioPositionKey(selectedAudioIdRef.current)));
               if (Number.isFinite(saved) && saved > 0 &&
                   Number.isFinite(audio.duration) && saved < audio.duration - 2) {
                 audio.currentTime = saved;
@@ -413,6 +461,13 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
                 setStatusText('Kaldığınız yer hazır · Başlatın');
               }
             } catch { /* Storage may be unavailable. */ }
+            if (resumeAfterTrackSwitchRef.current) {
+              resumeAfterTrackSwitchRef.current = false;
+              void audio.play().catch(() => {
+                setAudioNotice('Yeni kaydı başlatmak için Başlat düğmesine dokunun.');
+                setIsPlaying(false);
+              });
+            }
           }
         }}
         onCanPlay={() => {
@@ -434,9 +489,10 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
         }}
         onTimeUpdate={handleTimeUpdate}
         onError={() => {
+          resumeAfterTrackSwitchRef.current = false;
           setIsPlaying(false);
           setHasAudioError(true);
-          setStatusText('Ses dosyası yüklenemedi · bağlantınızı kontrol edin');
+          setStatusText('Ses dosyası yüklenemedi · bağlantıyı veya dosyayı kontrol edin');
         }}
       />
 
@@ -557,7 +613,27 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
          ========================================================================= */}
       <section className="max-w-[1340px] mx-auto px-4 sm:px-6 pt-5">
         <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${cardBg}`}>
-          
+          <div className="mb-4">
+            <p className={`mb-2 text-xs font-bold uppercase tracking-wider ${textMuted}`}>Ses Kaydı Seçimi</p>
+            <div role="radiogroup" aria-label="Esmaü'l-Hüsnâ ses kaydı" className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {ESMA_AUDIO_TRACKS.map(track => (
+                <label key={track.id}
+                  className={`relative min-h-[48px] flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
+                    selectedAudioId === track.id
+                      ? isDark ? 'bg-emerald-500/15 text-emerald-200 border-emerald-500/55' : 'bg-emerald-50 text-emerald-800 border-emerald-500'
+                      : isDark ? 'bg-[#20242a] text-slate-300 border-[#30363d] hover:border-emerald-500/40' : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-400'
+                  }`}>
+                  <input type="radio" name="esma-audio-track" value={track.id}
+                    checked={selectedAudioId === track.id}
+                    onChange={() => selectAudioTrack(track.id)}
+                    className="h-4 w-4 shrink-0 accent-emerald-500 cursor-pointer" />
+                  <span className="min-w-0 leading-snug">{track.label}</span>
+                  {selectedAudioId === track.id && <CheckCircle className="ml-auto h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />}
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             
             {/* Oynat / Durdur / Duraklat Butonları */}
@@ -676,7 +752,7 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
             </p>
           )}
           <p className={`mt-2 text-[11px] ${textMuted}`}>
-            Toplu 99 isim ses kaydıdır. Dinleme konumunuz ve hız/ses ayarlarınız bu tarayıcıda saklanır; ses yeniden açılışta otomatik başlamaz.
+            Seçtiğiniz kayıt için dinleme konumu ayrı tutulur; hız ve ses ayarları ortaktır. Son seçilen kayıt hatırlanır; sayfa açıldığında ses otomatik başlamaz.
           </p>
 
           {/* İlerleme Zaman Çubuğu (Varsa) */}
@@ -703,7 +779,7 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
             }`}>
               <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <strong>Ses yüklenemedi.</strong> Ses dosyası uygulamada bulunuyor; internet bağlantısını kontrol edin ve tekrar Başlat'a dokunun. Sorun sürerse sayfayı yenileyin.
+                <strong>Ses yüklenemedi.</strong> Seçilen ses kaydının public/audio klasörüne yüklendiğinden ve internet bağlantınızın çalıştığından emin olun. Sorun sürerse başka kayıt seçin veya sayfayı yenileyin.
               </div>
             </div>
           )}
@@ -966,7 +1042,7 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <p className="mb-1">
-                <strong>Ses Kaynağı:</strong> "Asmaul Husna The Beautiful Names Of Allah SWT (God) Podcast Edition" by Jannah Firdaus Mediapro is licensed under{' '}
+                <strong>İlk kaydın ses kaynağı:</strong> "Asmaul Husna The Beautiful Names Of Allah SWT (God) Podcast Edition" by Jannah Firdaus Mediapro is licensed under{' '}
                 <a
                   href="https://creativecommons.org/licenses/by-nc-nd/4.0/"
                   target="_blank"
