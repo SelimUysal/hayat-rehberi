@@ -224,7 +224,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   useEffect(() => {
     let lastResyncAt = 0;
     const onForeground = () => {
-      if (document.hidden || Date.now() - lastResyncAt < 250) return;
+      if (document.hidden || !activeScreenRef.current || Date.now() - lastResyncAt < 250) return;
       lastResyncAt = Date.now();
 
       if (!ownsAudioRef.current) {
@@ -233,11 +233,29 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       }
       const player = audioRef.current;
       const verseNum = currentlyPlayingVerseNumRef.current;
-      if (verseNum === null || !player.currentSrc) return;
+      if (verseNum === null || !player.currentSrc) {
+        // The OS may have evicted the audio element. Keep the saved position
+        // available for an explicit Continue instead of starting a new player.
+        const saved = readMobileEzberSession();
+        if (saved?.wasPlaying) {
+          setPausedSession(saved);
+          setResumeAvailable(true);
+          setSelectedVerseNum(saved.verseNum);
+        }
+        setIsPlaying(false);
+        return;
+      }
 
       const playing = !player.paused && !player.ended;
       isPlayingRef.current = playing;
       setIsPlaying(playing);
+      if (!playing) {
+        const saved = readMobileEzberSession();
+        if (saved?.wasPlaying && saved.verseNum === verseNum) {
+          setPausedSession(saved);
+          setResumeAvailable(true);
+        }
+      }
       setCurrentlyPlayingVerseNum(verseNum);
       setSelectedVerseNum(verseNum);
       syncFollowRef.current?.();
@@ -262,6 +280,17 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         if (tickIntervalRef.current !== null) {
           clearInterval(tickIntervalRef.current);
           tickIntervalRef.current = null;
+        }
+        if (ownsAudioRef.current && isPlayingRef.current && audioRef.current.currentSrc) {
+          const player = audioRef.current;
+          saveMobileEzberSession({
+            surahId: currentSurahRef.current,
+            verseNum: currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,
+            reciter: selectedReciterRef.current,
+            playbackSpeed: playbackSpeedRef.current,
+            positionSeconds: Number.isFinite(player.currentTime) ? player.currentTime : lastPositionRef.current,
+            wasPlaying: true, mode: playModeRef.current,
+          });
         }
         logEzber('APP_BACKGROUND', 'info', { surah: currentSurahRef.current });
       } else {
