@@ -135,3 +135,42 @@ test('account dialog uses light-first colors and the global dark theme without c
     assert.equal(p.mounts,1);
   } finally {await p.cleanup();}
 });
+
+test('manual sync closes only on successful clean state and reopening stays open',async()=>{
+  let change=()=>{};
+  const state={ready:true,owner:'alice',pending:1,syncing:true,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null as number|null};
+  const runtime={store:{state,subscribe:(f:()=>void)=>{change=f;return ()=>{};},activate:async()=>{},retry:async()=>{},stop:()=>{}},watch:(f:(user:any)=>void)=>{f({uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[{providerId:'google.com'}]});return ()=>{};}} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const button=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Şimdi eşitle')!;
+    await React.act(async()=>{button.click();});
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+    await React.act(async()=>{state.pending=0;state.syncing=false;state.lastSyncedAt=Date.now();change();});
+    assert.equal(p.dom.window.document.querySelector('[role="dialog"]'),null);
+    assert.match(p.dom.window.document.querySelector('[role="status"]')!.textContent!,/bulutla eşitlendi/);
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+  } finally {await p.cleanup();}
+});
+
+test('link success alone does not close while sync is pending, errored or conflicted',async()=>{
+  let change=()=>{};
+  const state={ready:true,owner:'alice',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null as number|null};
+  const emailUser={uid:'alice',email:'alice@example.test',emailVerified:true,providerData:[]};
+  const linked={...emailUser,providerData:[{providerId:'google.com'}]};
+  const runtime={store:{state,subscribe:(f:()=>void)=>{change=f;return ()=>{};},activate:async()=>{},stop:()=>{}},watch:(f:(user:any)=>void)=>{f(emailUser);return ()=>{};},link:async()=>({user:linked})} as unknown as AccountRuntime;
+  const p=await page(async()=>({createAccountRuntime:()=>runtime}),'alice');
+  try {
+    await React.act(async()=>{p.dom.window.document.querySelector('button')!.click();});
+    const link=[...p.dom.window.document.querySelectorAll('button')].find(b=>b.textContent==='Google hesabını bu hesaba bağla')!;
+    await React.act(async()=>{link.click();});
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+    await React.act(async()=>{state.lastSyncedAt=Date.now();state.error='Bağlantı bekleniyor';change();});
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+    await React.act(async()=>{state.error='';state.conflicts=['elifba_state'];change();});
+    assert.ok(p.dom.window.document.querySelector('[role="dialog"]'));
+    await React.act(async()=>{state.conflicts=[];change();});
+    assert.equal(p.dom.window.document.querySelector('[role="dialog"]'),null);
+  } finally {await p.cleanup();}
+});
