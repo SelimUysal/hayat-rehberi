@@ -221,7 +221,10 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
           <p className="text-sm text-slate-700 dark:text-stone-300 mb-4">İlerlemeni hesabında sakla; telefon veya bilgisayar değiştirdiğinde kaldığın yerden devam et. Hesapsız kullanım da devam eder.</p>
           {!accountReady && <p role="status" className="mb-3 text-sm text-slate-600 dark:text-stone-400">Hesap bağlantısı hazırlanıyor. Uygulamayı kullanmaya devam edebilirsin.</p>}
           <button className={button} disabled={busy || !accountReady} onClick={()=>void google()}>Google ile giriş yap</button>
-          <div className="my-4 text-center text-xs text-slate-500 dark:text-stone-500">veya e-posta ile</div>
+          <button type="button" disabled={busy} onClick={()=>{autoCloseRef.current=null;setMessage('');setOpened(false);}} className="mt-3 w-full rounded-xl border border-stone-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-stone-100 dark:border-stone-700 dark:text-stone-100 dark:hover:bg-white/5">Hesap açmadan devam et</button>
+          <details className="mt-4 rounded-xl border border-stone-200 dark:border-stone-700">
+            <summary className="cursor-pointer p-3 text-sm font-medium text-emerald-800 dark:text-emerald-200">E-posta ve şifreyle devam et</summary>
+            <div className="px-3 pb-3">
           <form onSubmit={submitEmail} className="space-y-3">
             <label className="block text-sm">E-posta<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-slate-900 dark:border-stone-700 dark:bg-black/20 dark:text-stone-100"/></label>
             <label className="block text-sm">Şifre<input type="password" required minLength={mode === 'register' ? 8 : 1} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-slate-900 dark:border-stone-700 dark:bg-black/20 dark:text-stone-100"/></label>
@@ -231,12 +234,20 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
             <button disabled={busy} onClick={()=>{setMode(mode === 'login' ? 'register' : 'login');setMessage('');setPassword('');}}>{mode === 'login' ? 'Yeni hesap oluştur' : 'Mevcut hesaba giriş yap'}</button>
             <button disabled={busy || !accountReady || !email.trim()} onClick={()=>void action(async()=>{await runtimeRef.current!.reset(email.trim());setMessage('Bu adresle bir hesap varsa şifre yenileme bağlantısı gönderildi.');})}>Şifremi unuttum</button>
           </div>
+            </div>
+          </details>
         </>}
-        {!user && <button className={button+' mt-4'} onClick={backup}>Cihaz yedeğini indir</button>}
-        {!state.needsImport && <label className="mt-3 block text-sm text-slate-700 dark:text-stone-300">Yedekten kayıt ekle
+        {!state.needsImport && <details className="mt-4 rounded-xl border border-stone-200 dark:border-stone-700">
+          <summary className="cursor-pointer p-3 text-sm text-slate-600 dark:text-stone-300">Yedekleme ve diğer seçenekler</summary>
+          <div className="space-y-3 px-3 pb-3">
+            <p className="text-xs text-slate-600 dark:text-stone-300">Giriş yaptığında kayıtların otomatik eşitlenir. Dosya yedeği yalnızca ek güvence veya eski kayıtları geri yüklemek içindir.</p>
+            <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
+            <label className="block text-sm text-slate-700 dark:text-stone-300">Eski yedekten kayıt ekle
           <input type="file" accept="application/json,.json" disabled={busy || !accountReady} className="mt-2 block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-medium file:text-emerald-800 dark:file:bg-emerald-950 dark:file:text-emerald-100" onChange={event=>{void restore(event.target.files?.[0]);event.target.value='';}}/>
           <span className="mt-1 block text-xs text-slate-500 dark:text-stone-500">Mevcut kayıtlarla birleştirilir. Farklı notlar otomatik değiştirilmez.</span>
-        </label>}
+        </label>
+          </div>
+        </details>}
         {(message || state.error) && <p role="alert" className="mt-4 text-sm text-amber-800 dark:text-amber-200">{message || state.error}</p>}
         {!state.ready && state.error && !state.needsImport && <button className={button+' mt-3'} disabled={busy} onClick={()=>void action(async()=>{await storeRef.current?.activate(userRef.current?.uid || null);})}>Kayıtları yüklemeyi tekrar dene</button>}
       </section>
