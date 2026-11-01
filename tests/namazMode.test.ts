@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { resolveNamazAudioUrl } from '../src/utils/namazAudioPath';
 import { ALL_NAMAZ_ITEMS, NAMAZ_ITEMS, VIRTUAL_NEW_ITEMS } from '../src/data/namazData';
 import { clearNamazIssues, readNamazIssues, recordNamazIssue, safeNamazErrorName, exportNamazIssueReport } from '../src/utils/namazDiagnostics';
@@ -39,4 +40,15 @@ test('technical records are bounded and exclude private URL and unexpected prope
   assert.equal(readNamazIssues().length,0);
   assert.equal(safeNamazErrorName({name:'NotAllowedError'}),'NotAllowedError');
   assert.equal(safeNamazErrorName({name:'private URL: ...'}),'UnknownError');
+});
+
+
+test('Namaz playback uses recorded audio only and no synthetic device reading', () => {
+  const source = readFileSync('src/components/NamazMode.tsx','utf8');
+  for (const forbidden of ['useDeviceVoice','speechSynthesis','SpeechSynthesisUtterance','speakArabic','Cihaz sesiyle yedek okuma'])
+    assert.equal(source.includes(forbidden),false,forbidden);
+  assert.match(source,/Bu bölüm için ses kaydı bulunamadı/);
+  assert.match(source,/Ses kaydı oynatılamadı/);
+  assert.match(source,/targetLoopRef\.current === 'infinite'/);
+  assert.match(source,/Sure, dua veya rehber ara/);
 });
