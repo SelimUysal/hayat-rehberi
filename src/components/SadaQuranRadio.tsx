@@ -221,8 +221,8 @@ export const SadaQuranRadio: React.FC<SadaQuranRadioProps> = ({ isActiveTab, exc
       album: 'Hayat Rehberi · Canlı Radyo',
       artwork: [
         {
-          src: new URL(`${import.meta.env.BASE_URL}sadaquran-radio-cover.avif`, window.location.href).href,
-          sizes: '320x320', type: 'image/avif'
+          src: new URL(`${import.meta.env.BASE_URL}hayat-media-icon.png`, window.location.href).href,
+          sizes: '512x512', type: 'image/png'
         },
         ...defaultArtwork()
       ]

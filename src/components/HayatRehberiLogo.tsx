@@ -27,7 +27,7 @@ export const HayatRehberiLogo: React.FC<HayatRehberiLogoProps> = ({
         <div className="absolute inset-0 bg-emerald-500/20 rounded-2xl blur-xs -z-10" />
       )}
       <img
-        src="./favicon.svg"
+        src={`${import.meta.env.BASE_URL}icon-512.png`}
         alt="Hayat Rehberi"
         className="w-full h-full object-contain rounded-xl shadow-xs border border-emerald-500/30 transition-transform hover:scale-105"
         onError={(e) => {

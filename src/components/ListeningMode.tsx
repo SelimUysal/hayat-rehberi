@@ -1109,7 +1109,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
         artist: reciter?.name || 'Kur’an-ı Kerim',
         album: 'Hayat Rehberi · Kesintisiz Dinleme',
         artwork: [{
-          src: new URL(`${import.meta.env.BASE_URL}icon-512.png`, window.location.href).href,
+          src: new URL(`${import.meta.env.BASE_URL}hayat-media-icon.png`, window.location.href).href,
           sizes: '512x512',
           type: 'image/png'
         }]

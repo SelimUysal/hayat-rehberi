@@ -37,7 +37,7 @@ function session(): MediaSession | null {
 export function defaultArtwork(): MediaImage[] {
   if (typeof window === 'undefined') return [];
   return [{
-    src: new URL(`${import.meta.env.BASE_URL}icon-512.png`, window.location.href).href,
+    src: new URL(`${import.meta.env.BASE_URL}hayat-media-icon.png`, window.location.href).href,
     sizes: '512x512', type: 'image/png'
   }];
 }
