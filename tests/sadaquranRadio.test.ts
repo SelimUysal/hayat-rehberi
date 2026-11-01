@@ -17,7 +17,7 @@ test('radio is discoverable in main header and Quran modules',()=>{
   assert.ok(nav.includes('SadaQuran · Canlı Radyo'));
   assert.ok(nav.includes('allModules.length'));
   const app=read('src/App.tsx');
-  assert.ok(app.includes("activeTab === 'radio' && <SadaQuranRadio />"));
+  assert.ok(app.includes("isActiveTab={activeTab === 'radio'}"));
   assert.ok(app.includes("'radio',"));
 });
 test('real AWE HLS audio stream and safe external fallback, no iframe',()=>{

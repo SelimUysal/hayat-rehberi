@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { bindAudioMediaSession, defaultArtwork } from '../utils/mediaSessionCoordinator';
 import {
   AlertCircle, Clock3, ExternalLink, Pause, Play, RadioTower,
   RotateCcw, ShieldCheck, Square, Volume2, VolumeX, WifiOff
@@ -210,6 +211,29 @@ export const SadaQuranRadio: React.FC<SadaQuranRadioProps> = ({ isActiveTab, exc
     });
   };
 
+  // The radio stays mounted across routes; the OS must keep its actual identity.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    return bindAudioMediaSession(audio, () => ({
+      title: "SadaQuran · Canlı Kur'an Radyosu",
+      artist: 'SadaQuran',
+      album: 'Hayat Rehberi · Canlı Radyo',
+      artwork: [
+        {
+          src: new URL(`${import.meta.env.BASE_URL}sadaquran-radio-cover.avif`, window.location.href).href,
+          sizes: '320x320', type: 'image/avif'
+        },
+        ...defaultArtwork()
+      ]
+    }), {
+      onPlay: () => { void audio.play().catch(() => {}); },
+      onPause: () => audio.pause(),
+      onStop: () => stop(),
+      onInterrupt: () => stop()
+    });
+  }, []);
+
   const active = status === 'connecting' || status === 'playing' || status === 'paused';
   const showMini = !isActiveTab && active;
 
@@ -302,6 +326,7 @@ export const SadaQuranRadio: React.FC<SadaQuranRadioProps> = ({ isActiveTab, exc
               preload="none"
               aria-label="SadaQuran canlı yayın ses oynatıcısı"
               onPlaying={() => setStatus('playing')}
+              onPause={() => setStatus(previous => previous === 'playing' || previous === 'connecting' ? 'paused' : previous)}
               onWaiting={() => setStatus(previous => previous === 'playing' ? 'connecting' : previous)}
               onError={() => {
                 // When hls.js manages MediaSource, it owns the recoverable media errors.

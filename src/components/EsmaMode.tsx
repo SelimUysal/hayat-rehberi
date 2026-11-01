@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { bindAudioMediaSession } from '../utils/mediaSessionCoordinator';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import {
   ESMA_NAMES,
@@ -177,6 +178,21 @@ export const EsmaMode: React.FC<EsmaModeProps> = ({
   const resumeAfterTrackSwitchRef = useRef(false);
   const audioSource = `${import.meta.env.BASE_URL}${ESMA_AUDIO_TRACKS.find(track => track.id === selectedAudioId)!.path}`;
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const chosen = ESMA_AUDIO_TRACKS.find(item => item.id === selectedAudioId);
+    return bindAudioMediaSession(audio, () => ({
+      title: chosen?.label || "Esmaü'l-Hüsnâ",
+      artist: "Esmaü'l-Hüsnâ",
+      album: "Hayat Rehberi · Esmaü'l-Hüsnâ"
+    }), {
+      onPlay: () => { void audio.play().catch(() => {}); },
+      onPause: () => audio.pause(),
+      onStop: () => { audio.pause(); audio.currentTime = 0; }
+    });
+  }, [selectedAudioId]);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [statusText, setStatusText] = useState<string>('Hazır · 99 isim');
