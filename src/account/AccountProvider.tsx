@@ -206,7 +206,6 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
               <button className={button} disabled={busy || state.syncing || state.delegated} onClick={()=>void action(async()=>{await storeRef.current?.retry();},'sync')}>Şimdi eşitle</button>
               {!user.providerData.some(p=>p.providerId === 'google.com') && <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');},'link')}>Google hesabını bu hesaba bağla</button>}
               {!user.emailVerified && <button className={button} disabled={busy} onClick={()=>void action(async()=>{await runtimeRef.current!.verify(user);setMessage('Doğrulama bağlantısı gönderildi.');})}>Doğrulama e-postasını gönder</button>}
-              <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
             </div>
           </>}
           {state.conflicts.map(key=><div key={key} className="mt-4 rounded-xl border border-amber-300 bg-amber-50/60 p-3 text-sm space-y-2 dark:border-amber-800 dark:bg-transparent">
