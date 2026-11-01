@@ -118,6 +118,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   activeScreenRef.current = active;
   const loopTimeoutRef = useRef<any>(null);
   const currentLoopRef = useRef<number>(0);
+  const targetLoopRef = useRef<number | 'infinite'>(targetLoopCount);
+  targetLoopRef.current = targetLoopCount;
   const isPlayingRef = useRef<boolean>(false);
   const currentlyPlayingVerseNumRef = useRef<number | null>(null);
   const playModeRef = useRef<'verse' | 'full'>(initialSession?.mode ?? 'verse');
@@ -546,6 +548,18 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
             if (requestId !== playbackRequestRef.current) return;
             playVerse(nextNum, 'full');
           }, 180);
+        } else if (targetLoopRef.current === 'infinite' || currentLoopRef.current < targetLoopRef.current) {
+          // A complete surah is one loop. Restart from verse 1 only when another loop is requested.
+          currentLoopRef.current += 1;
+          setCurrentLoop(currentLoopRef.current);
+          logEzber('SURAH_REPEAT', 'info', {
+            surah: currentSurah, verse: 1,
+            detail: { repeat: currentLoopRef.current },
+          });
+          loopTimeoutRef.current = window.setTimeout(() => {
+            if (requestId !== playbackRequestRef.current) return;
+            playVerse(1, 'full');
+          }, 180);
         } else {
           stopAudio();
           setCompletedSurah(currentSurah);
@@ -553,7 +567,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       } else {
         currentLoopRef.current += 1;
         setCurrentLoop(currentLoopRef.current);
-        if (targetLoopCount === 'infinite' || currentLoopRef.current <= targetLoopCount) {
+        if (targetLoopRef.current === 'infinite' || currentLoopRef.current <= targetLoopRef.current) {
           logEzber('VERSE_REPEAT', 'info', {
             surah: currentSurah, verse: verseNum,
             detail: { repeat: currentLoopRef.current },
