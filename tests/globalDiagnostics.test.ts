@@ -32,7 +32,7 @@ test('deduplicates nearby crashes and keeps a bounded local history', () => {
   recordGlobalError({source:'console',section:'ezber',name:'ReferenceError',message:'x is not defined'});
   assert.equal(readGlobalErrors().length,1);
   assert.equal(readGlobalErrors()[0].count,2);
-  for(let i=0;i<150;i++) recordGlobalError({source:'test',section:'listen',name:'TypeError',message:'Crash '+i});
+  for(let i=0;i<150;i++) recordGlobalError({source:'test',section:'listen',name:'TypeError',message:'x'+i+' is not defined'});
   assert.equal(readGlobalErrors().length,120);
   clearGlobalErrors();
   assert.equal(readGlobalErrors().length,0);
@@ -41,7 +41,7 @@ test('filters section and drops arbitrary user data', () => {
   clearGlobalErrors();
   recordGlobalError({source:'promise',section:'takvim',name:'Error',message:'Token is abc'});
   const rows=readGlobalErrors();
-  assert.equal(rows[0].message,'[Hata ayrıntısı gizlendi]');
+  assert.equal(rows[0].message,'[Gizli ayrıntı çıkarıldı]');
   assert.equal(exportGlobalErrorReport('ezber').includes('takvim | promise'),false);
   clearGlobalErrors();
 });
