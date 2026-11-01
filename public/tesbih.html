@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>İsim Takip ve Taşıma Ekranı</title>
+    <script defer src="./account-frame-loader.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -458,7 +459,17 @@ history: []
         };
 
         // LocalStorage Yönetimi
-        let appData = JSON.parse(localStorage.getItem('appData')) || defaultData;
+        function readSavedData() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('appData'));
+                if (saved && Array.isArray(saved.left) && Array.isArray(saved.right) && Array.isArray(saved.history)) return saved;
+            } catch (error) { console.warn('Tesbih kaydı okunamadı; mevcut kayıt korundu.'); }
+            return JSON.parse(JSON.stringify(defaultData));
+        }
+        let appData = readSavedData();
+        window.addEventListener('storage', function(event) {
+            if (event.key === 'appData') { appData = readSavedData(); render(); }
+        });
 
         function saveData() {
             localStorage.setItem('appData', JSON.stringify(appData));
@@ -727,7 +738,7 @@ history: []
             } else {
                 appData.history.forEach(hist => {
                     const li = document.createElement('li');
-                    li.innerHTML = `<strong>[${hist.time}]</strong> - "${escapeHTML(hist.name)}" adlı öğe <em>${hist.from}</em> taraftan <em>${hist.to}</em> tarafa geçirildi.`;
+                    li.innerHTML = `<strong>[${escapeHTML(hist.time)}]</strong> - "${escapeHTML(hist.name)}" adlı öğe <em>${escapeHTML(hist.from)}</em> taraftan <em>${escapeHTML(hist.to)}</em> tarafa geçirildi.`;
                     historyListEl.appendChild(li);
                 });
             }

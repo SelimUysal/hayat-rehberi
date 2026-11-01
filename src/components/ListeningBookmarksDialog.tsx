@@ -129,7 +129,7 @@ export function ListeningBookmarksDialog({
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 p-4">
           <div className="min-w-0">
             <h2 id={titleId} className="text-base font-bold">Yer İmlerim</h2>
-            <p className="mt-0.5 text-xs text-slate-400">{bookmarks.length}/{MAX_MANUAL_LISTENING_BOOKMARKS} kayıt · Bu cihazda saklanır</p>
+            <p className="mt-0.5 text-xs text-slate-400">{bookmarks.length}/{MAX_MANUAL_LISTENING_BOOKMARKS} kayıt · Hesapla giriş yaptığında cihazların arasında eşitlenir</p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Yer imlerini kapat"
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400">

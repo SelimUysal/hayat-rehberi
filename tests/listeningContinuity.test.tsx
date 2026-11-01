@@ -142,10 +142,11 @@ function currentAudio(): FakeAudio {
   return player;
 }
 
-async function mountListening(surahId: number, ayahIndex = 0, savedCycle?: { enabled: boolean; total: number; surah: number; ayah: number; completedSurahs: number }) {
+async function mountListening(surahId: number, ayahIndex = 0, savedCycle?: { enabled: boolean; total: number; surah: number; ayah: number; completedSurahs: number },savedTotal?:number) {
   mediaActions.clear();
   localStorage.clear();
   if (savedCycle) localStorage.setItem('quran_listening_full_cycle_v1', JSON.stringify(savedCycle));
+  if (savedTotal!==undefined) localStorage.setItem('quran_listening_completed_cycles_v1',String(savedTotal));
   localStorage.setItem('quran_listening_bookmark', JSON.stringify({
     surahId, ayahIndex, currentTime: 0, reciter: 'ar.mahermuaiqly',
   }));
@@ -357,4 +358,34 @@ test('counter switch uses accessible toggle, saves selection and closes panel au
   } finally {
     await page.cleanup();
   }
+});
+
+test('a completed-tour cloud update refreshes the visible counter without seeking, pausing or starting audio',async()=>{
+  const page=await mountListening(1,0,{enabled:true,total:2,surah:1,ayah:0,completedSurahs:0});
+  try {
+    const audio=currentAudio();audio.currentTime=3;
+    const calls=FakeAudio.all.reduce((n,item)=>n+item.playCalls,0),instances=FakeAudio.all.length;
+    await React.act(async()=>{
+      localStorage.setItem('quran_listening_completed_cycles_v1','7');
+      window.dispatchEvent(new dom.window.StorageEvent('storage',{key:'quran_listening_completed_cycles_v1',newValue:'7',storageArea:localStorage}));
+    });
+    assert.equal(currentAudio(),audio);assert.equal(audio.currentTime,3);assert.equal(audio.paused,false);
+    assert.equal(FakeAudio.all.length,instances);assert.equal(FakeAudio.all.reduce((n,item)=>n+item.playCalls,0),calls);
+    const open=page.container.querySelector('button[aria-label="Kur\'an dinleme sayacı"]') as HTMLButtonElement;
+    await React.act(async()=>open.click());assert.match(page.container.textContent!,/7/);
+  } finally {await page.cleanup();}
+});
+
+test('a fresh device displays the cloud tour total even when no local playback session exists',async()=>{
+  const page=await mountListening(1,0,undefined,9);
+  try {
+    const open=page.container.querySelector('button[aria-label="Kur\'an dinleme sayacı"]') as HTMLButtonElement;
+    await React.act(async()=>open.click());
+    const toggle=page.container.querySelector('button[role="switch"][aria-label="Dinleme takibini aç veya kapat"]') as HTMLButtonElement;
+    await React.act(async()=>toggle.click());
+    await React.act(async()=>open.click());
+    const panel=page.container.querySelector('[role="region"][aria-label="Kur\'an dinleme sayacı ayarları"]')!;
+    assert.match(panel.textContent!,/9\s*tam tur/);
+    assert.equal(localStorage.getItem('quran_listening_completed_cycles_v1'),'9');
+  } finally {await page.cleanup();}
 });

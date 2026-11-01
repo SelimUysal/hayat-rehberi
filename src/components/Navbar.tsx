@@ -29,6 +29,7 @@ import { makeMainTabHash } from '../utils/mainDeepLinks';
 import { makeTakvimHash } from '../utils/takvimDeepLinks';
 import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { GlobalDiagnosticsPanel } from './GlobalDiagnosticsPanel';
+import { AccountButton } from '../account/AccountProvider';
 
 export type TabType =
   | 'elifba'
@@ -346,7 +347,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="transition-transform group-hover:scale-105">
                   <HayatRehberiLogo size="md" />
                 </div>
-                <div>
+                <div className="hidden min-[400px]:block">
                   <div className="flex items-center gap-1.5">
                     <span className={`text-base sm:text-lg font-black tracking-tight transition-colors ${
                       isDarkMode ? 'text-white group-hover:text-emerald-300' : 'text-stone-900 group-hover:text-emerald-700'
@@ -432,6 +433,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* 3. SAĞ: Hızlı Arama, Koyu Mod & Menü */}
             <div className="flex items-center gap-1.5 sm:gap-2">
+              <AccountButton dark={isDarkMode} />
               
               <TroubleshootingMenu dark={isDarkMode}>
                 <GlobalDiagnosticsPanel section={activeTab} />

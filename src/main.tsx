@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { installGlobalDiagnostics, recordGlobalError } from './utils/globalDiagnostics';
+import { AccountProvider } from './account/AccountProvider';
 
 installGlobalDiagnostics();
 
@@ -23,7 +24,7 @@ createRoot(document.getElementById('root')!, {
   onCaughtError: (error) => recordGlobalError({source:'react',name: error instanceof Error ? error.name : 'Error', message: error instanceof Error ? error.message : undefined}),
 }).render(
   <StrictMode>
-    <App />
+    <AccountProvider><App /></AccountProvider>
   </StrictMode>,
 );
 

@@ -35,6 +35,8 @@ import { readABLoop, saveABLoop, orderABPoints, validateABRange, completeABItera
 import { readManualListeningBookmarks, writeManualListeningBookmarks, createManualListeningBookmark, editManualListeningBookmark, type ManualListeningBookmark, type ListeningBookmarkPosition } from '../utils/listeningBookmarks';
 import { TroubleshootingMenu } from './TroubleshootingMenu';
 import { useListeningWakeLock } from '../utils/useListeningWakeLock';
+import { useCloudRefresh } from '../account/useCloudRefresh';
+import { COMPLETED_CYCLES_KEY, migrateLocalProgress } from '../account/localMigration';
 
 interface ListeningModeProps {
   targetSurahId?: number;
@@ -351,22 +353,28 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   });
   const [showTranslation, setShowTranslation] = useState<boolean>(false); // Varsayılan gizli
 
-  // Opt-in, local-only complete Quran listening tracker.
+  // Playback/session state stays local; only the durable completed tour count
+  // follows the account. A cloud update must never seek or start this player.
   const trackerKey = 'quran_listening_full_cycle_v1';
   type CycleState = { enabled: boolean; total: number; surah: number; ayah: number; completedSurahs: number };
   const emptyCycle = (enabled = false): CycleState => ({ enabled, total: 0, surah: 1, ayah: 0, completedSurahs: 0 });
   const [cycle, setCycle] = useState<CycleState>(() => {
+    let durableTotal = 0;
     try {
+      migrateLocalProgress(localStorage);
+      const storedTotal = Number(localStorage.getItem(COMPLETED_CYCLES_KEY));
+      if (Number.isSafeInteger(storedTotal) && storedTotal >= 0) durableTotal = storedTotal;
       const saved = JSON.parse(localStorage.getItem(trackerKey) || 'null');
       if (saved && typeof saved.enabled === 'boolean' &&
           Number.isSafeInteger(saved.total) && saved.total >= 0 &&
           Number.isInteger(saved.surah) && saved.surah >= 1 && saved.surah <= 114 &&
           Number.isInteger(saved.ayah) && saved.ayah >= 0 &&
           Number.isInteger(saved.completedSurahs) && saved.completedSurahs >= 0 && saved.completedSurahs <= 113) {
-        return saved;
+        const total = Number(localStorage.getItem(COMPLETED_CYCLES_KEY));
+        return {...saved,total:Number.isSafeInteger(total) && total >= 0 ? total : saved.total};
       }
     } catch { /* storage unavailable */ }
-    return emptyCycle();
+    return {...emptyCycle(),total:durableTotal};
   });
   const cycleRef = useRef(cycle);
   const [abLoop, setABLoop] = useState<ABLoopState>(readABLoop);
@@ -392,10 +400,20 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   }, [cycleMenuOpen]);
   const startedCycleAyahRef = useRef<string | null>(null);
   const updateCycle = (next: CycleState) => {
+    const previousTotal = cycleRef.current.total;
     cycleRef.current = next;
     setCycle(next);
-    try { localStorage.setItem(trackerKey, JSON.stringify(next)); } catch { /* private mode */ }
+    try {
+      localStorage.setItem(trackerKey, JSON.stringify(next));
+      if (next.total !== previousTotal) localStorage.setItem(COMPLETED_CYCLES_KEY,JSON.stringify(next.total));
+    } catch { /* private mode */ }
   };
+  useCloudRefresh([COMPLETED_CYCLES_KEY],() => {
+    const total = Number(localStorage.getItem(COMPLETED_CYCLES_KEY));
+    if (!Number.isSafeInteger(total) || total < 0) return;
+    const next = {...cycleRef.current,total};
+    cycleRef.current = next;setCycle(next);
+  });
   const interruptCycle = () => {
     const old = cycleRef.current;
     startedCycleAyahRef.current = null;
@@ -493,9 +511,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const [audioEpoch, setAudioEpoch] = useState(0);
 
   // Referanslar
-  const audioRef = useRef<HTMLAudioElement>(new Audio());
-  const preloadNextAudioRef = useRef<HTMLAudioElement>(new Audio());
-  const preloadAfterNextAudioRef = useRef<HTMLAudioElement>(new Audio());
+  const audioRef = useRef<HTMLAudioElement>(null!);
+  const preloadNextAudioRef = useRef<HTMLAudioElement>(null!);
+  const preloadAfterNextAudioRef = useRef<HTMLAudioElement>(null!);
+  if (!audioRef.current) audioRef.current = new Audio();
+  if (!preloadNextAudioRef.current) preloadNextAudioRef.current = new Audio();
+  if (!preloadAfterNextAudioRef.current) preloadAfterNextAudioRef.current = new Audio();
   const playbackSpeedRef = useRef<number>(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
   const volumeRef = useRef<number>(volume);
@@ -2066,7 +2087,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                           <X className="w-4 h-4" aria-hidden="true" />
                         </button>
                       </div>
-                      <p className="text-xs text-slate-400">Eksiksiz dinlenen turlar sayılır. Kayıtlar yalnızca bu cihazda saklanır.</p>
+                      <p className="text-xs text-slate-400">Eksiksiz dinlenen turlar sayılır. Hesapla giriş yaptığında tamamlanan turlar eşitlenir; devam eden dinleme bu cihazda kalır.</p>
                       {/* Modern switch: save immediately and dismiss the panel after selection. */}
                       <button
                         type="button"

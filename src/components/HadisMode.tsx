@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import {
   Search,
@@ -136,6 +137,11 @@ export const HadisMode: React.FC<HadisModeProps> = ({
     return loadCustomHadisOrder(defaultIds);
   });
 
+  useCloudRefresh(['hayat_rehberi_hadis_user_state_v1','hayat_rehberi_hadis_custom_order_v1','hayat_rehberi_hadis_activity_logs_v1'], () => {
+    setOverlays(loadUserHadisOverlays());
+    setActivityLogs(loadActivityLogs());
+    setCustomOrderIds(loadCustomHadisOrder(getAllHadisler().map(h => h.id)));
+  });
   // 4. 7 TEMEL GÖRÜNÜM MODU ([8, 1, 2, 4, 11, 9, 5] -> Mod 1..7)
   const [uiAlt, setUiAlt] = useState<number>(() => {
     if (targetUiAlternative) {

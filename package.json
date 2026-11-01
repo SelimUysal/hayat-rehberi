@@ -9,7 +9,10 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:unit": "node tests/run-unit-tests.mjs",
+    "test:cloud:integration": "node tests/require-emulators.mjs && tsx --test tests/accountFirestore.test.ts",
+    "test:cloud:e2e": "node tests/require-emulators.mjs && playwright test"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -19,14 +22,18 @@
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^13.1.0",
     "hls.js": "^1.7.4",
     "lucide-react": "^1.48.0",
+    "lz-string": "^1.5.0",
     "motion": "^13.4.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "@playwright/test": "^1.64.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/express": "^4.17.21",
     "@types/google.maps": "^3.66.5",

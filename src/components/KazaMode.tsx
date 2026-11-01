@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useCloudRefresh } from '../account/useCloudRefresh';
 import { useThemeSync, broadcastThemeChange } from '../utils/themeSync';
 import {
   CalendarCheck,
@@ -223,6 +224,19 @@ export const KazaMode: React.FC<KazaModeProps> = ({ targetAction, targetTimestam
   });
 
   const activeDayRef = useRef(getLocalDay());
+  useCloudRefresh(['kaza_namazlari_data','kaza_custom_counters_data','kaza_today_*'], () => {
+    try {
+      const loaded = JSON.parse(localStorage.getItem('kaza_namazlari_data') || '[]');
+      setPrayers(DEFAULT_PRAYERS.map(def => {
+        const item = loaded.find((p:PrayerItem) => p.id === def.id);
+        return item && isNonNegativeInt(item.count) && isNonNegativeInt(item.completed)
+          ? {...def,count:item.count,completed:item.completed,initial:Math.max(item.initial || 0,item.count + item.completed)} : def;
+      }));
+      setCustomCounters(JSON.parse(localStorage.getItem('kaza_custom_counters_data') || JSON.stringify(DEFAULT_CUSTOM_COUNTERS)));
+      const count = Number(localStorage.getItem(`kaza_today_${getLocalDay()}`) || '0');
+      setTodayCompleted(isNonNegativeInt(count) ? count : 0);
+    } catch {}
+  });
 
   useEffect(() => {
     try {

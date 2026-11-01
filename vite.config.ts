@@ -6,6 +6,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     base: './',
+    build: {rollupOptions:{input:{app:path.resolve(__dirname,'index.html'),accountFrame:path.resolve(__dirname,'account-frame.html')}}},
     plugins: [
       react(), tailwindcss(),
       {
