@@ -27,6 +27,7 @@ import { makeTakvimHash, parseTakvimHash } from './utils/takvimDeepLinks';
 import { getMainTabFromHash, makeMainTabHash } from './utils/mainDeepLinks';
 import { navigateToAppHash } from './utils/appNavigation';
 import { parseSurahHash, makeSurahHash } from './utils/surahDeepLinks';
+import { setGlobalDiagnosticsSection } from './utils/globalDiagnostics';
 
 export function App() {
   const prayerAdhan = usePrayerAdhanSound();
@@ -96,6 +97,8 @@ export function App() {
     }
     return 'namaz';
   });
+
+  useEffect(() => { setGlobalDiagnosticsSection(activeTab); }, [activeTab]);
 
   // İlk yüklenen bölümün URL'sini geçmişte sakla. Aksi hâlde, örneğin
   // kaydedilmiş Mushaf ekranından Namaz'a geçip Geri'ye basınca önceki
