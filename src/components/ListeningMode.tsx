@@ -19,7 +19,8 @@ import {
   Minimize2,
   MonitorSmartphone,
   ListChecks,
-  RotateCcw
+  RotateCcw,
+  X
 } from 'lucide-react';
 import { SURAHS, RECITERS } from '../data/surahs';
 import { AMBIENCE_SLIDES } from '../data/ambienceImages';
@@ -373,11 +374,21 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const updateAB = (next:ABLoopState)=>{abLoopRef.current=next;setABLoop(next);saveABLoop(next);};
   const cancelAB = ()=>{if(abLoopRef.current.active)updateAB({...abLoopRef.current,active:false});};
   const [cycleMenuOpen, setCycleMenuOpen] = useState(false);
+  const cycleMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!cycleMenuOpen) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (cycleMenuRef.current && !cycleMenuRef.current.contains(event.target as Node)) {
+        setCycleMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', dismissOutside, true);
     const dismiss = (event: KeyboardEvent) => { if (event.key === 'Escape') setCycleMenuOpen(false); };
     window.addEventListener('keydown', dismiss);
-    return () => window.removeEventListener('keydown', dismiss);
+    return () => {
+      window.removeEventListener('keydown', dismiss);
+      document.removeEventListener('pointerdown', dismissOutside, true);
+    };
   }, [cycleMenuOpen]);
   const startedCycleAyahRef = useRef<string | null>(null);
   const updateCycle = (next: CycleState) => {
@@ -2039,7 +2050,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
               {/* Yardım ayrı tutulur; dar ekranda sağ üstte, genişte en sağda. */}
               <div className="col-start-2 row-start-1 flex items-center justify-end self-start gap-2">
-                <div className="relative shrink-0">
+                <div ref={cycleMenuRef} className="relative shrink-0">
                   <button type="button" onClick={() => setCycleMenuOpen(v => !v)}
                     aria-expanded={cycleMenuOpen} aria-label="Kur'an dinleme sayacı"
                     className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${cycle.enabled ? 'border-emerald-400/50 bg-emerald-500/25 text-emerald-200' : 'border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-800'}`}>
@@ -2047,10 +2058,13 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                     <span>Sayaç{cycle.enabled ? ` · ${cycle.total}` : ''}</span>
                   </button>
                   {cycleMenuOpen && (
-                    <><button type="button" aria-label="Sayaç panelini kapat" onClick={() => setCycleMenuOpen(false)} className="fixed inset-0 z-[75] cursor-default bg-black/20" /><div className="fixed z-[80] bottom-0 inset-x-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border border-white/20 bg-slate-950 p-4 text-white shadow-2xl space-y-3 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[300px] sm:max-h-[min(75vh,500px)] sm:rounded-2xl" role="region" aria-label="Kur'an dinleme sayacı ayarları">
+                    <div className="fixed z-[80] bottom-0 inset-x-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border border-white/20 bg-slate-950 p-4 text-white shadow-2xl space-y-3 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[300px] sm:max-h-[min(75vh,500px)] sm:rounded-2xl" role="region" aria-label="Kur'an dinleme sayacı ayarları">
                       <div className="flex justify-between items-center gap-2">
                         <strong className="text-sm">Kur'an Dinleme Sayacı</strong>
-                        <button type="button" className="text-slate-300 text-xs underline" onClick={() => setCycleMenuOpen(false)}>Kapat</button>
+                        <button type="button" aria-label="Sayaç panelini kapat" title="Kapat" onClick={() => setCycleMenuOpen(false)}
+                          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer">
+                          <X className="w-4 h-4" aria-hidden="true" />
+                        </button>
                       </div>
                       <p className="text-xs text-slate-400">Eksiksiz dinlenen turlar sayılır. Kayıtlar yalnızca bu cihazda saklanır.</p>
                       <label className="flex justify-between items-center gap-3 text-sm">
@@ -2070,7 +2084,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                         </>
                       )}
                     </div>
-                  </>)}
+                  )}
                 </div>
                 <TroubleshootingMenu><ListeningDiagnosticsPanel /></TroubleshootingMenu>
               </div>
