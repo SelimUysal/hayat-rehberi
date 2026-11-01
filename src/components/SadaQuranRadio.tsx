@@ -80,20 +80,21 @@ export const SadaQuranRadio: React.FC = () => {
       });
     };
 
-    // Safari/iOS play HLS natively. Chrome/Edge/Firefox require MediaSource + hls.js.
-    if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-      playbackModeRef.current = 'native';
-      audio.src = SADAQURAN_STREAM_URL;
-      requestPlayback();
-      return;
-    }
-
+    // Prefer MediaSource+hls.js where it is available. Chrome-based browsers can
+    // report "maybe" for HLS but still fail with MEDIA_ERR_SRC_NOT_SUPPORTED (4).
+    // Only use native HLS when MSE is unavailable (e.g. iOS Safari).
     try {
       // Loaded only after the listener clicks Play, so other app pages stay lightweight.
       const { default: Hls } = await import('hls.js');
       if (session !== sessionRef.current) return;
       if (!Hls.isSupported()) {
-        fail('Tarayıcınız bu canlı yayın biçimini desteklemiyor.', session);
+        if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+          playbackModeRef.current = 'native';
+          audio.src = SADAQURAN_STREAM_URL;
+          requestPlayback();
+        } else {
+          fail('Tarayıcınız bu canlı yayın biçimini desteklemiyor.', session);
+        }
         return;
       }
       const hls = new Hls({
