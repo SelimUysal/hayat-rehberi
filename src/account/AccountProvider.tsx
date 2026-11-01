@@ -7,6 +7,7 @@ import type { AccountRuntime } from './accountRuntime';
 import { allowedKey } from './syncModel';
 
 type Context = {user:User|null;state:SyncState;open:()=>void};
+type AutoClosePurpose = 'signin'|'link'|'sync'|'import';
 const fallback: SyncState = {ready:true,owner:'guest',pending:0,syncing:false,offline:false,error:'',conflicts:[],needsImport:false,lastSyncedAt:null};
 const loadDefaultRuntime = () => import('./accountRuntime');
 function initialState(): SyncState {
@@ -72,6 +73,8 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
   const [password,setPassword] = useState('');
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
+  const [notice,setNotice] = useState('');
+  const autoCloseRef = useRef<AutoClosePurpose|null>(null);
   const storeRef = useRef<AccountSyncStore|null>(null);
   const runtimeRef = useRef<AccountRuntime|null>(null);
   const userRef = useRef<User|null>(null);
@@ -100,13 +103,28 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     return () => {disposed=true;unsubscribeAuth();unsubscribeStore();ownStore?.stop();window.removeEventListener('pagehide',onPageHide);};
   },[loadRuntime]);
   useEffect(() => {if (state.needsImport) setOpened(true);},[state.needsImport]);
+  // Only close after a user-initiated action and a confirmed, clean cloud sync.
+  useEffect(() => {
+    const purpose = autoCloseRef.current;
+    if (!purpose || !opened || busy || !user || !state.ready || state.owner !== user.uid ||
+      state.needsImport || state.offline || !!state.error || state.pending !== 0 ||
+      state.syncing || state.conflicts.length !== 0 || state.lastSyncedAt === null) return;
+    autoCloseRef.current = null;
+    setOpened(false);
+    setNotice(purpose === 'link' ? 'Google hesabın bağlandı; kayıtların bulutla eşitlendi.' : 'Kayıtların bulutla eşitlendi.');
+  },[opened,busy,user,state]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''),4000);
+    return () => window.clearTimeout(timer);
+  },[notice]);
   useEffect(() => {
     if (!opened) return;
     const previous = document.activeElement as HTMLElement|null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';closeRef.current?.focus();
     const onKey = (event:KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy && !state.needsImport) setOpened(false);
+      if (event.key === 'Escape' && !busy && !state.needsImport) {autoCloseRef.current=null;setOpened(false);}
       if (event.key !== 'Tab') return;
       const items = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href]') || [])].filter(el => el.getClientRects().length);
       if (!items.length) return;
@@ -116,14 +134,16 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
     document.addEventListener('keydown',onKey);
     return () => {document.body.style.overflow=overflow;document.removeEventListener('keydown',onKey);previous?.focus();};
   },[opened,busy,state.needsImport]);
-  const action = async (fn:()=>Promise<unknown>) => {
+  const action = async (fn:()=>Promise<unknown>,closeOnSynced:AutoClosePurpose|null=null) => {
+    autoCloseRef.current = null;
     setBusy(true);setMessage('');
-    try {await fn();} catch (error) {setMessage(authMessage(error));}
+    try {await fn();if(closeOnSynced)autoCloseRef.current=closeOnSynced;}
+    catch (error) {autoCloseRef.current=null;setMessage(authMessage(error));}
     finally {setBusy(false);}
   };
   const google = () => action(async () => {
     await runtimeRef.current!.google();
-  });
+  },'signin');
   const submitEmail = (event:React.FormEvent) => {
     event.preventDefault();
     void action(async () => {
@@ -134,9 +154,9 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
         catch {setMessage('Hesabın oluşturuldu. Doğrulama e-postasını daha sonra yeniden gönderebilirsin.');}
       } else await runtime.login(email.trim(),password);
       setPassword('');
-    });
+    },mode === 'login' ? 'signin' : null);
   };
-  const chooseImport = (decision:'merge'|'cloud') => action(async () => {await storeRef.current?.activate(userRef.current?.uid || null,decision);});
+  const chooseImport = (decision:'merge'|'cloud') => action(async () => {await storeRef.current?.activate(userRef.current?.uid || null,decision);},'import');
   const backup = () => {
     try {
       const device:Record<string,string|null>={};
@@ -160,17 +180,18 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
   };
   const status = state.error ? 'Cihaz kayıtları korunuyor; eşitleme tamamlanmadı.' : state.offline ? 'Çevrimdışı: değişiklikler cihazda bekliyor.' : state.syncing ? 'Eşitleniyor…' : state.pending ? `${state.pending} değişiklik eşitlenmeyi bekliyor.` : state.lastSyncedAt ? 'Kayıtların eşitlendi.' : 'Bulut bağlantısı kuruluyor…';
   const button = 'w-full rounded-xl border border-emerald-700 bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900';
-  return <AccountContext.Provider value={{user,state,open:()=>setOpened(true)}}>
+  return <AccountContext.Provider value={{user,state,open:()=>{autoCloseRef.current=null;setNotice('');setOpened(true);}}}>
     {state.ready ? <React.Fragment key={state.owner}>{children}</React.Fragment> :
       <main className="min-h-screen bg-[#FBF9F5] text-slate-800 dark:bg-[#0d1512] dark:text-emerald-50 flex flex-col items-center justify-center gap-4 p-8 text-center" aria-live="polite">
         <Cloud className="w-8 h-8"/><p>{state.error || (state.needsImport ? 'Bu cihazdaki kayıtlarla ilgili seçimini bekliyoruz.' : 'Hesap kayıtları hazırlanıyor…')}</p>
         <button className={button+' max-w-xs'} onClick={()=>setOpened(true)}>Hesap seçenekleri</button>
       </main>}
     {user && state.ready && !opened && (state.error || state.conflicts.length > 0) && <button type="button" onClick={()=>setOpened(true)} className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[19000] max-w-[90vw] rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-xl dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">{state.conflicts.length ? 'İki cihazdaki kayıtlar farklı. Seçim yapmak için aç.' : 'Eşitleme tamamlanamadı. Hesap durumunu aç.'}</button>}
+    {notice && !opened && <div role="status" aria-live="polite" className="fixed bottom-4 left-1/2 z-[19000] w-max max-w-[90vw] -translate-x-1/2 rounded-xl border border-emerald-700 bg-emerald-950 px-4 py-3 text-sm text-emerald-100 shadow-xl">{notice}</div>}
     {opened && createPortal(<div className="fixed inset-0 z-[20000] flex items-center justify-center bg-slate-900/40 dark:bg-black/75 p-3">
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="account-title" className="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-stone-200 bg-[#FFFEFB] p-5 text-slate-800 shadow-2xl dark:border-emerald-900 dark:bg-[#111c17] dark:text-stone-100">
         <div className="flex items-center justify-between gap-3 mb-4"><h2 id="account-title" className="text-xl font-bold">{user ? 'Hesabım' : 'Hayat Rehberi hesabı'}</h2>
-          <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>setOpened(false)} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
+          <button ref={closeRef} disabled={busy || state.needsImport} onClick={()=>{autoCloseRef.current=null;setOpened(false);}} aria-label="Hesap penceresini kapat" className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 disabled:opacity-30"><X className="w-5 h-5"/></button></div>
         {user ? <>
           <p className="font-semibold break-words">{user.displayName || 'Hayat Rehberi kullanıcısı'}</p><p className="text-sm text-slate-600 dark:text-stone-400 break-all mb-4">{user.email}</p>
           {state.needsImport ? <div className="space-y-3">
@@ -182,8 +203,8 @@ export function AccountProvider({children,loadRuntime=loadDefaultRuntime}:{child
             <p className="flex gap-2 items-center text-sm mb-3" role="status">{state.offline ? <CloudOff className="w-4 h-4 shrink-0"/> : <Cloud className="w-4 h-4 shrink-0"/>}{status}</p>
             <p className="text-xs text-slate-600 dark:text-stone-400 mb-4">Aynı hesapla başka cihazdan giriş yapınca kalıcı kayıtların yüklenir. Ses kayıtları, konum, hata raporları ve anlık oynatma bilgileri bu eşitlemeye dahil değildir. Misafirken oluşturduğun ses kayıtları misafir kullanımında kalır.</p>
             <div className="space-y-2">
-              <button className={button} disabled={busy || state.syncing} onClick={()=>void action(async()=>{await storeRef.current?.retry();})}>Şimdi eşitle</button>
-              {!user.providerData.some(p=>p.providerId === 'google.com') && <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');})}>Google hesabını bu hesaba bağla</button>}
+              <button className={button} disabled={busy || state.syncing} onClick={()=>void action(async()=>{await storeRef.current?.retry();},'sync')}>Şimdi eşitle</button>
+              {!user.providerData.some(p=>p.providerId === 'google.com') && <button className={button} disabled={busy} onClick={()=>void action(async()=>{const result=await runtimeRef.current!.link(user);setUser(result.user);setMessage('Google hesabı bağlandı.');},'link')}>Google hesabını bu hesaba bağla</button>}
               {!user.emailVerified && <button className={button} disabled={busy} onClick={()=>void action(async()=>{await runtimeRef.current!.verify(user);setMessage('Doğrulama bağlantısı gönderildi.');})}>Doğrulama e-postasını gönder</button>}
               <button className={button} onClick={backup}>Cihaz yedeğini indir</button>
             </div>
