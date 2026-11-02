@@ -267,13 +267,20 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     try {
       const saved = localStorage.getItem('quran_listening_bookmark');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          surahId: Number(parsed.surahId) || 1,
-          ayahIndex: Number(parsed.ayahIndex) || 0,
-          currentTime: Number(parsed.currentTime) || 0,
-          reciter: parsed.reciter || 'ar.mahermuaiqly'
-        };
+        const parsed: unknown = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          const data = parsed as Record<string, unknown>;
+          const rawSurahId = Number(data.surahId);
+          const surahId = Number.isInteger(rawSurahId) && rawSurahId >= 1 && rawSurahId <= 114 ? rawSurahId : 1;
+          const maxAyahs = SURAHS.find((surah) => surah.id === surahId)?.totalAyahs ?? 1;
+          const rawIndex = Number(data.ayahIndex);
+          const ayahIndex = Number.isInteger(rawIndex) && rawIndex >= 0 ? Math.min(rawIndex, maxAyahs - 1) : 0;
+          const rawTime = Number(data.currentTime);
+          const currentTime = Number.isFinite(rawTime) && rawTime >= 0 ? Math.min(rawTime, 14400) : 0;
+          const reciter = typeof data.reciter === 'string' && RECITERS.some((r) => r.id === data.reciter)
+            ? data.reciter : 'ar.mahermuaiqly';
+          return { surahId, ayahIndex, currentTime, reciter };
+        }
       }
     } catch {
       // ignore
@@ -281,7 +288,9 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     return { surahId: 1, ayahIndex: 0, currentTime: 0, reciter: 'ar.mahermuaiqly' };
   };
 
-  const initialBookmark = getSavedBookmark();
+  const initialBookmarkRef = useRef<ReturnType<typeof getSavedBookmark> | null>(null);
+  if (initialBookmarkRef.current === null) initialBookmarkRef.current = getSavedBookmark();
+  const initialBookmark = initialBookmarkRef.current;
   const diagnosticContext = () => ({ surah: currentSurahIdRef.current, ayah: currentAyahIndexRef.current + 1 });
 
   // Durumlar
@@ -455,7 +464,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   });
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
-  const [isSlideshowRunning, setIsSlideshowRunning] = useState<boolean>(true);
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
 
@@ -482,7 +490,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
   const sleepMenuRef = useRef<HTMLDivElement>(null);
   const [sleepSecondsLeft, setSleepSecondsLeft] = useState<number | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [isRecovering, setIsRecovering] = useState(false);
   const [surahFetchAttempt, setSurahFetchAttempt] = useState(0);
   const surahRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const surahRetryCountRef = useRef(0);
@@ -647,12 +654,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
   // Slayt Gösterisi Otomatik Döngüsü
   useEffect(() => {
-    if (!isSlideshowRunning || isBlackScreenMode) return;
+    if (isBlackScreenMode) return;
     const interval = setInterval(() => {
       setCurrentSlideIndex((prev) => (prev + 1) % AMBIENCE_SLIDES.length);
     }, 14000);
     return () => clearInterval(interval);
-  }, [isSlideshowRunning, isBlackScreenMode]);
+  }, [isBlackScreenMode]);
 
   // Desktop uses an app-level volume slider; touch devices use system keys.
   useEffect(() => {
@@ -691,7 +698,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       reconnectTimerRef.current = null;
     }
     retryAttemptsRef.current = 0;
-    setIsRecovering(false);
     if (!player) {
       isSleepStoppingRef.current = false;
       return;
@@ -722,7 +728,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       reconnectTimerRef.current = null;
     }
     retryAttemptsRef.current = 0;
-    setIsRecovering(false);
   }, []);
 
   // Shared pause path for explicit UI, lock-screen and headset commands.
@@ -768,7 +773,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     const attempt = ++retryAttemptsRef.current;
     logListen('RECONNECT_SCHEDULED', 'warning', { ...diagnosticContext(), details: { retry: attempt, online: navigator.onLine } });
     const delay = Math.min(30000, attempt <= 1 ? 800 : 1000 * Math.pow(2, Math.min(attempt - 1, 5)));
-    setIsRecovering(true);
     if (attempt >= 2) setAudioError('Ses bağlantısı kesildi. Otomatik yeniden bağlanılıyor…');
     reconnectTimerRef.current = setTimeout(() => {
       reconnectTimerRef.current = null;
@@ -862,7 +866,11 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
 
     // Reusing the outgoing element as a preload slot is safe only AFTER
     // the incoming element starts; changing its src early also stops it.
+    const requestId = ++playRequestRef.current;
+    const sourceSurahId = currentSurahIdRef.current;
+    const sourceReciter = selectedReciterRef.current;
     const prepareUpcomingAudio = () => {
+      if (requestId !== playRequestRef.current) return;
     // Kesintisiz (Gapless) geçiş için sıradaki 1. ve 2. ayetin ses dosyalarını arka planda önceden belleğe yükle (Preload)
     const nextAyah = list[idx + 1];
     if (nextAyah?.audio && preloadNextAudioRef.current.src !== nextAyah.audio) {
@@ -878,9 +886,12 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     }
     // Sure sonuna yaklaşıldığında (son 2 ayet) bir sonraki surenin verisini ve ilk ayet sesini şimdiden önbelleğe hazırla
     if (idx >= list.length - 2) {
-      const upcomingSurahId = nextSurahInListeningLoop(currentSurahIdRef.current);
-      fetchSurahData(upcomingSurahId, selectedReciterRef.current)
+      const upcomingSurahId = nextSurahInListeningLoop(sourceSurahId);
+      fetchSurahData(upcomingSurahId, sourceReciter)
         .then((nextSurahRes) => {
+          if (requestId !== playRequestRef.current ||
+              currentSurahIdRef.current !== sourceSurahId ||
+              selectedReciterRef.current !== sourceReciter) return;
           const firstNextSurahAudio = nextSurahRes.ayahs?.[0]?.audio;
           if (firstNextSurahAudio && !nextAyah?.audio) {
             preloadNextAudioRef.current.preload = 'auto';
@@ -893,7 +904,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
     };
     if (!outgoingPlayer) prepareUpcomingAudio();
 
-    const requestId = ++playRequestRef.current;
     reconnectPlaybackRef.current = () => {
       if (!isPlayingRef.current || requestId !== playRequestRef.current) return;
       const position = Number.isFinite(player.currentTime) && player.currentTime > 0
@@ -977,7 +987,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           if (retryAttemptsRef.current > 0) {
             logListen('RECONNECT_RECOVERED', 'info', { surah: currentSurahIdRef.current, ayah: idx + 1 });
             retryAttemptsRef.current = 0;
-            setIsRecovering(false);
             setAudioError(null);
           }
         }
@@ -1184,7 +1193,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
             clearTimeout(surahRetryRef.current);
             surahRetryRef.current = null;
           }
-          setIsRecovering(false);
           setAudioError(null);
           logListen('SURAH_LOADED', 'info', { surah: currentSurahId });
           setAyahs(res.ayahs);
@@ -1207,7 +1215,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           // Do not discard the automatic-next-surah intent while offline.
           setAudioError('Sûre yüklenemedi. Bağlantı düzelince otomatik yeniden denenecek.');
           if (isPlayingRef.current) {
-            setIsRecovering(true);
             const retryNumber = ++surahRetryCountRef.current;
             const retryDelay = Math.min(30000, 2000 * Math.pow(2, Math.min(retryNumber - 1, 4)));
             if (surahRetryRef.current !== null) clearTimeout(surahRetryRef.current);
