@@ -106,3 +106,19 @@ test('stopping or changing ayahs cancels pending audio retry and metadata timers
   assert.ok(play.includes('audioRetryTimerRef.current = window.setTimeout'));
   assert.ok(play.includes('audioLoadTimeoutRef.current = window.setTimeout'));
 });
+
+test('mobile Ezber can switch a paused single-ayah repeat into full-surah playback at the saved position', () => {
+  const mobile = fs.readFileSync('src/components/MobileMode.tsx','utf8');
+  const action = mobile.slice(
+    mobile.indexOf('  const continueSurahFromPausedVerse ='),
+    mobile.indexOf('  const retryFailedVerse =')
+  );
+  assert.ok(action.includes('paused.verseNum'));
+  assert.ok(action.includes('paused.positionSeconds'));
+  assert.ok(action.includes('resumeOffsetRef.current = positionSeconds'));
+  assert.ok(action.includes("playVerse(verseNum, 'full')"));
+  assert.ok(action.indexOf('stopAudio();') < action.indexOf('resumeOffsetRef.current = positionSeconds'));
+  assert.ok(mobile.includes('onClick={continueSurahFromPausedVerse}'));
+  assert.ok(mobile.includes('<span>Sureye Devam Et</span>'));
+  assert.ok(mobile.includes("pausedPlayback.mode === 'verse'"));
+});
