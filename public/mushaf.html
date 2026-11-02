@@ -1223,7 +1223,6 @@
       <!-- Gerçek Mushaf Açılır Menüler -->
       <div class="mushaf-only flex items-center gap-1 mushaf-nav-controls">
         <div class="segmented-control mushaf-source-selector" id="mushafSourceSelector" role="group" aria-label="Mushaf baskısı seçimi" title="Mushaf Seçimi">
-          <button id="btnMushafSrcDefault" class="active" onclick="setMushafSource('default')">Varsayılan</button>
           <button id="btnMushafSrc1" onclick="setMushafSource('mushaf-1')">Mushaf-1</button>
           <button id="btnMushafSrc2" onclick="setMushafSource('mushaf-2')">Mushaf-2</button>
           <button id="btnMushafSrc3" onclick="setMushafSource('mushaf-3')">Mushaf-3</button>
@@ -1279,10 +1278,6 @@
           </button>
         </div>
         <div class="mushaf-bookmark-controls">
-          <button class="btn-chip" onclick="toggleBookmarkModal()" title="Kayıtlı Sayfalarım" aria-label="Kayıtlı sayfalarım">
-            <i class="fa-solid fa-bookmark"></i>
-            <span class="hide-mobile">Yer İmleri</span>
-          </button>
           <button class="btn-icon btn-bookmark-toggle" onclick="toggleCurrentBookmark()" title="Yer İmlerine Ekle/Kaldır" aria-label="Sayfayı yer imlerine ekle veya kaldır" style="font-size: 16px; font-weight: bold;">+</button>
         </div>
       </div>
@@ -1671,14 +1666,14 @@
     meal: false,
     fontSize: 28,
     mushafView: "single",
-    mushafSource: "default",
+    mushafSource: "mushaf-1",
     currentPage: 1,
     currentSurah: 1,
     focus: false
   }, readJSON(SETTINGS_KEY, {}));
 
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) settings = {};
-  settings = Object.assign({appMode:"computer",theme:"light",mushafView:"single",mushafSource:"default",currentPage:1,currentSurah:1},settings);
+  settings = Object.assign({appMode:"computer",theme:"light",mushafView:"single",mushafSource:"mushaf-1",currentPage:1,currentSurah:1},settings);
   if (settings.theme === "auto") settings.theme = "light";
   if (settings.appMode !== "computer" && settings.appMode !== "mushaf") settings.appMode = "computer";
   if (["single","double","scroll"].indexOf(settings.mushafView) === -1) settings.mushafView = "single";
@@ -1686,13 +1681,13 @@
   if (settings.currentPage) settings.currentPage = parseInt(settings.currentPage, 10) || 1;
   if (!Number.isInteger(settings.currentPage) || settings.currentPage < 1 || settings.currentPage > 604) { settings.currentPage=1;window.MushafDiagnostics.log("SAVED_DATA_INVALID","warning",{stage:"page"}); }
   if (!Number.isInteger(settings.currentSurah) || settings.currentSurah < 1 || settings.currentSurah > 114) { settings.currentSurah=1;window.MushafDiagnostics.log("SAVED_DATA_INVALID","warning",{stage:"surah"}); }
-  if (["default", "mushaf-1", "mushaf-2", "mushaf-3"].indexOf(settings.mushafSource) === -1) {
-    settings.mushafSource = "default";
-  }
+  var needsMushafSourceMigration = ["mushaf-1", "mushaf-2", "mushaf-3"].indexOf(settings.mushafSource) === -1;
+  if (needsMushafSourceMigration) settings.mushafSource = "mushaf-1";
 
   function readJSON(k, f){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch(e){ window.MushafDiagnostics.log("STORAGE_READ_FAILED","warning",{stage:"json",name:window.MushafDiagnostics.safeName(e)});return f; } }
   function writeJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){window.MushafDiagnostics.log("STORAGE_WRITE_FAILED","warning",{stage:"json",name:window.MushafDiagnostics.safeName(e)});} }
   function saveSettings(){ writeJSON(SETTINGS_KEY, settings); }
+  if (needsMushafSourceMigration) saveSettings();
 
   var currentSurahData = null;
   var memoryCache = {};
@@ -2335,7 +2330,7 @@
   /* ================== GERÇEK MUSHAF GÖRÜNÜMÜ ================== */
   var mPage = settings.currentPage || 1;
   var mView = settings.mushafView || "single";
-  var mSource = settings.mushafSource || "default";
+  var mSource = settings.mushafSource || "mushaf-1";
   var scrollObserver = null;
   var loadTokenCounter = 0;
   var detectedLocalPatternIdx = { "mushaf-1": 0, "mushaf-2": 0, "mushaf-3": 0 };
@@ -2343,7 +2338,6 @@
   var localPageCounts = { "mushaf-1": 0, "mushaf-2": 0, "mushaf-3": 0 };
 
   var MUSHAF_SOURCE_LABELS = {
-    "default": "Varsayılan Mushaf",
     "mushaf-1": "Mushaf-1",
     "mushaf-2": "Mushaf-2",
     "mushaf-3": "Mushaf-3"
@@ -2559,10 +2553,9 @@
     // Eğer kullanıcı Varsayılan moddaysa veya belirli bir klasör seçtiyse o Mushaf'a otomatik geç
     if (forcedSource === "mushaf-1" || forcedSource === "mushaf-2" || forcedSource === "mushaf-3") {
       mSource = forcedSource;
-    } else if (mSource === "default") {
-      if (seenM3 && !seenM1 && !seenM2) mSource = "mushaf-3";
-      else if (seenM2 && !seenM1) mSource = "mushaf-2";
-      else if (seenM1) mSource = "mushaf-1";
+    } else if (seenM1 || seenM2 || seenM3) {
+      if (seenM1) mSource = "mushaf-1";
+      else if (seenM2) mSource = "mushaf-2";
       else if (seenM3) mSource = "mushaf-3";
     }
     settings.mushafSource = mSource;
@@ -2670,11 +2663,9 @@
   });
 
   function updateMushafSourceButtons(){
-    var bDef = document.getElementById("btnMushafSrcDefault");
     var bM1 = document.getElementById("btnMushafSrc1");
     var bM2 = document.getElementById("btnMushafSrc2");
     var bM3 = document.getElementById("btnMushafSrc3");
-    if (bDef) bDef.classList.toggle("active", mSource === "default");
     if (bM1) bM1.classList.toggle("active", mSource === "mushaf-1");
     if (bM2) bM2.classList.toggle("active", mSource === "mushaf-2");
     if (bM3) bM3.classList.toggle("active", mSource === "mushaf-3");
@@ -2688,7 +2679,7 @@
   // Sayfa numaraları her baskıda mevcut; kayıt durumu konumu değiştirmez.
 
   window.setMushafSource = function(src){
-    if (["default", "mushaf-1", "mushaf-2", "mushaf-3"].indexOf(src) === -1) src = "default";
+    if (["mushaf-1", "mushaf-2", "mushaf-3"].indexOf(src) === -1) src = "mushaf-1";
     mSource = src;
     window.MushafDiagnostics.log("SOURCE_CHANGED","info",{source:src});
     settings.mushafSource = src;
@@ -2713,7 +2704,7 @@
   };
 
   function getMushafPageUrlList(p, source){
-    var activeSrc = source || mSource || "default";
+    var activeSrc = source || mSource || "mushaf-1";
     var pad3 = String(p).padStart(3, '0');
     var pad4 = String(p).padStart(4, '0');
 
@@ -2745,9 +2736,6 @@
       return rawPatterns;
     }
 
-    // "Varsayılan" daha önce dış CDN adreslerine bağlıydı. Mobilde ilk
-    // açılışta görüntü gelmemesinin nedeni bu başarısız/engellenen isteklerdi.
-    // Depoda 1..604 sayfalarının tamamı bulunduğundan yerel baskıyı kullan.
     return ["./mushaflar/mushaf-1/" + p + ".jpg"];
   }
 
