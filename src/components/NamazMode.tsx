@@ -238,6 +238,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
 
   const [targetLoop, setTargetLoop] = useState<number | 'infinite'>(3);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [showMobileSpeedPresets, setShowMobileSpeedPresets] = useState<boolean>(false);
   const [currentLoop, setCurrentLoop] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPlayingAll, setIsPlayingAll] = useState<boolean>(false);
