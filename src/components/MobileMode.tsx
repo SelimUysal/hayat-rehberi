@@ -1351,13 +1351,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden="true" />
                   <span>{pausedPlayback.mode === 'full' ? 'Sureye Devam Et' : 'Ayet Tekrarına Devam Et'}</span>
                 </button>
-                {pausedPlayback.mode === 'full' && (
-                  <p className={`text-center text-[10px] leading-relaxed ${
-                    isDark ? 'text-[#b9b09a]' : 'text-slate-600'
-                  }`}>
-                    Aynı saniyeden devam eder, ardından diğer ayetlere geçer.
-                  </p>
-                )}
+
                 <div className="grid grid-cols-2 gap-2" role="group" aria-label="Farklı dinleme başlat">
                   <button
                     type="button"
