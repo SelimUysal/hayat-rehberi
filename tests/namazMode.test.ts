@@ -52,3 +52,24 @@ test('Namaz playback uses recorded audio only and no synthetic device reading', 
   assert.match(source,/targetLoopRef\.current === 'infinite'/);
   assert.match(source,/Sure, dua veya rehber ara/);
 });
+
+test('Namaz mobile speed control opens the same slider and preset popover as Ezber', () => {
+  const source = readFileSync('src/components/NamazMode.tsx','utf8');
+  const mobileStart = source.indexOf('/* Mobil Sabit Alt Kontrol Paneli */');
+  const desktopStart = source.indexOf('/* 2. MASAÜSTÜ PANELİ GÖRÜNÜMÜ */', mobileStart);
+  assert.ok(mobileStart >= 0 && desktopStart > mobileStart);
+  const mobile = source.slice(mobileStart, desktopStart);
+  assert.match(mobile,/showMobileSpeedPresets &&/);
+  assert.ok(mobile.includes('absolute right-0 bottom-full mb-3 w-64 max-w-[calc(100vw-1rem)] p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150'));
+  assert.ok(mobile.includes('px-2.5 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1'));
+  assert.match(mobile,/onPointerUp=\{\(\) => setShowMobileSpeedPresets\(false\)\}/);
+  assert.match(mobile,/onTouchEnd=\{\(\) => setShowMobileSpeedPresets\(false\)\}/);
+  assert.match(mobile,/onKeyDown=\{\(e\) => \{[\s\S]*?e\.key === 'Enter'[\s\S]*?\}\}/);
+  assert.match(mobile,/onBlur=\{\(\) => setShowMobileSpeedPresets\(false\)\}/);
+  assert.match(mobile,/type="range"[\s\S]*?min="0\.5"[\s\S]*?max="3\.0"/);
+  assert.match(mobile,/\[0\.75, 1\.0, 1\.5, 2\.0\]/);
+  assert.match(mobile,/onClick=\{\(\) => setShowMobileSpeedPresets\(value => !value\)\}/);
+  assert.match(mobile,/changeSpeed\(spd\)/);
+  assert.match(mobile,/aria-expanded=\{showMobileSpeedPresets\}/);
+  assert.doesNotMatch(mobile,/Hız Ayarı Slider \(İmleçli\)/);
+});
