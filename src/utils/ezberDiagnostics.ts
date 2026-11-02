@@ -2,7 +2,7 @@
 export type EzberEventCode =
   | 'VIEW_CHANGE' | 'SURAH_LOAD_START' | 'SURAH_LOAD_OK' | 'SURAH_LOAD_FAILED'
   | 'VERSE_MISSING_AUDIO' | 'VERSE_PLAY_START' | 'VERSE_PLAY_ERROR'
-  | 'VERSE_PLAY_REJECTED' | 'VERSE_REPEAT' | 'SURAH_REPEAT' | 'VERSE_NEXT' | 'PLAY_STOP'
+  | 'VERSE_PLAY_RETRY' | 'VERSE_PLAY_RECOVERED' | 'VERSE_PLAY_REJECTED' | 'VERSE_REPEAT' | 'SURAH_REPEAT' | 'VERSE_NEXT' | 'PLAY_STOP'
   | 'SEGMENT_START' | 'SEGMENT_END' | 'SEGMENT_PLAY_ERROR' | 'SEGMENT_PLAY_REJECTED'
   | 'MIC_UNSUPPORTED' | 'MIC_PERMISSION_ERROR' | 'RECORD_START'
   | 'RECORD_STOP' | 'RECORD_EMPTY' | 'RECORD_ERROR' | 'RECORD_PLAY_ERROR'
@@ -24,7 +24,7 @@ const MAX_AGE = 7 * 86400 * 1000;
 const ALLOWED = new Set<string>([
   'VIEW_CHANGE','SURAH_LOAD_START','SURAH_LOAD_OK','SURAH_LOAD_FAILED',
   'VERSE_MISSING_AUDIO','VERSE_PLAY_START','VERSE_PLAY_ERROR',
-  'VERSE_PLAY_REJECTED','VERSE_REPEAT','SURAH_REPEAT','VERSE_NEXT','PLAY_STOP',
+  'VERSE_PLAY_RETRY','VERSE_PLAY_RECOVERED','VERSE_PLAY_REJECTED','VERSE_REPEAT','SURAH_REPEAT','VERSE_NEXT','PLAY_STOP',
   'SEGMENT_START','SEGMENT_END','SEGMENT_PLAY_ERROR','SEGMENT_PLAY_REJECTED',
   'MIC_UNSUPPORTED','MIC_PERMISSION_ERROR','RECORD_START',
   'RECORD_STOP','RECORD_EMPTY','RECORD_ERROR','RECORD_PLAY_ERROR',
@@ -32,7 +32,7 @@ const ALLOWED = new Set<string>([
   'PREFERENCE_SAVE_FAILED','RENDER_ERROR',
   'APP_BACKGROUND','APP_FOREGROUND','FOLLOW_RESYNC'
 ]);
-const FIELDS = new Set(['mode','name','mediaCode','networkState','readyState','online','repeat','segment','stage','duration']);
+const FIELDS = new Set(['mode','name','mediaCode','networkState','readyState','online','repeat','segment','stage','duration','attempt','source','reciter','reason']);
 let fallback: EzberEvent[] = [];
 
 function valid(value: unknown): value is EzberEvent {
@@ -71,7 +71,10 @@ export function recordEzberEvent(
     if (!FIELDS.has(key)) continue;
     if (typeof value === 'boolean') clean[key] = value;
     else if (typeof value === 'number' && Number.isFinite(value)) clean[key] = Math.round(value*100)/100;
-    else if (typeof value === 'string') clean[key] = /^[A-Za-z0-9_-]{1,36}$/.test(value) ? value : 'redacted';
+    else if (typeof value === 'string') {
+      const safeValue = key === 'reciter' ? /^[A-Za-z0-9._-]{1,48}$/.test(value) : /^[A-Za-z0-9_-]{1,36}$/.test(value);
+      clean[key] = safeValue ? value : 'redacted';
+    }
   }
   const entry: EzberEvent = {
     time: new Date().toISOString(), code, level,

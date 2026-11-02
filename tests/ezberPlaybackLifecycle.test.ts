@@ -79,3 +79,30 @@ test('media control callbacks never access Ezber functions in the temporal dead 
       `${name} must follow its function declaration`);
   }
 });
+
+
+test('mobile audio recovery retries the same ayah and pauses rather than skipping on final failure', () => {
+  const mobile = fs.readFileSync('src/components/MobileMode.tsx','utf8');
+  const play = mobile.slice(mobile.indexOf('  const playVerse ='), mobile.indexOf('  const startPlayback ='));
+  assert.ok(play.includes('getSafeAyahAudioSources(ayah)'));
+  assert.ok(play.includes('MAX_PRIMARY_AUDIO_ATTEMPTS = 3'));
+  assert.ok(play.includes('AUDIO_METADATA_TIMEOUT_MS = 12000'));
+  assert.ok(play.includes("logEzber('VERSE_PLAY_RETRY'"));
+  assert.ok(play.includes("logEzber('VERSE_PLAY_RECOVERED'"));
+  assert.ok(play.includes('preserveFailedVerse(stage)'));
+  assert.ok(play.includes('player.onended = finishVerse'));
+  assert.ok(play.includes('loadAudioSource();'));
+  assert.ok(mobile.includes('onClick={retryFailedVerse}'));
+  assert.ok(mobile.includes('Ayet atlanmadı; dinleme burada duraklatıldı.'));
+  assert.ok(!play.includes('playVerse(verseNum + 1'), 'a failed ayah must never be silently skipped');
+});
+
+test('stopping or changing ayahs cancels pending audio retry and metadata timers', () => {
+  const mobile = fs.readFileSync('src/components/MobileMode.tsx','utf8');
+  const stop = mobile.slice(mobile.indexOf('  const stopAudio ='), mobile.indexOf('  useEffect(() => {\n    const onRadioStart'));
+  assert.ok(stop.includes('clearTimeout(audioRetryTimerRef.current)'));
+  assert.ok(stop.includes('clearTimeout(audioLoadTimeoutRef.current)'));
+  const play = mobile.slice(mobile.indexOf('  const playVerse ='), mobile.indexOf('  const startPlayback ='));
+  assert.ok(play.includes('audioRetryTimerRef.current = window.setTimeout'));
+  assert.ok(play.includes('audioLoadTimeoutRef.current = window.setTimeout'));
+});
