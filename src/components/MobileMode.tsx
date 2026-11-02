@@ -25,7 +25,14 @@ import { QuickSurahBookmarks } from './QuickSurahBookmarks';
 import { EzberVoiceRecorder } from './EzberVoiceRecorder';
 import { recordEzberEvent as logEzber, ezberErrorName } from '../utils/ezberDiagnostics';
 import { getEzberWordIndex } from '../utils/ezberTracking';
+import { getSafeAyahAudioSources, getEzberAudioRetryDelayMs } from '../utils/ezberAudioRecovery';
 import { readMobileEzberSession, saveMobileEzberSession, coordinateEzberWindows, claimEzberAudio, EZBER_STOP_AUDIO_EVENT, requestEzberLiveState, publishEzberLiveState, stopRemoteEzberAudio, type LiveEzberSession } from '../utils/ezberSession';
+
+type MobilePlaybackError = {
+  verseNum: number;
+  mode: 'verse' | 'full';
+  stage: 'media_error' | 'metadata_timeout' | 'play_rejected' | 'missing_source';
+};
 
 interface MobileModeProps {
   targetSurahId?: number | null;
@@ -67,6 +74,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
   // Çalma Durumu
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackError, setPlaybackError] = useState<MobilePlaybackError | null>(null);
   useEffect(() => {
     onPlaybackChange?.(isPlaying);
   }, [isPlaying, onPlaybackChange]);
@@ -91,6 +99,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   const audioRef = useRef<HTMLAudioElement>(null!);
   if (audioRef.current === null) audioRef.current = new Audio();
   const playbackRequestRef = useRef(0);
+  const audioRetryTimerRef = useRef<number | null>(null);
+  const audioLoadTimeoutRef = useRef<number | null>(null);
   const ayahsRef = useRef(ayahs);
   ayahsRef.current = ayahs;
   const getWordsOfVerseRef = useRef<(ayah: Ayah) => string[]>(() => []);
@@ -337,10 +347,18 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
   };
   getWordsOfVerseRef.current = getWordsOfVerse;
 
-  const stopAudio = () => {
+  const stopAudio = (options: { logStop?: boolean } = {}) => {
     const player = audioRef.current;
     const position = player && Number.isFinite(player.currentTime) ? player.currentTime : lastPositionRef.current;
     resumeOffsetRef.current = 0;
+    if (audioRetryTimerRef.current !== null) {
+      clearTimeout(audioRetryTimerRef.current);
+      audioRetryTimerRef.current = null;
+    }
+    if (audioLoadTimeoutRef.current !== null) {
+      clearTimeout(audioLoadTimeoutRef.current);
+      audioLoadTimeoutRef.current = null;
+    }
     if (isPlayingRef.current) {
       lastPositionRef.current = position;
       saveMobileEzberSession({surahId:currentSurahRef.current,verseNum:currentlyPlayingVerseNumRef.current ?? selectedVerseNumRef.current,reciter:selectedReciterRef.current,playbackSpeed:sessionSpeedRef.current,positionSeconds:position,wasPlaying:false,mode:playModeRef.current});
@@ -348,7 +366,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     ownsAudioRef.current=false;
     lastValidWordRef.current = null;
     ++playbackRequestRef.current;
-    if (isPlayingRef.current) logEzber('PLAY_STOP','info',{surah:currentSurah,verse:currentlyPlayingVerseNumRef.current??undefined,detail:{mode:'mobile'}});
+    if (isPlayingRef.current && options.logStop !== false) logEzber('PLAY_STOP','info',{surah:currentSurah,verse:currentlyPlayingVerseNumRef.current??undefined,detail:{mode:'mobile'}});
     if (loopTimeoutRef.current) {
       clearTimeout(loopTimeoutRef.current);
       loopTimeoutRef.current = null;
@@ -373,6 +391,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     }
     setIsPlaying(false);
     isPlayingRef.current = false;
+    setPlaybackError(null);
     setCurrentlyPlayingVerseNum(null);
     currentlyPlayingVerseNumRef.current = null;
     setActiveWordIdx(null);
@@ -457,6 +476,15 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
 
   // Ayeti Çal ve Döngüye Al (Senkronizasyon garantili, karışma engelli)
   const playVerse = (verseNum: number, mode: 'verse' | 'full' = 'verse') => {
+    if (audioRetryTimerRef.current !== null) {
+      clearTimeout(audioRetryTimerRef.current);
+      audioRetryTimerRef.current = null;
+    }
+    if (audioLoadTimeoutRef.current !== null) {
+      clearTimeout(audioLoadTimeoutRef.current);
+      audioLoadTimeoutRef.current = null;
+    }
+    setPlaybackError(null);
     if (loopTimeoutRef.current) {
       clearTimeout(loopTimeoutRef.current);
       loopTimeoutRef.current = null;
@@ -476,9 +504,31 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     modeRef.current=mode;
     const requestId = ++playbackRequestRef.current;
     const ayah = ayahs.find((a) => a.numberInSurah === verseNum);
-    if (!ayah || !ayah.audio) {
-      logEzber('VERSE_MISSING_AUDIO','error',{surah:currentSurah,verse:verseNum});
-      stopAudio();
+    const audioSources = ayah ? getSafeAyahAudioSources(ayah) : [];
+    if (!ayah || audioSources.length === 0) {
+      const loopCount = currentLoopRef.current;
+      const failedPosition = Math.max(0, resumeOffsetRef.current);
+      stopAudio({logStop:false});
+      currentLoopRef.current = loopCount;
+      setCurrentLoop(loopCount);
+      setSelectedVerseNum(verseNum);
+      const failedSession = {
+        surahId:currentSurahRef.current,verseNum,reciter:selectedReciterRef.current,
+        playbackSpeed:playbackSpeedRef.current,positionSeconds:failedPosition,
+        wasPlaying:false,mode
+      } as const;
+      saveMobileEzberSession(failedSession);
+      setPausedSession(failedSession);
+      setResumeAvailable(true);
+      setPlaybackError({verseNum,mode,stage:'missing_source'});
+      logEzber('VERSE_MISSING_AUDIO','error',{
+        surah:currentSurah,verse:verseNum,
+        detail:{
+          mode,
+          reciter:selectedReciterRef.current.startsWith('ar.') ? selectedReciterRef.current.slice(3) : selectedReciterRef.current,
+          reason:ayah ? 'invalid_or_missing_source' : 'ayah_not_found'
+        }
+      });
       return;
     }
 
@@ -522,9 +572,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     lastPositionRef.current = 0;
     lastSavedSecondRef.current = -1;
     lastBroadcastRef.current=-1;
-    saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciter,playbackSpeed:targetSpeed,positionSeconds:0,wasPlaying:true,mode});
+    saveMobileEzberSession({surahId:currentSurah,verseNum,reciter:selectedReciter,playbackSpeed:targetSpeed,positionSeconds:resumeOffsetRef.current > 0 ? resumeOffsetRef.current : 0,wasPlaying:true,mode});
     player.defaultPlaybackRate = targetSpeed;
-    player.src = ayah.audio;
     player.playbackRate = targetSpeed;
 
     player.onplay = () => {
@@ -640,6 +689,167 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
       }
     };
 
+    const MAX_PRIMARY_AUDIO_ATTEMPTS = 3;
+    const AUDIO_METADATA_TIMEOUT_MS = 12000;
+    let sourceIndex = 0;
+    let sourceAttempt = 0;
+    let totalAttempts = 0;
+    let activeSourceToken = 0;
+    let failurePending = false;
+    const reciterCode = selectedReciterRef.current.startsWith('ar.')
+      ? selectedReciterRef.current.slice(3)
+      : selectedReciterRef.current;
+
+    const clearAudioLoadTimeout = () => {
+      if (audioLoadTimeoutRef.current !== null) {
+        clearTimeout(audioLoadTimeoutRef.current);
+        audioLoadTimeoutRef.current = null;
+      }
+    };
+    const isCurrentSourceAttempt = (token: number) =>
+      ownsThisVerse() && token === activeSourceToken;
+
+    const preserveFailedVerse = (stage: MobilePlaybackError['stage']) => {
+      if (!ownsThisVerse()) return;
+      const currentPosition = Number.isFinite(player.currentTime) && player.currentTime > 0
+        ? player.currentTime
+        : Math.max(lastPositionRef.current, resumeOffsetRef.current);
+      const safePosition = Number.isFinite(currentPosition) ? Math.max(0, currentPosition) : 0;
+      const loopCount = currentLoopRef.current;
+      const failedSession = {
+        surahId: currentSurahRef.current,
+        verseNum,
+        reciter: selectedReciterRef.current,
+        playbackSpeed: playbackSpeedRef.current,
+        positionSeconds: safePosition,
+        wasPlaying: false,
+        mode,
+      } as const;
+
+      // Keep the current ayah and loop count. Never advance past an unreadable ayah.
+      stopAudio({logStop:false});
+      currentLoopRef.current = loopCount;
+      setCurrentLoop(loopCount);
+      lastPositionRef.current = safePosition;
+      resumeOffsetRef.current = safePosition;
+      saveMobileEzberSession(failedSession);
+      setPausedSession(failedSession);
+      setResumeAvailable(true);
+      setSelectedVerseNum(verseNum);
+      setPlaybackError({verseNum,mode,stage});
+    };
+
+    const handleSourceFailure = (
+      stage: 'media_error' | 'metadata_timeout',
+      token: number
+    ) => {
+      if (!isCurrentSourceAttempt(token) || failurePending) return;
+      failurePending = true;
+      clearAudioLoadTimeout();
+      player.pause();
+
+      const mediaCode = player.error?.code ?? 0;
+      const mediaReason = mediaCode === 1 ? 'aborted'
+        : mediaCode === 2 ? 'network'
+        : mediaCode === 3 ? 'decode'
+        : mediaCode === 4 ? 'source_not_supported'
+        : stage === 'metadata_timeout' ? 'metadata_timeout' : 'unknown';
+      const canRetrySameSource = sourceIndex === 0 && sourceAttempt < MAX_PRIMARY_AUDIO_ATTEMPTS;
+      const canUseNextSource = sourceIndex < audioSources.length - 1;
+      const willRetry = canRetrySameSource || canUseNextSource;
+
+      logEzber('VERSE_PLAY_ERROR',willRetry ? 'warning' : 'error',{
+        surah:currentSurah,verse:verseNum,
+        detail:{
+          mediaCode,networkState:player.networkState,readyState:player.readyState,
+          online:navigator.onLine,mode,reciter:reciterCode,attempt:totalAttempts,
+          source:sourceIndex === 0 ? 'primary' : 'fallback',stage,reason:mediaReason
+        }
+      });
+
+      if (!willRetry) {
+        preserveFailedVerse(stage);
+        return;
+      }
+
+      if (!canRetrySameSource) {
+        sourceIndex += 1;
+        sourceAttempt = 0;
+      }
+      const nextAttempt = totalAttempts + 1;
+      logEzber('VERSE_PLAY_RETRY','info',{
+        surah:currentSurah,verse:verseNum,
+        detail:{
+          mode,reciter:reciterCode,attempt:nextAttempt,
+          source:sourceIndex === 0 ? 'primary' : 'fallback',stage,online:navigator.onLine
+        }
+      });
+      const delay = sourceIndex === 0
+        ? getEzberAudioRetryDelayMs(sourceAttempt)
+        : 700;
+      audioRetryTimerRef.current = window.setTimeout(() => {
+        audioRetryTimerRef.current = null;
+        if (ownsThisVerse()) loadAudioSource();
+      },delay);
+    };
+
+    const loadAudioSource = () => {
+      if (!ownsThisVerse()) return;
+      clearAudioLoadTimeout();
+      sourceAttempt += 1;
+      totalAttempts += 1;
+      failurePending = false;
+      const attemptToken = ++activeSourceToken;
+      const source = audioSources[sourceIndex];
+
+      player.onloadedmetadata = () => {
+        if (!isCurrentSourceAttempt(attemptToken) || failurePending) return;
+        clearAudioLoadTimeout();
+        player.defaultPlaybackRate = playbackSpeedRef.current;
+        player.playbackRate = playbackSpeedRef.current;
+        if (resumeOffsetRef.current > 0 && Number.isFinite(player.duration)) {
+          try {
+            player.currentTime = Math.min(resumeOffsetRef.current, Math.max(0, player.duration - 0.25));
+          } catch {}
+          resumeOffsetRef.current = 0;
+        }
+        if (totalAttempts > 1) {
+          logEzber('VERSE_PLAY_RECOVERED','info',{
+            surah:currentSurah,verse:verseNum,
+            detail:{
+              mode,reciter:reciterCode,attempt:totalAttempts,
+              source:sourceIndex === 0 ? 'primary' : 'fallback'
+            }
+          });
+        }
+        player.play().then(() => {
+          if (!isCurrentSourceAttempt(attemptToken)) return;
+          player.playbackRate = playbackSpeedRef.current;
+          syncFollow();
+          restartFollowTimer();
+        }).catch(err => {
+          if (!isCurrentSourceAttempt(attemptToken)) return;
+          logEzber('VERSE_PLAY_REJECTED','error',{
+            surah:currentSurah,verse:verseNum,
+            detail:{
+              name:ezberErrorName(err),mode,reciter:reciterCode,attempt:totalAttempts,
+              source:sourceIndex === 0 ? 'primary' : 'fallback',
+              online:navigator.onLine,stage:'play_rejected'
+            }
+          });
+          preserveFailedVerse('play_rejected');
+        });
+      };
+
+      player.onerror = () => handleSourceFailure('media_error',attemptToken);
+      player.src = source;
+      player.load();
+      audioLoadTimeoutRef.current = window.setTimeout(
+        () => handleSourceFailure('metadata_timeout',attemptToken),
+        AUDIO_METADATA_TIMEOUT_MS
+      );
+    };
+
     syncFollowRef.current = syncFollow;
     resumeFollowTimerRef.current = restartFollowTimer;
     player.ontimeupdate = syncFollow;
@@ -658,36 +868,8 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
         tickIntervalRef.current = null;
       }
     };
-    player.onloadedmetadata = () => {
-      if (!ownsThisVerse()) return;
-      player.defaultPlaybackRate = playbackSpeedRef.current;
-      player.playbackRate = playbackSpeedRef.current;
-      if (resumeOffsetRef.current > 0 && Number.isFinite(player.duration)) {
-        try {
-          player.currentTime = Math.min(resumeOffsetRef.current, Math.max(0, player.duration - 0.25));
-        } catch {}
-        resumeOffsetRef.current = 0;
-      }
-      player.play().then(() => {
-        if (!ownsThisVerse()) return;
-        player.playbackRate = playbackSpeedRef.current;
-        syncFollow();
-        restartFollowTimer();
-      }).catch(err => {
-        if (!ownsThisVerse()) return;
-        logEzber('VERSE_PLAY_REJECTED', 'error', {
-          surah: currentSurah, verse: verseNum,
-          detail: { name: ezberErrorName(err) },
-        });
-        stopAudio();
-      });
-    };
+    loadAudioSource();
 
-    player.onerror = () => {
-      if (!ownsThisVerse()) return;
-      logEzber('VERSE_PLAY_ERROR','error',{surah:currentSurah,verse:verseNum,detail:{mediaCode:player.error?.code ?? 0,networkState:player.networkState,readyState:player.readyState}});
-      stopAudio();
-    };
   };
 
   const startPlayback = (vNum = selectedVerseNum) => {
@@ -721,6 +903,38 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+  };
+
+  const continueSurahFromPausedVerse = () => {
+    const paused = pausedSession ?? readMobileEzberSession();
+    if (!paused || paused.surahId !== currentSurah || ayahs.length === 0) return;
+
+    const verseNum = paused.verseNum;
+    if (!Number.isInteger(verseNum) || verseNum < 1 || verseNum > ayahs.length) return;
+    const positionSeconds = Number.isFinite(paused.positionSeconds)
+      ? Math.max(0, paused.positionSeconds)
+      : 0;
+
+    // Switch from single-ayah repeat to full-surah flow without losing the paused second.
+    stopAudio();
+    setPausedSession(null);
+    setResumeAvailable(false);
+    resumeOffsetRef.current = positionSeconds;
+    currentLoopRef.current = 1;
+    setCurrentLoop(1);
+    setIsPlaying(true);
+    playVerse(verseNum, 'full');
+
+    const el = document.getElementById(`mobile-verse-${verseNum}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const retryFailedVerse = () => {
+    const failed = playbackError;
+    if (!failed) return;
+    setPausedSession(null);
+    setResumeAvailable(false);
+    playVerse(failed.verseNum, failed.mode);
   };
 
   // Önceki / Sonraki Ayet
@@ -1081,6 +1295,34 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   <span>{remoteSession ? 'Diğer Oturumu Durdur' : 'Duraklat'}</span>
                 </button>
               </div>
+            ) : playbackError ? (
+              <div className={`min-w-0 space-y-2 rounded-xl border p-2.5 ${
+                isDark ? 'border-amber-700/50 bg-[#211b13]' : 'border-amber-200 bg-amber-50/80'
+              }`} aria-label="Hata nedeniyle duraklatılmış dinleme">
+                <div>
+                  <p className="truncate text-xs font-bold">
+                    {currentSurahMeta?.name || 'Sure'} · {playbackError.verseNum}. ayet
+                  </p>
+                  <p className={`mt-1 text-[11px] leading-relaxed ${
+                    isDark ? 'text-amber-200' : 'text-amber-900'
+                  }`}>
+                    {playbackError.stage === 'missing_source'
+                      ? 'Bu ayet için geçerli bir ses kaynağı bulunamadı.'
+                      : playbackError.stage === 'play_rejected'
+                      ? 'Tarayıcı ses oynatımını başlatamadı.'
+                      : 'Ayetin ses dosyası yüklenemedi.'}
+                    {' '}Ayet atlanmadı; dinleme burada duraklatıldı.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={retryFailedVerse}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 cursor-pointer"
+                >
+                  <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Tekrar Dene</span>
+                </button>
+              </div>
             ) : canResume && pausedPlayback ? (
               <div className={`min-w-0 space-y-2 rounded-xl border p-2.5 ${
                 isDark ? 'border-emerald-700/50 bg-[#181e19]' : 'border-emerald-200 bg-emerald-50/70'
@@ -1120,7 +1362,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   <button
                     type="button"
                     onClick={() => startPlayback(selectedVerseNum)}
-                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${pausedPlayback.mode === 'verse' ? 'col-span-2' : ''} ${
                       isDark ? 'border-[#3a3226] bg-[#211d16] text-[#f1ecdd] hover:border-emerald-600'
                         : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-400'
                     }`}
@@ -1129,6 +1371,20 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                     <RotateCcw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span>Seçili Ayeti Baştan Çal</span>
                   </button>
+                  {pausedPlayback.mode === 'verse' && (
+                    <button
+                      type="button"
+                      onClick={continueSurahFromPausedVerse}
+                      className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                        isDark ? 'border-emerald-700/60 bg-emerald-950/30 text-emerald-200 hover:border-emerald-500'
+                          : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-500'
+                      }`}
+                      title="Duraklatılan ayetten ve kaldığın saniyeden başlayarak sure sonuna kadar sırayla dinle"
+                    >
+                      <Play className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>Sureye Devam Et</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={startFullSurahPlayback}
