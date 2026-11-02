@@ -6078,56 +6078,56 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                   )}
 
                   <div className="flex flex-wrap items-center justify-center gap-2 min-w-0 relative">
+                    {showMobileSpeedPresets && (
+                      <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-3 w-64 max-w-[calc(100vw-2rem)] p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                        isDark ? 'bg-[#211d16] border-[#3a3226] text-[#f1ecdd]' : 'bg-white border-slate-200 text-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`flex items-center gap-1.5 text-xs font-bold ${isDark ? 'text-[#f1ecdd]' : 'text-slate-700'}`}>
+                            <Gauge className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
+                            <span>Okuma Hızı</span>
+                          </div>
+                          <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                            isDark ? 'bg-[#1c3630] text-[#3fb996]' : 'bg-emerald-100 text-emerald-800'
+                          }`}>{playbackSpeed.toFixed(2)}x</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="3.0"
+                          step="0.1"
+                          value={playbackSpeed}
+                          onChange={(e) => changeSpeed(parseFloat(e.target.value))}
+                          onPointerUp={() => setShowMobileSpeedPresets(false)}
+                          onTouchEnd={() => setShowMobileSpeedPresets(false)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') setShowMobileSpeedPresets(false);
+                          }}
+                          onBlur={() => setShowMobileSpeedPresets(false)}
+                          className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${isDark ? 'bg-[#2a241b]' : 'bg-slate-200'}`}
+                          aria-label="Okuma hızı"
+                        />
+                        <div className="grid grid-cols-4 gap-1 mt-2.5">
+                          {[0.75, 1.0, 1.5, 2.0].map((spd) => (
+                            <button
+                              key={spd}
+                              type="button"
+                              onClick={() => {
+                                changeSpeed(spd);
+                                setShowMobileSpeedPresets(false);
+                              }}
+                              className={`py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                                Math.abs(playbackSpeed - spd) < 0.05
+                                  ? isDark ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996]' : 'bg-emerald-600 text-white border-emerald-600'
+                                  : isDark ? 'bg-[#181510] text-[#b9b09a] border-[#3a3226] hover:bg-[#2a241b]' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >{spd.toFixed(2)}x</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {/* Ezber mobil hız paneliyle aynı açılır kontrol */}
                     <div className="relative">
-                      {showMobileSpeedPresets && (
-                        <div className={`absolute right-0 bottom-full mb-3 w-64 max-w-[calc(100vw-1rem)] p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
-                          isDark ? 'bg-[#211d16] border-[#3a3226] text-[#f1ecdd]' : 'bg-white border-slate-200 text-slate-800'
-                        }`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className={`flex items-center gap-1.5 text-xs font-bold ${isDark ? 'text-[#f1ecdd]' : 'text-slate-700'}`}>
-                              <Gauge className={`w-3.5 h-3.5 ${isDark ? 'text-[#3fb996]' : 'text-emerald-600'}`} />
-                              <span>Okuma Hızı</span>
-                            </div>
-                            <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
-                              isDark ? 'bg-[#1c3630] text-[#3fb996]' : 'bg-emerald-100 text-emerald-800'
-                            }`}>{playbackSpeed.toFixed(2)}x</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="3.0"
-                            step="0.1"
-                            value={playbackSpeed}
-                            onChange={(e) => changeSpeed(parseFloat(e.target.value))}
-                            onPointerUp={() => setShowMobileSpeedPresets(false)}
-                            onTouchEnd={() => setShowMobileSpeedPresets(false)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') setShowMobileSpeedPresets(false);
-                            }}
-                            onBlur={() => setShowMobileSpeedPresets(false)}
-                            className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${isDark ? 'bg-[#2a241b]' : 'bg-slate-200'}`}
-                            aria-label="Okuma hızı"
-                          />
-                          <div className="grid grid-cols-4 gap-1 mt-2.5">
-                            {[0.75, 1.0, 1.5, 2.0].map((spd) => (
-                              <button
-                                key={spd}
-                                type="button"
-                                onClick={() => {
-                                  changeSpeed(spd);
-                                  setShowMobileSpeedPresets(false);
-                                }}
-                                className={`py-1 text-[11px] font-semibold rounded-lg border transition-all ${
-                                  Math.abs(playbackSpeed - spd) < 0.05
-                                    ? isDark ? 'bg-[#1c3630] text-[#3fb996] border-[#3fb996]' : 'bg-emerald-600 text-white border-emerald-600'
-                                    : isDark ? 'bg-[#181510] text-[#b9b09a] border-[#3a3226] hover:bg-[#2a241b]' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                }`}
-                              >{spd.toFixed(2)}x</button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       <button
                         type="button"
                         onClick={() => setShowMobileSpeedPresets(value => !value)}
