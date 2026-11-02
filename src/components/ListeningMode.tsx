@@ -1700,20 +1700,6 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
           {!isFocusMode && (
             <div className="w-full flex flex-wrap items-center justify-end gap-2 mb-2 sm:mb-4 animate-in fade-in duration-300">
               <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleFocusMode();
-                }}
-                aria-pressed={isFocusMode}
-                className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 sm:gap-2 transition-colors cursor-pointer border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                title="Odak Modu (Saat ve Tüm Butonları Gizle, Sadece Ayetleri Göster)"
-              >
-                <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
-                <span>Odak Modu</span>
-              </button>
-
-              <button
                 onClick={() => setIsBlackScreenMode(false)}
                 className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-semibold flex items-center gap-1.5 sm:gap-2 transition-colors cursor-pointer border border-white/10"
               >
@@ -1871,10 +1857,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                   toggleFocusMode();
                 }}
                 aria-pressed={isFocusMode}
-                className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 border border-emerald-500/40 transition-all cursor-pointer"
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                  isFocusMode
+                    ? 'bg-emerald-500/25 hover:bg-emerald-500/30 text-emerald-200 border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                    : 'bg-white/10 hover:bg-white/20 text-slate-300 border-white/10'
+                }`}
                 title="Odak Modu (Saat ve Kontrolleri Gizle, Sadece Ayetleri Göster)"
               >
-                <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+                <Maximize2 className={`w-3.5 h-3.5 ${isFocusMode ? 'text-emerald-400' : 'text-slate-400'}`} />
                 <span>Odak Modu</span>
               </button>
 
@@ -2024,10 +2014,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                     toggleFocusMode();
                   }}
                   aria-pressed={isFocusMode}
-                  className="min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                  className={`min-h-11 min-w-0 w-full justify-center px-2 sm:px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer border ${
+                    isFocusMode
+                      ? 'bg-emerald-500/25 hover:bg-emerald-500/30 text-emerald-200 border-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                      : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-white/10'
+                  }`}
                   title="Odak Modu (Tüm Arayüzü Gizle, Sadece Ayetleri Göster)"
                 >
-                  <Maximize2 className="w-3.5 h-3.5 text-emerald-300" />
+                  <Maximize2 className={`w-3.5 h-3.5 ${isFocusMode ? 'text-emerald-300' : 'text-slate-400'}`} />
                   <span>Odak Modu</span>
                 </button>
 
@@ -2183,10 +2177,14 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
                         e.stopPropagation();
                         toggleFocusMode();
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-[11px] sm:text-xs font-semibold transition-colors cursor-pointer"
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold transition-colors cursor-pointer border ${
+                        isFocusMode
+                          ? 'bg-emerald-500/25 hover:bg-emerald-500/30 text-emerald-200 border-emerald-400/50'
+                          : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-white/10'
+                      }`}
                       title="Odak Moduna Geç (Sadece Ayetleri Göster)"
                     >
-                      <Maximize2 className="w-3 h-3 text-emerald-300" />
+                      <Maximize2 className={`w-3 h-3 ${isFocusMode ? 'text-emerald-300' : 'text-slate-400'}`} />
                       <span>Odak Modu</span>
                     </button>
                     <span className="bg-emerald-900/60 text-emerald-200 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border border-emerald-500/30 text-[11px] sm:text-xs">
