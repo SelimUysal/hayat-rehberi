@@ -6081,7 +6081,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                     {/* Ezber mobil hız paneliyle aynı açılır kontrol */}
                     <div className="relative">
                       {showMobileSpeedPresets && (
-                        <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-3 w-64 max-w-[calc(100vw-1rem)] p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                        <div className={`absolute right-0 bottom-full mb-3 w-64 max-w-[calc(100vw-1rem)] p-3.5 rounded-2xl shadow-2xl border z-50 animate-in fade-in zoom-in-95 duration-150 ${
                           isDark ? 'bg-[#211d16] border-[#3a3226] text-[#f1ecdd]' : 'bg-white border-slate-200 text-slate-800'
                         }`}>
                           <div className="flex items-center justify-between mb-2">
@@ -6100,6 +6100,12 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                             step="0.1"
                             value={playbackSpeed}
                             onChange={(e) => changeSpeed(parseFloat(e.target.value))}
+                            onPointerUp={() => setShowMobileSpeedPresets(false)}
+                            onTouchEnd={() => setShowMobileSpeedPresets(false)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setShowMobileSpeedPresets(false);
+                            }}
+                            onBlur={() => setShowMobileSpeedPresets(false)}
                             className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 ${isDark ? 'bg-[#2a241b]' : 'bg-slate-200'}`}
                             aria-label="Okuma hızı"
                           />
@@ -6127,7 +6133,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                         onClick={() => setShowMobileSpeedPresets(value => !value)}
                         aria-expanded={showMobileSpeedPresets}
                         aria-label="Okuma hızı ayarlarını aç"
-                        className={`px-3 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        className={`px-2.5 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
                           showMobileSpeedPresets
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : isDark ? 'bg-[#1c3630] hover:bg-[#23453d] text-[#3fb996] border-[#3fb996]/40'
