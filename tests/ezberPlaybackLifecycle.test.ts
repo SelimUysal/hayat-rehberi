@@ -97,6 +97,14 @@ test('mobile audio recovery retries the same ayah and pauses rather than skippin
   assert.ok(!play.includes('playVerse(verseNum + 1'), 'a failed ayah must never be silently skipped');
 });
 
+test('mobile Ezber resume hint is hidden for single-ayah repeat but retained for full-surah playback', () => {
+  const mobile = fs.readFileSync('src/components/MobileMode.tsx','utf8');
+  const pausedPanel = mobile.slice(mobile.indexOf('aria-label="Duraklatılmış dinleme"'), mobile.indexOf('aria-label="Farklı dinleme başlat"'));
+  assert.ok(pausedPanel.includes("pausedPlayback.mode === 'full' && ("));
+  assert.ok(pausedPanel.includes('Aynı saniyeden devam eder, ardından diğer ayetlere geçer.'));
+  assert.ok(!pausedPanel.includes('Aynı saniyeden devam eder, seçtiğin tekrar sayısını korur.'));
+});
+
 test('stopping or changing ayahs cancels pending audio retry and metadata timers', () => {
   const mobile = fs.readFileSync('src/components/MobileMode.tsx','utf8');
   const stop = mobile.slice(mobile.indexOf('  const stopAudio ='), mobile.indexOf('  useEffect(() => {\n    const onRadioStart'));
