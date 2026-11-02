@@ -1800,7 +1800,6 @@ export const HISTORICAL_EVENTS_MAP: Record<string, HistoricalEvent[]> = {
   ],
   '09-21': [
     { year: 1371, text: 'Çirmen Zaferi: Osmanlı akıncıları Meriç nehri kıyısında Haçlı ordusunu bozguna uğrattı.', category: 'osmanli' },
-    { year: 1601, text: 'Kuyucu Murad Paşa (Alternatif kaynak / Örnek)', category: 'osmanli' },
     { year: 1842, text: 'Sultan ikinci Abdülhamid Han\'ın doğumu(1842)', category: 'osmanli' },
     { year: 1950, text: 'Güney Kore’ye Türk askerlerinin gönderilmesi (1950)', category: 'turkiye' },
     { text: 'Fırtına', category: 'dunya' },
