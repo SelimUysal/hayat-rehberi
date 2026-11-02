@@ -51,8 +51,8 @@ test('paused dock makes both separate modes and context-specific resume explicit
  assert.ok(paused.includes('Tüm Sureyi Baştan Çal'));
  assert.ok(paused.includes('formatPlaybackSecond(pausedPlayback.positionSeconds)'));
  assert.ok(paused.includes("pausedPlayback.mode === 'full' ? 'Tüm sure dinlemesi' : 'Tek ayet tekrarı'"));
- assert.ok(!paused.includes('seçtiğin tekrar sayısını korur'));
- assert.ok(paused.includes('ardından diğer ayetlere geçer'));
+ assert.ok(!paused.includes('Aynı saniyeden devam eder, seçtiğin tekrar sayısını korur.'));
+ assert.ok(!paused.includes('Aynı saniyeden devam eder, ardından diğer ayetlere geçer.'));
  assert.ok(dock.includes('Seçili Ayeti Çal'));
  assert.ok(dock.includes('Tüm Sureyi Çal'));
  assert.ok(dock.includes('role="progressbar"'));
