@@ -905,6 +905,30 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
     }
   };
 
+  const continueSurahFromPausedVerse = () => {
+    const paused = pausedSession ?? readMobileEzberSession();
+    if (!paused || paused.surahId !== currentSurah || ayahs.length === 0) return;
+
+    const verseNum = paused.verseNum;
+    if (!Number.isInteger(verseNum) || verseNum < 1 || verseNum > ayahs.length) return;
+    const positionSeconds = Number.isFinite(paused.positionSeconds)
+      ? Math.max(0, paused.positionSeconds)
+      : 0;
+
+    // Switch from single-ayah repeat to full-surah flow without losing the paused second.
+    stopAudio();
+    setPausedSession(null);
+    setResumeAvailable(false);
+    resumeOffsetRef.current = positionSeconds;
+    currentLoopRef.current = 1;
+    setCurrentLoop(1);
+    setIsPlaying(true);
+    playVerse(verseNum, 'full');
+
+    const el = document.getElementById(`mobile-verse-${verseNum}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const retryFailedVerse = () => {
     const failed = playbackError;
     if (!failed) return;
@@ -1338,7 +1362,7 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                   <button
                     type="button"
                     onClick={() => startPlayback(selectedVerseNum)}
-                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${pausedPlayback.mode === 'verse' ? 'col-span-2' : ''} ${
                       isDark ? 'border-[#3a3226] bg-[#211d16] text-[#f1ecdd] hover:border-emerald-600'
                         : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-400'
                     }`}
@@ -1347,6 +1371,20 @@ export const MobileMode: React.FC<MobileModeProps> = ({ targetSurahId, themeMode
                     <RotateCcw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span>Seçili Ayeti Baştan Çal</span>
                   </button>
+                  {pausedPlayback.mode === 'verse' && (
+                    <button
+                      type="button"
+                      onClick={continueSurahFromPausedVerse}
+                      className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-lg border px-1.5 text-[11px] font-semibold leading-tight transition-colors focus-visible:outline focus-visible:outline-2 cursor-pointer ${
+                        isDark ? 'border-emerald-700/60 bg-emerald-950/30 text-emerald-200 hover:border-emerald-500'
+                          : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-500'
+                      }`}
+                      title="Duraklatılan ayetten ve kaldığın saniyeden başlayarak sure sonuna kadar sırayla dinle"
+                    >
+                      <Play className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span>Sureye Devam Et</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={startFullSurahPlayback}
