@@ -62,6 +62,8 @@ jobs:
           retention-days: 7
 
       - name: Build static site with Vite
+        env:
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ vars.VITE_GOOGLE_WEB_CLIENT_ID }}
         run: npx vite build
 
       - name: Configure GitHub Pages
