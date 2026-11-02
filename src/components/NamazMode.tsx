@@ -6161,7 +6161,7 @@ export const NamazMode: React.FC<NamazModeProps> = ({ targetId, targetTimestamp 
                         );
                       })}
                     </div>
-                  </div>>
+                  </div>
                 </div>
               </div>
             </div>
