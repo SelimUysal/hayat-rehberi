@@ -360,6 +360,7 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
       return 1;
     }
   });
+  const [showMobileSpeedPresets, setShowMobileSpeedPresets] = useState<boolean>(false);
   const [showTranslation, setShowTranslation] = useState<boolean>(false); // Varsayılan gizli
 
   // Playback/session state stays local; only the durable completed tour count
@@ -2294,23 +2295,61 @@ export const ListeningMode: React.FC<ListeningModeProps> = ({ targetSurahId, tar
               {/* Sağ: Hız Kontrolü, Ses Düzeyi ve Uyku Zamanlayıcısı */}
               <div className="grid grid-cols-2 gap-2 w-full min-w-0 pt-2.5 border-t border-white/10 lg:flex lg:w-auto lg:items-center lg:justify-end lg:gap-2 lg:pt-0 lg:border-t-0">
                 
-                {/* Hız Slider (İmleçli) */}
-                <div className="flex min-w-0 w-full items-center justify-between gap-1.5 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:justify-start lg:px-3">
-                  <div className="flex items-center gap-1 text-xs text-slate-300 font-bold whitespace-nowrap">
-                    <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden sm:inline">Hız:</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="3.0"
-                    step="0.1"
-                    value={playbackSpeed}
-                    onChange={(e) => changeSpeed(parseFloat(e.target.value))}
-                    className="w-full min-w-0 max-w-20 lg:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                    title={`Okuma Hızı: ${playbackSpeed.toFixed(2)}x`}
-                  />
-                  <span className="text-[11px] sm:text-xs font-mono font-bold text-emerald-300 w-8 text-right">
+                {/* Telefonlarda hız simgesi, hassas slider ile hızlı seçimler arasında geçiş yapar. */}
+                <div className={`flex min-w-0 w-full items-center justify-between gap-1.5 bg-white/10 px-2 py-2 rounded-xl sm:rounded-2xl border border-white/10 lg:w-auto lg:justify-start lg:px-3 ${usesDeviceVolume && showMobileSpeedPresets ? 'col-span-2 lg:col-span-1' : ''}`}>
+                  {usesDeviceVolume ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowMobileSpeedPresets((open) => !open)}
+                      aria-label={showMobileSpeedPresets ? 'Hassas hız kaydırıcısına dön' : 'Hazır hız seçeneklerini göster'}
+                      aria-expanded={showMobileSpeedPresets}
+                      aria-controls="listening-speed-presets"
+                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                      title={showMobileSpeedPresets ? 'Hassas hız kaydırıcısına dön' : 'Hız seçeneklerini göster'}
+                    >
+                      <Gauge aria-hidden="true" className="w-4 h-4 text-emerald-400" />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs text-slate-300 font-bold whitespace-nowrap">
+                      <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="hidden sm:inline">Hız:</span>
+                    </div>
+                  )}
+
+                  {usesDeviceVolume && showMobileSpeedPresets ? (
+                    <div id="listening-speed-presets" className="flex min-w-0 flex-1 items-center justify-end gap-1.5" role="group" aria-label="Hazır okuma hızları">
+                      {[0.5, 1, 2].map((speed) => (
+                        <button
+                          key={speed}
+                          type="button"
+                          onClick={() => changeSpeed(speed)}
+                          aria-pressed={Math.abs(playbackSpeed - speed) < 0.001}
+                          className={`min-h-11 min-w-[44px] flex-1 rounded-lg border px-2 py-2 text-xs font-bold transition-colors cursor-pointer ${
+                            Math.abs(playbackSpeed - speed) < 0.001
+                              ? 'border-emerald-400 bg-emerald-600 text-white'
+                              : 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
+                          }`}
+                          title={`${speed}x okuma hızını ayarla`}
+                        >
+                          {speed === 1 ? '1×' : `${speed.toFixed(1)}×`}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3.0"
+                      step="0.1"
+                      value={playbackSpeed}
+                      onChange={(e) => changeSpeed(parseFloat(e.target.value))}
+                      className="w-full min-w-0 max-w-20 lg:w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                      title={`Okuma Hızı: ${playbackSpeed.toFixed(2)}x`}
+                      aria-label="Hassas okuma hızı"
+                    />
+                  )}
+
+                  <span className="text-[11px] sm:text-xs font-mono font-bold text-emerald-300 w-8 shrink-0 text-right">
                     {playbackSpeed.toFixed(1)}x
                   </span>
                 </div>
