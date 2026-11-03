@@ -1,137 +1,194 @@
-# 🌿 Hayat Rehberi — Dijital İbadet ve Manevi Yaşam Asistanı
+# Hayat Rehberi
 
 ![Hayat Rehberi](public/icon-512.png)
 
-> **Hayat Rehberi**, günlük ibadetlerinizi vaktinde ifa etmenizi, Kur'an-ı Kerim'i hem orijinal baskı hissiyle hem de bilgisayar hattıyla okuyup ezberlemenizi, geçmiş kaza borçlarınızı hesaplayıp kapatmanızı ve kadim Osmanlı zaman şuurunu yaşamanızı sağlayan kapsamlı, modern ve açık kaynaklı bir web uygulamasıdır.
+**Hayat Rehberi**, Kur'an-ı Kerim okuma ve ezberleme, namaz, ibadet takibi ve manevi öğrenme süreçlerini tek bir uygulamada bir araya getiren web uygulamasıdır.
 
----
-## 🌐 Live Demo
+<p align="center">
+  <a href="https://selimuysal.github.io/hayat-rehberi/"><strong>🌐 Canlı Uygulamayı Aç</strong></a>
+</p>
 
-🚀 **[Click Here to View the Live Project](https://selimuysal.github.io/hayat-rehberi/)**
-
-## 🌟 Öne Çıkan Ana Modüller
-
-### 1. 🕌 Vakitler & Takvim
-* **Tam Temkinli Ezan Vakitleri:** Bulunduğunuz şehre ve GPS konumunuza göre 5 vakit namaz ve kerâhet vakitleri.
-* **Canlı Geri Sayım:** Bir sonraki vakte kalan süreyi dinamik olarak hesaplayan geri sayım sayacı.
-* **Aylık ve Yıllık İmsakiye:** Tüm ayın vakitlerini tek ekranda inceleme imkânı.
-* **Dini Günler ve Hicri Takvim:** Kandiller, bayramlar ve üç aylar takibi.
-
-### 2. 📖 Namaz & Dualar Rehberi
-* **5 Vakit ve Nafile Namazlar:** Sabah'tan Yatsı'ya, Cuma, Cenaze, Bayram, Teheccüd, Kuşluk ve Tesbih namazlarının adım adım resimli ve açıklamalı kılınışı.
-* **Namaz Sûre ve Duaları:** Orijinal Arapça hat, Türkçe okunuş ve Diyanet meali ile zengin kütüphane.
-* **Namaz İlmihali:** Şartlar, rükünler, sünnetler ve namazı bozan haller.
-
-### 3. ⚖️ Kaza & Manevi Borçlar Takibi
-* **Akıllı Otomatik Hesaplama:** Ergenlik ve düzenli namaza başlama tarihlerine göre saniyeler içinde kaza namazı ve oruç borcu çıkarma.
-* **Hızlı Sayaç (+ / -):** Kılınan her vakit için tek dokunuşla borç düşme.
-* **Görsel İlerleme Çubukları:** Tamamlanan borçların yüzdelik oranını ve başarı rozetlerini canlı görme.
-* **Yerel ve Kalıcı Hafıza:** Tarayıcı kapansa bile tüm ilerleme güvendedir.
-
-### 4. 📜 Mushaf-ı Şerif (Okuma Modu)
-* **Çift Okuma Modu:** Yüksek çözünürlüklü gerçek Mushaf sayfaları veya ayet ayet bilgisayar hattı & meal.
-* **Mobil Pinch-to-Zoom:** İki parmakla sayfayı %300'e kadar büyütüp küçültebilme.
-* **Tek / Çift Sayfa & Kaydırma:** Kitap görünümü, tek sayfa veya dikey kesintisiz akış.
-* **Odak (Zen) Modu:** Tüm başlık ve araç çubuklarını gizleyerek tam sayfa huzurlu okuma.
-* **Notlu Yer İmleri:** Kaldığınız sayfayı özel açıklamalarla kaydetme.
-
-### 5. 🧠 Ezber Asistanı
-* **Ayet Ayet Ezberleme:** Kendi hızınızda, sindirerek ve dinleyerek ezber yapma.
-* **Gizle / Göster & Boşluk Doldurma:** Aktif hatırlama (Active Recall) tekniğiyle hafızayı test etme.
-* **Tekrar Sayaçları:** Ayeti arka arkaya otomatik tekrar ettirerek kulak dolgunluğu kazanma.
-
-### 6. 🎧 Kesintisiz Dinleme (Audio Player)
-* **Dünyaca Ünlü Seçkin Kâriler:** Maher Al-Muaiqly, Mishary Rashid Alafasy, Abdussamed ve daha fazlası.
-* **Kesintisiz Geçiş:** Sûre bittiğinde duraksamadan sıradaki sûreye otomatik geçiş.
-* **Güvenilir Uyku Kapatıcısı (15 / 30 / 60 dk):** Gerçek duvar saati ve audio-thread entegrasyonu sayesinde, ekran kilitlense veya sekme arka plana atılsa dahi süresi dolduğunda sesi yumuşakça durdurur.
-* **Arka Planda Dinleme:** Kilitli ekranda veya başka sekmelerde kesintisiz çalma desteği.
-
-### 7. 🔤 Elif-Bâ & Tecvid
-* **28 Harfin Sesli Mahreçleri:** Orijinal seslendirme ve başta/ortada/sonda yazılışlar.
-* **Harekeler ve Kaideler:** Üstün, Esre, Ötre, Cezm, Şedde ve Tenvin alıştırmaları.
-* **Uygulamalı Tecvid:** Medler, İhvâ, İzhar, İdgam, İklâb ve Kalkale dersleri.
-
-### 8. 📜 Hadis-i Şerif Ezberle
-* **Riyâzü's-Sâlihîn Seçkisi:** Tematik başlıklarda sahih hadis-i şerifler.
-* **Arapça Metin, Meal ve Râvi:** Güvenilir kaynak dipnotları ile ezber kartları.
-
-### 9. 💎 Esmâü'l-Hüsnâ
-* **Allah'ın 99 İsmi:** Anlamları, ayetlerdeki tecellileri ve ebced sayıları.
-* **Entegre Zikirmatik:** İsme özel tavsiye edilen sayılarla titreşimli ve sesli dijital sayaç.
-
-### 10. 🕰️ Osmanlı Saati & Dünya Saatleri
-* **Alaturka (Ezânî) Saat:** Akşam ezanında saati 12:00 kabul eden geleneksel Osmanlı zaman sistemi.
-* **Muvakkithâne Kadranı:** Rûmî ve Hicrî takvim destekli tarihi analog saat.
-* **Dünya Saatleri:** Mekke, Medine, Kudüs ve dünya başkentleri arasında interaktif "Zaman Yolculuğu" simülatörü.
-
-### 11. 🔍 Evrensel Arama (Ctrl + K / Cmd + K)
-* Tek bir kutudan Kur'an ayetleri, mealler, hadisler, dualar ve Esmâü'l-Hüsnâ arasında anında arama ve doğrudan hedefe zıplama (Deep Linking).
+Uygulama masaüstü ve mobil tarayıcılarda kullanılabilir. Destekleyen tarayıcılarda ana ekrana uygulama olarak da eklenebilir.
 
 ---
 
-## 🛠️ Teknoloji Mimarisi
+## Ziyaretçiler için
 
-* **Frontend:** React 19, TypeScript, Vite
-* **Stil & Tasarım:** Tailwind CSS v4, Lucide Icons, FontAwesome
-* **Backend / Proxy:** Node.js, Express, `server.ts`
-* **Yapay Zeka (İsteğe Bağlı):** `@google/genai` (Tefsir & Ayet Analizi için)
-* **Dağıtım:** Docker, Google Cloud Run, GitHub Pages, Vercel, Netlify
+### Neler yapabilirsiniz?
+
+- **Namaz vakitleri ve takvim:** Konuma göre namaz vakitleri, geri sayım, hicrî takvim ve dinî günler.
+- **Namaz rehberi:** Farz ve nafile namazların anlatımları, sûreler, dualar ve ilmihal içerikleri.
+- **Kaza takibi:** Kaza namazı ve diğer kişisel takip sayaçları.
+- **Kur'an-ı Kerim / Mushaf:** Mushaf sayfaları ve bilgisayar hattı üzerinden okuma, yer imleri ve kaldığınız yeri takip etme.
+- **Ezber Asistanı:** Sûre ve ayetleri tekrar ederek çalışma, gizle/göster ve ezber takibi.
+- **Kur'an dinleme:** Kârî seçenekleri, sûre geçişleri, tekrar ve dinleme yer imleri.
+- **Elif-Bâ ve Tecvid:** Harfleri, harekeleri ve temel tecvid konularını öğrenme.
+- **Hadis-i Şerif:** Hadisleri okuma, ezberleme ve çalışma ilerlemesini takip etme.
+- **Esmâü'l-Hüsnâ:** Allah'ın güzel isimlerini öğrenme ve zikir sayacı.
+- **SadaQuran Radio:** Kur'an-ı Kerim yayını.
+- **Osmanlı saati ve dünya saatleri:** Ezânî zaman, tarihî saat yaklaşımı ve farklı şehirlerin saatleri.
+- **Evrensel arama:** Uygulama içindeki içeriklere tek noktadan ulaşma.
+
+### Kayıtlarınız ve hesap eşitleme
+
+- Hesap açmadan, misafir olarak uygulamanın temel özelliklerini kullanabilirsiniz.
+- İsteğe bağlı hesap girişiyle desteklenen ilerleme ve yer imleri cihazlar arasında eşitlenebilir.
+- Uygulama, yerel cihaz kayıtlarını ve bulut eşitlemesini birlikte kullanır.
+- Hesap bölümündeki yedekleme ve geri yükleme seçenekleriyle kayıtlarınızı dışa aktarabilir veya geri yükleyebilirsiniz.
+
+**Not:** Eşitleme, desteklenen kayıt türleriyle sınırlıdır. Tarayıcı verilerini silmeden önce önemli kayıtlarınızın yedeğini almanız önerilir.
 
 ---
 
-## 🚀 Kurulum ve Yerel Çalıştırma
+## Geliştiriciler için
+
+### Teknoloji altyapısı
+
+| Alan | Teknoloji |
+|---|---|
+| Arayüz | React 19, TypeScript |
+| Geliştirme ve derleme | Vite |
+| Stil | Tailwind CSS v4 |
+| İkonlar | Lucide React |
+| Hesap ve veri eşitleme | Firebase Authentication, Cloud Firestore |
+| Sunucu | Node.js, Express |
+| İsteğe bağlı yapay zekâ | Google Gemini API |
+| Test | Node.js test runner, Playwright, Firebase Emulator |
+| Canlı statik yayın | GitHub Pages, GitHub Actions |
 
 ### Gereksinimler
-* **Node.js:** v20 veya üzeri
-* **Paket Yöneticisi:** `npm` veya `bun` / `yarn`
-### 1. Depoyu Klonlayın
+
+- Node.js 24 (GitHub Actions iş akışında kullanılan sürüm)
+- npm
+- Firebase Emulator testleri için Java 21
+- Uçtan uca testler için Playwright Chromium
+
+### Kurulum
+
+Depoyu klonlayın:
+
 ```bash
 git clone https://github.com/SelimUysal/hayat-rehberi.git
 cd hayat-rehberi
 ```
 
-### 2. Bağımlılıkları Yükleyin
+Bağımlılıkları yükleyin:
+
 ```bash
-npm install
+npm install --legacy-peer-deps
 ```
 
-### 3. Ortam Değişkenlerini Tanımlayın
+Ortam değişkenleri dosyasını oluşturun:
+
+**macOS / Linux**
 ```bash
 cp .env.example .env
 ```
-*(İsteğe bağlı olarak `.env` dosyanıza kendi Google Gemini API veya Google Maps anahtarlarınızı ekleyebilirsiniz).*
 
-### 4. Geliştirme Sunucusunu Başlatın
+**Windows PowerShell**
+```powershell
+Copy-Item .env.example .env
+```
+
+Geliştirme sunucusunu başlatın:
+
 ```bash
 npm run dev
 ```
-Tarayıcınızda `http://localhost:3000` adresini açarak uygulamayı kullanmaya başlayabilirsiniz.
 
----
+Uygulama varsayılan olarak [http://localhost:3000](http://localhost:3000) adresinde açılır.
 
-## 📦 Canlıya Alma / Derleme (Production Build)
+### Firebase geliştirme güvenliği
 
-Uygulamayı sunucuda veya statik hostingde çalıştırmak için derleyin:
+**Önemli:** Yerel geliştirme ortamı, emülatör seçeneği etkinleştirilmediğinde gerçek Firebase projesine bağlanabilir. Gerçek kullanıcı hesaplarıyla veya verileriyle test yapmayın.
+
+Hesap ve eşitleme özelliklerini güvenli biçimde test etmek için:
+
+1. Firebase Authentication ve Firestore emülatörlerini başlatın:
+
+```bash
+npx -y firebase-tools@15.34.2 emulators:start --only auth,firestore --project demo-hayat-rehberi
+```
+
+2. İkinci terminalde emülatör değişkenini etkinleştirerek uygulamayı başlatın.
+
+**macOS / Linux**
+```bash
+VITE_FIREBASE_EMULATORS=true npm run dev
+```
+
+**Windows PowerShell**
+```powershell
+$env:VITE_FIREBASE_EMULATORS="true"
+npm run dev
+```
+
+Emülatör bağlantısı yalnızca yerel geliştirme ortamında kullanılabilir.
+
+### Test ve kalite kontrolleri
+
+TypeScript kontrolü:
+
+```bash
+npm run lint
+```
+
+Birim testleri:
+
+```bash
+npm run test:unit
+```
+
+Bulut eşitleme ve uçtan uca testler Firebase emülatörleri üzerinden çalıştırılmalıdır. Java 21 ve Playwright Chromium kurulumundan sonra:
+
+```bash
+npx playwright install chromium
+npx -y firebase-tools@15.34.2 emulators:exec --only firestore,auth --project demo-hayat-rehberi "npm run test:cloud:integration && npm run test:cloud:e2e"
+```
+
+Bu testler üretim Firebase projesini kullanmak üzere tasarlanmamıştır.
+
+### Derleme ve yayınlama
+
+Tam Node.js sunucu derlemesi:
 
 ```bash
 npm run build
-```
-
-Derleme sonrasında Express tabanlı tam yığın sunucuyu başlatmak için:
-```bash
 npm start
 ```
 
-### GitHub Pages ile Yayınlama:
-Deponuzdaki `.github/workflows/deploy.yml` GitHub Actions iş akışı ile projenizi tek tıkla **GitHub Pages** üzerinde ücretsiz olarak yayınlayabilirsiniz.
+Bu komutlar Express sunucusunu çalıştırabilen bir Node.js ortamı içindir.
+
+**GitHub Pages hakkında:** Canlı site, GitHub Actions üzerinden statik Vite çıktısı olarak yayımlanır. `.github/workflows/deploy.yml` iş akışı `main` veya `master` dalına yapılan push işlemlerinde kontrolleri çalıştırır, uygulamayı derler ve GitHub Pages'e gönderir.
+
+GitHub Pages bir Node.js sunucusu çalıştırmaz. Bu nedenle `server.ts` içindeki Gemini analizi, geri bildirim, sunucu taraflı Kur'an proxy'si ve Mushaf yükleme gibi Express API uç noktaları, ayrıca bir Express sunucusu barındırılmadıkça GitHub Pages üzerinde kullanılamaz.
+
+### Ortam değişkenleri ve güvenlik
+
+Gerçek değerleri `.env` dosyasında tutun; bu dosyayı GitHub'a yüklemeyin.
+
+- `GEMINI_API_KEY`: Gemini istekleri için sunucu tarafında kullanılır. İstemci tarafına taşımayın ve `VITE_` öneki eklemeyin.
+- `VITE_GOOGLE_MAPS_API_KEY`: Tarayıcıya gönderilen istemci değişkenidir; gizli anahtar olarak değerlendirilmemelidir. Google Cloud tarafında HTTP referrer ve API kısıtlamaları uygulayın.
+- Firebase web yapılandırması istemci uygulamalarında bulunabilir; erişim güvenliği Authentication ve Firestore Security Rules ile sağlanmalıdır.
 
 ---
 
-## 🔒 Güvenlik ve Gizlilik
-- Hassas API anahtarları asla istemci koduna (tarayıcıya) sızdırılmaz; tüm dış istekler sunucu tarafındaki güvenli proxy (`/api/*`) üzerinden yürütülür.
-- Kullanıcının kaza namazı, okuma geçmişi ve yer imleri tamamen kendi tarayıcısının `localStorage` alanında saklanır; hiçbir kişisel ibadet verisi harici sunuculara aktarılmaz.
+## Proje yapısı hakkında
+
+- `src/`: React uygulaması ve arayüz bileşenleri
+- `src/account/`: Hesap, kimlik doğrulama ve eşitleme kodları
+- `public/`: Statik dosyalar, ikonlar ve uygulama verileri
+- `tests/`: Birim, entegrasyon ve uçtan uca testler
+- `.github/workflows/`: GitHub Actions iş akışları
+- `server.ts`: Express sunucusu ve sunucu taraflı API uç noktaları
 
 ---
 
-## 📄 Lisans
-Bu proje hayır ve ilim maksadıyla geliştirilmiştir. Kaynak göstermek ve hayra vesile olmak şartıyla özgürce kullanılabilir, geliştirilebilir ve paylaşılabilir. Bu projede hata veya eksik olduğunu düşünüyorsanız lütfen ulaşınız.
+## Lisans ve kullanım
+
+Bu depoda şu anda ayrı bir `LICENSE` dosyası bulunmamaktadır. Bu nedenle kodun yeniden kullanımı, değiştirilmesi ve dağıtımı için açık kaynak lisansı tanımlandığı varsayılmamalıdır. Bir lisans seçildiğinde bu bölüm güncellenecektir.
+
+---
+
+**Canlı uygulama:** https://selimuysal.github.io/hayat-rehberi/  
+**Kaynak kod:** https://github.com/SelimUysal/hayat-rehberi
